@@ -10,6 +10,12 @@
     <meta name="theme-color" content="#f5f8fc" />
     <title>我的生活記錄</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
     <style>
       :root {
         color-scheme: light;
@@ -201,6 +207,38 @@
         color: var(--blue-dark);
         font-size: 12px;
         font-weight: 650;
+      }
+
+      .account-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .account-name {
+        max-width: 130px;
+        overflow: hidden;
+        color: #53677e;
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .account-button,
+      .account-logout {
+        min-height: 38px;
+        padding: 0 12px;
+        border: 1px solid #e1eaf4;
+        border-radius: 12px;
+        background: #fff;
+        color: #426d9c;
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .account-button:hover,
+      .account-logout:hover {
+        background: #f0f7ff;
       }
 
       .brand {
@@ -476,6 +514,306 @@
         background: #eaf3ff;
         color: var(--blue-dark);
         font-size: 24px;
+      }
+
+      .module-view {
+        margin-top: 37px;
+      }
+
+      .module-heading {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+
+      .module-heading h1 {
+        font-size: clamp(29px, 5vw, 42px);
+      }
+
+      .module-heading p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      .module-card {
+        padding: 20px;
+        border: 1px solid #e6edf5;
+        border-radius: 20px;
+        background: #fff;
+        box-shadow: 0 8px 28px #263e5a0a;
+      }
+
+      .map-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.8fr);
+        gap: 16px;
+      }
+
+      #map-canvas {
+        min-height: 390px;
+        overflow: hidden;
+        border: 1px solid #dfe8f2;
+        border-radius: 18px;
+        background:
+          linear-gradient(135deg, #eaf3f8 25%, transparent 25%) -15px 0 / 30px 30px,
+          linear-gradient(225deg, #eaf3f8 25%, transparent 25%) -15px 0 / 30px 30px,
+          linear-gradient(315deg, #eaf3f8 25%, transparent 25%) 0 0 / 30px 30px,
+          linear-gradient(45deg, #eaf3f8 25%, #f5f9fc 25%) 0 0 / 30px 30px;
+      }
+
+      .map-help {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .map-form {
+        display: grid;
+        align-content: start;
+        gap: 12px;
+      }
+
+      .map-form h2,
+      .trip-form h2,
+      .points-heading {
+        margin: 0;
+        color: #263b53;
+        font-size: 17px;
+        font-weight: 700;
+      }
+
+      .compact-field {
+        display: grid;
+        gap: 6px;
+        color: #53667c;
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .compact-field input,
+      .compact-field textarea,
+      .compact-field select {
+        width: 100%;
+        min-height: 42px;
+        padding: 10px 11px;
+        border: 1px solid #dfe7f0;
+        border-radius: 11px;
+        outline: none;
+        background: #fff;
+        color: #263b53;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 400;
+      }
+
+      .compact-field textarea {
+        min-height: 76px;
+        resize: vertical;
+      }
+
+      .compact-field input:focus,
+      .compact-field textarea:focus,
+      .compact-field select:focus {
+        border-color: #7eafe5;
+        box-shadow: 0 0 0 3px #4386d51a;
+      }
+
+      .privacy-note {
+        margin: 0;
+        color: #7d8da0;
+        font-size: 11px;
+        line-height: 1.6;
+      }
+
+      .points-section {
+        margin-top: 22px;
+      }
+
+      .points-heading {
+        margin-bottom: 12px;
+      }
+
+      .map-points,
+      .trip-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .map-point-card,
+      .trip-card {
+        min-width: 0;
+        padding: 16px;
+        border: 1px solid #e6edf5;
+        border-radius: 16px;
+        background: #fff;
+      }
+
+      .map-point-top,
+      .trip-card-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .map-point-card h3,
+      .trip-card h3 {
+        margin: 0;
+        color: #2d435d;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .map-point-card p,
+      .trip-card p {
+        margin: 7px 0 0;
+        color: #77889b;
+        font-size: 12px;
+        line-height: 1.65;
+        overflow-wrap: anywhere;
+      }
+
+      .point-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 9px;
+        margin-top: 13px;
+        padding-top: 12px;
+        border-top: 1px solid #edf1f6;
+      }
+
+      .point-controls label {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: #667b92;
+        font-size: 12px;
+      }
+
+      .point-privacy {
+        padding: 6px 8px;
+        border: 1px solid #e0e8f1;
+        border-radius: 9px;
+        background: white;
+        color: #526981;
+        font-size: 11px;
+      }
+
+      .privacy-badge,
+      .trip-visibility {
+        flex: 0 0 auto;
+        padding: 5px 8px;
+        border-radius: 99px;
+        background: #eef5fc;
+        color: #5076a0;
+        font-size: 10px;
+      }
+
+      .module-empty {
+        grid-column: 1 / -1;
+        padding: 25px;
+        border: 1px dashed #d4dfeb;
+        border-radius: 16px;
+        color: var(--muted);
+        text-align: center;
+        font-size: 13px;
+      }
+
+      .trip-layout {
+        display: grid;
+        grid-template-columns: minmax(250px, 0.75fr) minmax(0, 1.5fr);
+        align-items: start;
+        gap: 16px;
+      }
+
+      .trip-form {
+        display: grid;
+        gap: 13px;
+      }
+
+      .checkbox-field {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        color: #53667c;
+        font-size: 13px;
+      }
+
+      .trip-point-list {
+        display: grid;
+        max-height: 165px;
+        gap: 8px;
+        overflow-y: auto;
+        padding: 11px;
+        border: 1px solid #e6edf5;
+        border-radius: 12px;
+        background: #f9fbfe;
+      }
+
+      .trip-point-list label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #586e86;
+        font-size: 12px;
+      }
+
+      .trip-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .trip-points {
+        display: grid;
+        gap: 7px;
+        margin: 13px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .trip-points li {
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: #f5f8fc;
+        color: #58708a;
+        font-size: 12px;
+      }
+
+      .trip-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 13px;
+      }
+
+      .small-action {
+        min-height: 34px;
+        padding: 0 10px;
+        border: 1px solid #dce8f5;
+        border-radius: 9px;
+        background: #fff;
+        color: #426d9c;
+        font-size: 11px;
+        font-weight: 650;
+      }
+
+      .share-result {
+        display: block;
+        margin-top: 10px;
+        padding: 9px;
+        border-radius: 9px;
+        background: #f1f7ff;
+        color: #456b94;
+        font-size: 11px;
+        overflow-wrap: anywhere;
       }
 
       dialog {
@@ -793,6 +1131,20 @@
         .entries {
           grid-template-columns: 1fr;
         }
+
+        .map-layout,
+        .trip-layout {
+          grid-template-columns: 1fr;
+        }
+
+        #map-canvas {
+          min-height: 300px;
+        }
+
+        .map-points,
+        .trip-grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
@@ -822,6 +1174,11 @@
               </button>
             </div>
           </details>
+          <div class="account-actions">
+            <span class="account-name" id="account-name">訪客</span>
+            <button class="account-button" id="login-open" type="button">登入</button>
+            <button class="account-logout" id="logout-button" type="button" hidden>登出</button>
+          </div>
         </div>
       </header>
 
@@ -856,10 +1213,97 @@
         </section>
       </div>
 
-      <section class="feature-view" id="feature-view" hidden aria-live="polite">
-        <div class="feature-icon" id="feature-icon" aria-hidden="true"></div>
-        <h1 id="feature-title"></h1>
-        <p id="feature-description"></p>
+      <section class="module-view" id="map-view" hidden aria-labelledby="map-title">
+        <div class="module-heading">
+          <div>
+            <h1 id="map-title">地圖足跡</h1>
+            <p>收藏走過的地方，為每段回憶標記座標。</p>
+          </div>
+        </div>
+        <div class="map-layout">
+          <div class="module-card">
+            <div id="map-canvas" aria-label="互動式足跡地圖"></div>
+            <p class="map-help">可在地圖上點選位置帶入座標。隱私標籤目前是個人紀錄設定，尚未作為帳號權限控管。</p>
+          </div>
+          <form class="module-card map-form" id="map-point-form">
+            <h2>新增足跡</h2>
+            <label class="compact-field">
+              地點名稱
+              <input name="name" maxlength="160" required placeholder="例如：旗津海岸" />
+            </label>
+            <label class="compact-field">
+              緯度
+              <input name="latitude" type="number" step="any" min="-90" max="90" required placeholder="地圖點選後自動填入" />
+            </label>
+            <label class="compact-field">
+              經度
+              <input name="longitude" type="number" step="any" min="-180" max="180" required placeholder="地圖點選後自動填入" />
+            </label>
+            <label class="compact-field">
+              小記
+              <textarea name="note" maxlength="1000" placeholder="記下這裡的故事…"></textarea>
+            </label>
+            <label class="compact-field">
+              隱私層級
+              <select name="privacy">
+                <option value="private">私密</option>
+                <option value="friends">好友</option>
+                <option value="public">公開</option>
+              </select>
+            </label>
+            <p class="privacy-note">「好友／公開」目前只記錄為標籤；此示範 App 尚未實作登入權限或存取限制。</p>
+            <button class="primary-button" type="submit">儲存足跡</button>
+            <p class="status-message" id="map-form-status" role="status"></p>
+          </form>
+        </div>
+        <div class="points-section">
+          <h2 class="points-heading">已收藏的足跡</h2>
+          <div class="map-points" id="map-points" aria-live="polite">
+            <div class="module-empty">足跡載入中…</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="module-view" id="trips-view" hidden aria-labelledby="trips-title">
+        <div class="module-heading">
+          <div>
+            <h1 id="trips-title">行程包</h1>
+            <p>把地圖上的足跡整理成專屬行程，收藏或分享旅途清單。</p>
+          </div>
+        </div>
+        <div class="trip-layout">
+          <form class="module-card trip-form" id="trip-form">
+            <h2>建立行程包</h2>
+            <label class="compact-field">
+              行程名稱
+              <input name="title" maxlength="160" required placeholder="例如：高雄海線小旅行" />
+            </label>
+            <label class="compact-field">
+              行程簡介
+              <textarea name="description" maxlength="2000" placeholder="寫下這趟旅程的安排…"></textarea>
+            </label>
+            <div>
+              <span class="compact-field">選擇加入的足跡</span>
+              <div class="trip-point-list" id="trip-point-options">
+                <span class="privacy-note">足跡載入中…</span>
+              </div>
+            </div>
+            <label class="checkbox-field">
+              <input name="is_public" type="checkbox" />
+              建立公開分享清單
+            </label>
+            <p class="privacy-note">公開行程可透過分享 API 取得；請勿加入私人或敏感地點。</p>
+            <button class="primary-button" type="submit">建立行程包</button>
+            <p class="status-message" id="trip-form-status" role="status"></p>
+          </form>
+          <div>
+            <h2 class="points-heading">我的行程包</h2>
+            <div class="trip-list" id="trip-list" aria-live="polite">
+              <div class="module-empty">行程載入中…</div>
+            </div>
+          </div>
+        </div>
+      </section>
       </section>
     </main>
 
@@ -921,6 +1365,36 @@
       </form>
     </dialog>
 
+    <dialog id="login-dialog" aria-labelledby="login-title">
+      <form class="dialog-content" id="login-form">
+        <div class="dialog-heading">
+          <div>
+            <h2 id="login-title">登入生活記錄</h2>
+            <p>示範登入只儲存顯示名稱，不會驗證或保存密碼。</p>
+          </div>
+          <button class="icon-button" id="login-dismiss" type="button" aria-label="關閉登入視窗">×</button>
+        </div>
+        <label class="field">
+          帳號
+          <input name="username" required maxlength="80" autocomplete="username" placeholder="輸入顯示名稱" />
+        </label>
+        <label class="field">
+          密碼（僅示範輸入）
+          <input name="password" type="password" required maxlength="200" autocomplete="current-password" placeholder="任意輸入即可，不會保存" />
+        </label>
+        <p class="status-message" id="login-status" role="status"></p>
+        <div class="modal-actions">
+          <button class="secondary-button" id="login-cancel" type="button">取消</button>
+          <button class="primary-button" id="login-submit" type="submit">開始示範登入</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
     <script>
       const entriesContainer = document.querySelector("#entries");
       const entryCount = document.querySelector("#entry-count");
@@ -931,7 +1405,8 @@
       const loadError = document.querySelector("#load-error");
       const loadErrorMessage = document.querySelector("#load-error-message");
       const homeView = document.querySelector("#home-view");
-      const featureView = document.querySelector("#feature-view");
+      const mapView = document.querySelector("#map-view");
+      const tripsView = document.querySelector("#trips-view");
       const serverStatusDot = document.querySelector("#server-status-dot");
       const serverStatusLabel = document.querySelector("#server-status-label");
       const serverStatusDetail = document.querySelector("#server-status-detail");
@@ -940,7 +1415,22 @@
       const photoPreviewImage = document.querySelector("#photo-preview-image");
       const photoFileName = document.querySelector("#photo-file-name");
       const selectedMood = document.querySelector("#selected-mood");
+      const mapPointsContainer = document.querySelector("#map-points");
+      const tripPointOptions = document.querySelector("#trip-point-options");
+      const tripList = document.querySelector("#trip-list");
+      const mapPointForm = document.querySelector("#map-point-form");
+      const tripForm = document.querySelector("#trip-form");
+      const loginDialog = document.querySelector("#login-dialog");
+      const loginForm = document.querySelector("#login-form");
+      const loginStatus = document.querySelector("#login-status");
+      const accountName = document.querySelector("#account-name");
+      const loginOpenButton = document.querySelector("#login-open");
+      const logoutButton = document.querySelector("#logout-button");
       let photoPreviewUrl = null;
+      let map = null;
+      let mapMarkers = new Map();
+      let mapPoints = [];
+      let trips = [];
       const localHosts = new Set(["localhost", "127.0.0.1"]);
       const isFilePreview = window.location.protocol === "file:";
       const isAlternateLocalServer =
@@ -960,18 +1450,32 @@
         return typeof value === "string" ? value.trim() : "";
       }
 
-      const featureContent = {
-        map: {
-          icon: "⌖",
-          title: "地圖足跡",
-          description: "記下走過的地方，讓每一段旅程都成為生活地圖上的小小座標。足跡功能即將推出。",
-        },
-        trips: {
-          icon: "✧",
-          title: "行程包",
-          description: "把想去的地方與旅行計畫收進口袋，下一段旅程就從這裡開始。行程包功能即將推出。",
-        },
-      };
+      async function apiRequest(path, options = {}) {
+        const response = await fetch(apiUrl(path), options);
+        if (!response.ok) {
+          let message = `Request failed (HTTP ${response.status})`;
+          try {
+            const body = await response.json();
+            if (typeof body.detail === "string") {
+              message = body.detail;
+            } else if (Array.isArray(body.detail)) {
+              message = body.detail.map((issue) => issue.msg).join("; ");
+            }
+          } catch {
+            // Keep the HTTP status message when the response is not JSON.
+          }
+          throw new Error(message);
+        }
+        return response.status === 204 ? null : response.json();
+      }
+
+      function jsonOptions(method, body) {
+        return {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        };
+      }
 
       function escapeHtml(value) {
         return String(value ?? "").replace(/[&<>"']/g, (character) => {
@@ -1081,6 +1585,184 @@
         }
       }
 
+      function ensureMap() {
+        if (map) return;
+        if (!window.L) {
+          const mapCanvas = document.querySelector("#map-canvas");
+          mapCanvas.textContent =
+            "互動地圖暫時無法載入。你仍可在右側手動輸入座標新增足跡。";
+          mapCanvas.style.display = "grid";
+          mapCanvas.style.placeItems = "center";
+          mapCanvas.style.padding = "24px";
+          mapCanvas.style.color = "#75859a";
+          return;
+        }
+        map = L.map("map-canvas").setView([23.7, 120.95], 7);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        }).addTo(map);
+        map.on("click", (event) => {
+          mapPointForm.elements.latitude.value = event.latlng.lat.toFixed(6);
+          mapPointForm.elements.longitude.value = event.latlng.lng.toFixed(6);
+        });
+      }
+
+      function privacyLabel(privacy) {
+        return {
+          private: "私密",
+          friends: "好友",
+          public: "公開",
+        }[privacy] || "私密";
+      }
+
+      function renderMapPoints() {
+        mapPointsContainer.innerHTML = "";
+        tripPointOptions.innerHTML = "";
+        if (mapPoints.length === 0) {
+          mapPointsContainer.innerHTML =
+            '<div class="module-empty">還沒有足跡，先在地圖點選位置或填入座標新增一筆。</div>';
+          tripPointOptions.innerHTML =
+            '<span class="privacy-note">新增足跡後即可加入行程包。</span>';
+        } else {
+          mapPointsContainer.innerHTML = mapPoints.map((point) => `
+            <article class="map-point-card">
+              <div class="map-point-top">
+                <div>
+                  <h3>${escapeHtml(point.name)}</h3>
+                  <p>${escapeHtml(point.note || "尚未新增備註")}<br>${Number(point.latitude).toFixed(4)}, ${Number(point.longitude).toFixed(4)}</p>
+                </div>
+                <span class="privacy-badge">${privacyLabel(point.privacy)}</span>
+              </div>
+              <div class="point-controls">
+                <label><input type="checkbox" data-trip-point="${point.id}"> 加入新行程</label>
+                <select class="point-privacy" data-privacy-point="${point.id}" aria-label="設定 ${escapeHtml(point.name)} 的隱私層級">
+                  <option value="private" ${point.privacy === "private" ? "selected" : ""}>私密</option>
+                  <option value="friends" ${point.privacy === "friends" ? "selected" : ""}>好友</option>
+                  <option value="public" ${point.privacy === "public" ? "selected" : ""}>公開</option>
+                </select>
+              </div>
+            </article>
+          `).join("");
+
+          tripPointOptions.innerHTML = mapPoints.map((point) => `
+            <label>
+              <input type="checkbox" name="point_ids" value="${point.id}">
+              ${escapeHtml(point.name)} <span class="privacy-badge">${privacyLabel(point.privacy)}</span>
+            </label>
+          `).join("");
+        }
+
+        if (!map || !window.L) return;
+        mapMarkers.forEach((marker) => marker.remove());
+        mapMarkers = new Map();
+        mapPoints.forEach((point) => {
+          const marker = L.marker([point.latitude, point.longitude])
+            .addTo(map)
+            .bindPopup(`<strong>${escapeHtml(point.name)}</strong><br>${escapeHtml(point.note || "")}<br><small>${privacyLabel(point.privacy)}</small>`);
+          mapMarkers.set(point.id, marker);
+        });
+      }
+
+      async function loadMapPoints() {
+        mapPointsContainer.innerHTML =
+          '<div class="module-empty">足跡載入中…</div>';
+        try {
+          mapPoints = await apiRequest("/map-points");
+          renderMapPoints();
+        } catch (error) {
+          mapPointsContainer.innerHTML =
+            `<div class="error-state">${escapeHtml(error.message)}<button class="retry-button" id="retry-map-points" type="button">重新整理</button></div>`;
+          document.querySelector("#retry-map-points").addEventListener("click", loadMapPoints);
+        }
+      }
+
+      function renderTrips() {
+        if (trips.length === 0) {
+          tripList.innerHTML =
+            '<div class="module-empty">還沒有行程包，建立一個行程並加入足跡吧。</div>';
+          return;
+        }
+        tripList.innerHTML = trips.map((trip) => `
+          <article class="trip-card" data-trip-card="${trip.id}">
+            <div class="trip-card-top">
+              <div>
+                <h3>${escapeHtml(trip.title)}</h3>
+                <p>${escapeHtml(trip.description || "尚未新增行程簡介")} · ${trip.points.length} 個足跡</p>
+              </div>
+              <span class="trip-visibility">${trip.is_public ? "公開分享" : "私人行程"}</span>
+            </div>
+            <details>
+              <summary class="small-action" style="display:inline-flex;align-items:center;margin-top:12px;cursor:pointer">檢視行程足跡</summary>
+              <ol class="trip-points">${trip.points.length
+                ? trip.points.map((point) => `<li>${escapeHtml(point.name)} — ${escapeHtml(point.note || `${Number(point.latitude).toFixed(4)}, ${Number(point.longitude).toFixed(4)}`)}</li>`).join("")
+                : "<li>這個行程包尚未加入足跡。</li>"}</ol>
+            </details>
+            <div class="trip-actions">
+              ${trip.is_public ? `<button class="small-action" type="button" data-share-trip="${trip.id}">複製公開分享連結</button>` : ""}
+              <span class="share-result" data-share-result="${trip.id}" hidden></span>
+            </div>
+          </article>
+        `).join("");
+      }
+
+      async function loadTrips() {
+        tripList.innerHTML = '<div class="module-empty">行程載入中…</div>';
+        try {
+          trips = await apiRequest("/trips");
+          renderTrips();
+        } catch (error) {
+          tripList.innerHTML =
+            `<div class="error-state">${escapeHtml(error.message)}<button class="retry-button" id="retry-trips" type="button">重新整理</button></div>`;
+          document.querySelector("#retry-trips").addEventListener("click", loadTrips);
+        }
+      }
+
+      function applySession(username) {
+        const signedIn = Boolean(username);
+        accountName.textContent = signedIn ? username : "訪客";
+        loginOpenButton.hidden = signedIn;
+        logoutButton.hidden = !signedIn;
+      }
+
+      async function loginDemo(event) {
+        event.preventDefault();
+        loginStatus.textContent = "";
+        const submit = document.querySelector("#login-submit");
+        submit.disabled = true;
+        try {
+          const formData = new FormData(loginForm);
+          const result = await apiRequest("/auth/login", jsonOptions("POST", {
+            username: getFormText(formData, "username"),
+            password: getFormText(formData, "password"),
+          }));
+          if (!result.demo || !result.authenticated) {
+            throw new Error("示範登入未能完成。");
+          }
+          localStorage.setItem("life_logger_demo_username", result.display_name);
+          applySession(result.display_name);
+          loginForm.reset();
+          loginDialog.close();
+        } catch (error) {
+          loginStatus.textContent = `登入失敗：${error.message}`;
+        } finally {
+          submit.disabled = false;
+        }
+      }
+
+      async function logoutDemo() {
+        logoutButton.disabled = true;
+        try {
+          await apiRequest("/auth/logout", { method: "POST" });
+          localStorage.removeItem("life_logger_demo_username");
+          applySession("");
+        } catch (error) {
+          window.alert(`登出失敗：${error.message}`);
+        } finally {
+          logoutButton.disabled = false;
+        }
+      }
+
       function clearPhotoPreview(resetInput = true) {
         if (photoPreviewUrl) {
           URL.revokeObjectURL(photoPreviewUrl);
@@ -1129,18 +1811,141 @@
 
           const isHome = view === "home";
           homeView.hidden = !isHome;
-          featureView.hidden = isHome;
-          if (!isHome) {
-            const content = featureContent[view];
-            document.querySelector("#feature-icon").textContent = content.icon;
-            document.querySelector("#feature-title").textContent = content.title;
-            document.querySelector("#feature-description").textContent =
-              content.description;
+          mapView.hidden = view !== "map";
+          tripsView.hidden = view !== "trips";
+          if (view === "map") {
+            ensureMap();
+            if (map) map.invalidateSize();
+            loadMapPoints();
+          } else if (view === "trips") {
+            loadMapPoints();
+            loadTrips();
           }
         });
       });
 
       document.querySelector("#retry-load").addEventListener("click", loadEntries);
+
+      mapPointForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const status = document.querySelector("#map-form-status");
+        status.textContent = "";
+        const submit = mapPointForm.querySelector('button[type="submit"]');
+        submit.disabled = true;
+        const formData = new FormData(mapPointForm);
+        const latitude = Number(getFormText(formData, "latitude"));
+        const longitude = Number(getFormText(formData, "longitude"));
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          status.textContent = "請輸入有效的經緯度，或在地圖上點選位置。";
+          submit.disabled = false;
+          return;
+        }
+        try {
+          await apiRequest("/map-points", jsonOptions("POST", {
+            name: getFormText(formData, "name"),
+            latitude,
+            longitude,
+            note: getFormText(formData, "note"),
+            privacy: getFormText(formData, "privacy"),
+          }));
+          mapPointForm.reset();
+          await loadMapPoints();
+          if (map) {
+            const point = mapPoints[0];
+            map.setView([point.latitude, point.longitude], Math.max(map.getZoom(), 11));
+          }
+        } catch (error) {
+          status.textContent = `儲存足跡失敗：${error.message}`;
+        } finally {
+          submit.disabled = false;
+        }
+      });
+
+      mapPointsContainer.addEventListener("change", async (event) => {
+        const tripCheckbox = event.target.closest("[data-trip-point]");
+        if (tripCheckbox) {
+          const matchingOption = tripPointOptions.querySelector(
+            `input[name="point_ids"][value="${tripCheckbox.dataset.tripPoint}"]`,
+          );
+          if (matchingOption) matchingOption.checked = tripCheckbox.checked;
+          return;
+        }
+
+        const select = event.target.closest("[data-privacy-point]");
+        if (!select) return;
+        const pointId = select.dataset.privacyPoint;
+        select.disabled = true;
+        try {
+          await apiRequest(
+            `/map-points/${pointId}/privacy`,
+            jsonOptions("PATCH", { privacy: select.value }),
+          );
+          await loadMapPoints();
+        } catch (error) {
+          window.alert(`更新足跡隱私失敗：${error.message}`);
+          await loadMapPoints();
+        }
+      });
+
+      tripPointOptions.addEventListener("change", (event) => {
+        const checkbox = event.target.closest('input[name="point_ids"]');
+        if (!checkbox) return;
+        const matchingPoint = mapPointsContainer.querySelector(
+          `[data-trip-point="${checkbox.value}"]`,
+        );
+        if (matchingPoint) matchingPoint.checked = checkbox.checked;
+      });
+
+      tripForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const status = document.querySelector("#trip-form-status");
+        status.textContent = "";
+        const submit = tripForm.querySelector('button[type="submit"]');
+        submit.disabled = true;
+        const formData = new FormData(tripForm);
+        const pointIds = formData
+          .getAll("point_ids")
+          .map((id) => Number(id))
+          .filter(Number.isInteger);
+        try {
+          await apiRequest("/trips", jsonOptions("POST", {
+            title: getFormText(formData, "title"),
+            description: getFormText(formData, "description"),
+            is_public: formData.get("is_public") === "on",
+            point_ids: pointIds,
+          }));
+          tripForm.reset();
+          await loadTrips();
+        } catch (error) {
+          status.textContent = `建立行程失敗：${error.message}`;
+        } finally {
+          submit.disabled = false;
+        }
+      });
+
+      tripList.addEventListener("click", async (event) => {
+        const button = event.target.closest("[data-share-trip]");
+        if (!button) return;
+        const tripId = button.dataset.shareTrip;
+        const result = tripList.querySelector(`[data-share-result="${tripId}"]`);
+        button.disabled = true;
+        try {
+          const share = await apiRequest(`/trips/${tripId}/share`);
+          const shareUrl = new URL(share.share_url, window.location.origin).href;
+          try {
+            await navigator.clipboard.writeText(shareUrl);
+            result.textContent = `已複製分享連結：${shareUrl}`;
+          } catch {
+            result.textContent = `分享連結：${shareUrl}`;
+          }
+          result.hidden = false;
+        } catch (error) {
+          result.textContent = `無法產生分享連結：${error.message}`;
+          result.hidden = false;
+        } finally {
+          button.disabled = false;
+        }
+      });
 
       document.querySelector("#open-entry").addEventListener("click", () => {
         statusMessage.textContent = "";
@@ -1164,6 +1969,19 @@
         "click",
         refreshServerStatus,
       );
+
+      loginOpenButton.addEventListener("click", () => {
+        loginStatus.textContent = "";
+        loginDialog.showModal();
+        loginForm.elements.username.focus();
+      });
+      document.querySelector("#login-dismiss").addEventListener("click", () => loginDialog.close());
+      document.querySelector("#login-cancel").addEventListener("click", () => loginDialog.close());
+      loginDialog.addEventListener("click", (event) => {
+        if (event.target === loginDialog) loginDialog.close();
+      });
+      loginForm.addEventListener("submit", loginDemo);
+      logoutButton.addEventListener("click", logoutDemo);
 
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -1237,6 +2055,9 @@
 
       loadEntries();
       refreshServerStatus();
+      applySession(localStorage.getItem("life_logger_demo_username") || "");
+      loadMapPoints();
+      loadTrips();
     </script>
   </body>
 </html>
