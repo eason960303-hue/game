@@ -1,0 +1,1242 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="把日常的風景、心情與足跡，收藏成自己的生活記錄。"
+    />
+    <meta name="theme-color" content="#f5f8fc" />
+    <title>我的生活記錄</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC",
+          "PingFang TC", sans-serif;
+        color: #17283e;
+        background: #f5f8fc;
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+        --blue: #4386d5;
+        --blue-dark: #2868b4;
+        --muted: #75859a;
+        --line: #e8edf4;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        background:
+          radial-gradient(ellipse at 86% 0%, #e5f1ff 0, transparent 34rem),
+          #f5f8fc;
+      }
+
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .page {
+        width: min(100% - 40px, 1040px);
+        margin: 0 auto;
+        padding: 34px 0 64px;
+      }
+
+      .topbar,
+      .brand,
+      .hero,
+      .section-heading,
+      .entry-meta,
+      .modal-actions,
+      .navigation,
+      .login-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .topbar {
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+
+      .topbar-tools {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 12px;
+      }
+
+      .navigation {
+        justify-content: flex-start;
+        gap: 5px;
+        flex-wrap: wrap;
+        padding: 5px;
+        border: 1px solid #e6edf5;
+        border-radius: 14px;
+        background: #ffffffb8;
+      }
+
+      .nav-link {
+        padding: 9px 12px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #687b91;
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .nav-link:hover,
+      .nav-link[aria-current="page"] {
+        background: #eaf3ff;
+        color: var(--blue-dark);
+      }
+
+      .login-status {
+        justify-content: flex-start;
+        gap: 8px;
+        color: #63768c;
+        font-size: 13px;
+        white-space: nowrap;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        flex: 0 0 auto;
+        border-radius: 50%;
+        background: #34b77b;
+        box-shadow: 0 0 0 4px #34b77b1a;
+      }
+
+      .status-dot.is-offline {
+        background: #d77878;
+        box-shadow: 0 0 0 4px #d778781a;
+      }
+
+      .server-menu {
+        position: relative;
+      }
+
+      .server-menu summary {
+        display: flex;
+        min-height: 40px;
+        align-items: center;
+        gap: 9px;
+        padding: 0 12px;
+        border: 1px solid #e6edf5;
+        border-radius: 13px;
+        background: #ffffffc9;
+        color: #53677e;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 650;
+        list-style: none;
+        white-space: nowrap;
+      }
+
+      .server-menu summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .server-menu summary::after {
+        content: "⌄";
+        color: #8a9bad;
+        font-size: 15px;
+      }
+
+      .server-popover {
+        position: absolute;
+        z-index: 5;
+        top: calc(100% + 10px);
+        right: 0;
+        width: 260px;
+        padding: 17px;
+        border: 1px solid #e6edf5;
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 18px 45px #263e5a1a;
+      }
+
+      .server-popover strong {
+        display: block;
+        margin-bottom: 6px;
+        color: #30455d;
+        font-size: 13px;
+      }
+
+      .server-popover p {
+        margin: 0 0 13px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .server-refresh {
+        padding: 7px 10px;
+        border: 1px solid #dce8f5;
+        border-radius: 9px;
+        background: #f5f9ff;
+        color: var(--blue-dark);
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .brand {
+        justify-content: flex-start;
+        gap: 11px;
+        color: #334860;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        place-items: center;
+        border-radius: 13px;
+        background: #e2efff;
+        color: var(--blue-dark);
+      }
+
+      .top-note {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .hero {
+        position: relative;
+        min-height: 270px;
+        margin-top: 37px;
+        padding: clamp(28px, 6vw, 58px);
+        overflow: hidden;
+        border: 1px solid #e8f0fa;
+        border-radius: 30px;
+        background: linear-gradient(117deg, #fff 9%, #eef6ff 100%);
+        box-shadow: 0 18px 50px #365b8510;
+      }
+
+      .hero-copy {
+        position: relative;
+        z-index: 1;
+        max-width: 580px;
+      }
+
+      .eyebrow {
+        margin: 0 0 12px;
+        color: var(--blue-dark);
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.09em;
+      }
+
+      h1 {
+        margin: 0;
+        color: #182b44;
+        font-size: clamp(34px, 6vw, 54px);
+        font-weight: 750;
+        letter-spacing: -0.045em;
+        line-height: 1.15;
+      }
+
+      .hero-description {
+        max-width: 420px;
+        margin: 17px 0 25px;
+        color: #6b7d93;
+        font-size: 15px;
+        line-height: 1.8;
+      }
+
+      .primary-button {
+        display: inline-flex;
+        min-height: 48px;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        padding: 0 19px;
+        border: 0;
+        border-radius: 14px;
+        background: var(--blue);
+        box-shadow: 0 8px 18px #4386d536;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 650;
+        transition:
+          background 160ms ease,
+          transform 160ms ease;
+      }
+
+      .primary-button:hover {
+        transform: translateY(-1px);
+        background: var(--blue-dark);
+      }
+
+      .hero-art {
+        position: absolute;
+        top: 50%;
+        right: 7%;
+        width: 190px;
+        height: 190px;
+        transform: translateY(-50%);
+        border: 1px solid #d5e8fb;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 68% 28%, #fff 0 5px, transparent 6px),
+          radial-gradient(circle at 35% 64%, #fff 0 4px, transparent 5px),
+          radial-gradient(circle at 70% 73%, #fff 0 3px, transparent 4px),
+          linear-gradient(145deg, #d9eaff, #edf5ff 66%, #f9fcff);
+        box-shadow:
+          0 0 0 22px #e8f2fd80,
+          0 22px 50px #5394cc22;
+      }
+
+      .hero-art::before,
+      .hero-art::after {
+        position: absolute;
+        content: "";
+        border: 1px solid #95c2ee80;
+        border-radius: 50%;
+        transform: rotate(-28deg);
+      }
+
+      .hero-art::before {
+        inset: 36px -26px;
+      }
+
+      .hero-art::after {
+        inset: 65px -47px;
+      }
+
+      .sun {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 55px;
+        height: 55px;
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        background: linear-gradient(145deg, #a9d4ff, #6ea9e8);
+        box-shadow: 0 0 35px #7cb7f16b;
+      }
+
+      .entries-section {
+        margin-top: 43px;
+      }
+
+      .section-heading {
+        margin-bottom: 17px;
+      }
+
+      h2 {
+        margin: 0;
+        color: #21354d;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+
+      .entry-count {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .entries {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 15px;
+      }
+
+      .entry-card {
+        min-width: 0;
+        padding: 21px 22px;
+        border: 1px solid #e8edf4;
+        border-radius: 20px;
+        background: #fff;
+        box-shadow: 0 7px 22px #263e5a08;
+      }
+
+      .entry-card h3 {
+        margin: 12px 0 8px;
+        color: #263b53;
+        font-size: 17px;
+        line-height: 1.45;
+      }
+
+      .entry-card p {
+        display: -webkit-box;
+        margin: 0;
+        overflow: hidden;
+        color: #75859a;
+        font-size: 14px;
+        line-height: 1.7;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+      }
+
+      .entry-meta {
+        gap: 12px;
+        margin-top: 17px;
+        color: #8392a5;
+        font-size: 12px;
+      }
+
+      .entry-location {
+        overflow: hidden;
+        color: #6083a9;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .mood {
+        display: inline-block;
+        padding: 5px 9px;
+        border-radius: 99px;
+        background: #edf5ff;
+        color: #477bb5;
+        font-size: 11px;
+      }
+
+      .empty-state,
+      .error-state {
+        grid-column: 1 / -1;
+        padding: 30px;
+        border: 1px dashed #d4dfeb;
+        border-radius: 18px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .error-state {
+        border-color: #f0caca;
+        background: #fffafa;
+        color: #875454;
+      }
+
+      .retry-button {
+        display: block;
+        min-height: 40px;
+        margin: 15px auto 0;
+        padding: 0 15px;
+        border: 1px solid #c9dced;
+        border-radius: 11px;
+        background: white;
+        color: var(--blue-dark);
+        font-weight: 650;
+      }
+
+      .retry-button:hover {
+        background: #eff6ff;
+      }
+
+      .feature-view {
+        margin-top: 37px;
+        padding: clamp(24px, 5vw, 42px);
+        border: 1px solid #e8edf4;
+        border-radius: 24px;
+        background: #fff;
+        box-shadow: 0 7px 22px #263e5a08;
+      }
+
+      .feature-view p {
+        max-width: 560px;
+        color: var(--muted);
+        line-height: 1.8;
+      }
+
+      .feature-icon {
+        display: grid;
+        width: 52px;
+        height: 52px;
+        margin-bottom: 20px;
+        place-items: center;
+        border-radius: 17px;
+        background: #eaf3ff;
+        color: var(--blue-dark);
+        font-size: 24px;
+      }
+
+      dialog {
+        width: min(100% - 32px, 480px);
+        max-height: min(88vh, 760px);
+        padding: 0;
+        overflow: auto;
+        border: 1px solid #e6edf5;
+        border-radius: 22px;
+        background: #fff;
+        box-shadow: 0 24px 80px #10243d40;
+      }
+
+      dialog[open] {
+        animation: modal-in 220ms cubic-bezier(0.2, 0.75, 0.3, 1) both;
+      }
+
+      dialog::backdrop {
+        background: #14283f88;
+        backdrop-filter: blur(3px);
+        animation: backdrop-in 180ms ease-out both;
+      }
+
+      @keyframes modal-in {
+        from {
+          opacity: 0;
+          transform: translateY(14px) scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      @keyframes backdrop-in {
+        from {
+          background: #14283f00;
+          backdrop-filter: blur(0);
+        }
+        to {
+          background: #14283f88;
+          backdrop-filter: blur(3px);
+        }
+      }
+
+      .dialog-content {
+        padding: 25px;
+      }
+
+      .dialog-heading {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+
+      .dialog-heading h2 {
+        margin-bottom: 6px;
+      }
+
+      .dialog-heading p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .icon-button {
+        display: grid;
+        width: 36px;
+        height: 36px;
+        flex: 0 0 auto;
+        place-items: center;
+        border: 1px solid #e6edf5;
+        border-radius: 12px;
+        background: #fff;
+        color: #6b7d93;
+        font-size: 20px;
+      }
+
+      .dialog-content h2 {
+        margin-bottom: 20px;
+      }
+
+      .field {
+        display: grid;
+        gap: 7px;
+        margin-bottom: 15px;
+        color: #53667c;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .field input,
+      .field textarea {
+        width: 100%;
+        padding: 12px 13px;
+        border: 1px solid #dfe7f0;
+        border-radius: 12px;
+        outline: none;
+        color: #263b53;
+        font-size: 14px;
+        font-weight: 400;
+      }
+
+      .field textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      .mood-picker {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .mood-option {
+        display: inline-flex;
+        min-height: 39px;
+        align-items: center;
+        gap: 6px;
+        padding: 0 11px;
+        border: 1px solid #e2e9f1;
+        border-radius: 12px;
+        background: #fff;
+        color: #687b91;
+        font-size: 13px;
+        transition:
+          background 150ms ease,
+          border-color 150ms ease,
+          color 150ms ease;
+      }
+
+      .mood-option[aria-pressed="true"] {
+        border-color: #9dc3ed;
+        background: #edf6ff;
+        color: #2868b4;
+        box-shadow: 0 0 0 2px #4386d512;
+      }
+
+      .photo-picker {
+        display: grid;
+        min-height: 100px;
+        place-items: center;
+        padding: 14px;
+        border: 1px dashed #cbd9e8;
+        border-radius: 15px;
+        background: #f8fbff;
+        color: #6c8097;
+        cursor: pointer;
+        text-align: center;
+      }
+
+      .photo-picker:hover {
+        border-color: #8bb6e5;
+        background: #f2f8ff;
+      }
+
+      .photo-picker input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        clip-path: inset(50%);
+      }
+
+      .photo-picker strong {
+        display: block;
+        margin-bottom: 5px;
+        color: #48627e;
+        font-size: 13px;
+      }
+
+      .photo-picker small,
+      .photo-note {
+        color: #8797a9;
+        font-size: 11px;
+      }
+
+      .photo-preview {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 9px;
+        padding: 8px;
+        border: 1px solid #e6edf5;
+        border-radius: 12px;
+        background: #fff;
+      }
+
+      .photo-preview img {
+        width: 54px;
+        height: 54px;
+        border-radius: 9px;
+        object-fit: cover;
+      }
+
+      .photo-preview span {
+        flex: 1;
+        overflow: hidden;
+        color: #63768c;
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .photo-remove {
+        padding: 7px;
+        border: 0;
+        background: transparent;
+        color: #a64e58;
+        font-size: 12px;
+      }
+
+      .field input:focus,
+      .field textarea:focus {
+        border-color: #7eafe5;
+        box-shadow: 0 0 0 3px #4386d51a;
+      }
+
+      .modal-actions {
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 20px;
+      }
+
+      .secondary-button {
+        min-height: 44px;
+        padding: 0 16px;
+        border: 1px solid #dfe7f0;
+        border-radius: 12px;
+        background: #fff;
+        color: #617389;
+      }
+
+      .status-message {
+        min-height: 18px;
+        margin: 10px 0 0;
+        color: #b04444;
+        font-size: 13px;
+      }
+
+      @media (max-width: 650px) {
+        .page {
+          width: min(100% - 28px, 520px);
+          padding-top: 20px;
+        }
+
+        .top-note {
+          max-width: 120px;
+          text-align: right;
+        }
+
+        .topbar-tools {
+          width: 100%;
+          flex-wrap: wrap;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .navigation {
+          max-width: 100%;
+          overflow-x: auto;
+        }
+
+        .server-menu summary {
+          max-width: calc(100vw - 42px);
+        }
+
+        .server-popover {
+          right: 0;
+          width: min(260px, calc(100vw - 42px));
+        }
+
+        .hero {
+          min-height: 290px;
+          margin-top: 26px;
+          align-items: flex-start;
+          border-radius: 24px;
+        }
+
+        .hero-art {
+          top: auto;
+          right: 4%;
+          bottom: -34px;
+          width: 128px;
+          height: 128px;
+          transform: none;
+          opacity: 0.72;
+        }
+
+        .hero-art::before {
+          inset: 27px -19px;
+        }
+
+        .hero-art::after {
+          inset: 47px -34px;
+        }
+
+        .sun {
+          width: 39px;
+          height: 39px;
+        }
+
+        .hero-copy {
+          max-width: 100%;
+        }
+
+        .hero-description {
+          max-width: 290px;
+        }
+
+        .entries {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">✦</span>
+          <span>Life Logger</span>
+        </div>
+        <div class="topbar-tools">
+          <nav class="navigation flex items-center gap-2" aria-label="主要導覽">
+            <button class="nav-link" type="button" data-view="home" aria-current="page">首頁 / 時間軸</button>
+            <button class="nav-link" type="button" data-view="map">地圖足跡</button>
+            <button class="nav-link" type="button" data-view="trips">行程包</button>
+          </nav>
+          <details class="server-menu" id="server-menu">
+            <summary aria-label="伺服器連線狀態與設定">
+              <span class="status-dot" id="server-status-dot" aria-hidden="true"></span>
+              <span id="server-status-label">正在連線伺服器…</span>
+            </summary>
+            <div class="server-popover">
+              <strong>伺服器狀態</strong>
+              <p id="server-status-detail">正在檢查後端服務連線。</p>
+              <button class="server-refresh" id="refresh-server-status" type="button">
+                重新檢查連線
+              </button>
+            </div>
+          </details>
+        </div>
+      </header>
+
+      <div id="home-view">
+        <section class="hero" aria-labelledby="page-title">
+          <div class="hero-copy">
+            <p class="eyebrow">YOUR LITTLE MOMENTS</p>
+            <h1 id="page-title">我的生活記錄</h1>
+            <p class="hero-description">
+              每一段日常都值得被記住。寫下今天的心情，留住走過的風景。
+            </p>
+            <button class="primary-button" id="open-entry" type="button">
+              <span aria-hidden="true">＋</span>
+              新增記錄
+            </button>
+          </div>
+          <div class="hero-art" aria-hidden="true"><span class="sun"></span></div>
+        </section>
+
+        <section class="entries-section" aria-labelledby="entries-title">
+          <div class="section-heading">
+            <h2 id="entries-title">最近的日子</h2>
+            <span class="entry-count" id="entry-count">載入中…</span>
+          </div>
+          <div class="entries" id="entries" aria-live="polite">
+            <div class="empty-state">正在整理你的生活片段…</div>
+          </div>
+          <div class="error-state" id="load-error" role="alert" hidden>
+            <p id="load-error-message">目前無法載入記錄。</p>
+            <button class="retry-button" id="retry-load" type="button">重新整理</button>
+          </div>
+        </section>
+      </div>
+
+      <section class="feature-view" id="feature-view" hidden aria-live="polite">
+        <div class="feature-icon" id="feature-icon" aria-hidden="true"></div>
+        <h1 id="feature-title"></h1>
+        <p id="feature-description"></p>
+      </section>
+    </main>
+
+    <dialog id="entry-dialog" aria-labelledby="dialog-title">
+      <form class="dialog-content" id="entry-form">
+        <div class="dialog-heading">
+          <div>
+            <h2 id="dialog-title">新增一筆記錄</h2>
+            <p>把今天值得記住的片刻收藏起來。</p>
+          </div>
+          <button class="icon-button" id="dismiss-dialog" type="button" aria-label="關閉視窗">
+            ×
+          </button>
+        </div>
+        <label class="field">
+          標題
+          <input name="title" maxlength="200" required placeholder="為今天留下一個名字" />
+        </label>
+        <label class="field">
+          生活片段
+          <textarea name="content" required placeholder="今天發生了什麼？"></textarea>
+        </label>
+        <fieldset class="field" style="border: 0; padding: 0">
+          <legend>此刻的心情</legend>
+          <input type="hidden" name="mood" id="selected-mood" value="開心" />
+          <div class="mood-picker" role="group" aria-label="選擇心情">
+            <button class="mood-option" type="button" data-mood="開心" aria-pressed="true">😊 開心</button>
+            <button class="mood-option" type="button" data-mood="放鬆" aria-pressed="false">☕ 放鬆</button>
+            <button class="mood-option" type="button" data-mood="感動" aria-pressed="false">🥹 感動</button>
+            <button class="mood-option" type="button" data-mood="平靜" aria-pressed="false">🌿 平靜</button>
+            <button class="mood-option" type="button" data-mood="疲憊" aria-pressed="false">😴 疲憊</button>
+          </div>
+        </fieldset>
+        <label class="field">
+          地點（選填）
+          <input name="location" placeholder="例如：河岸散步" />
+        </label>
+        <div class="field">
+          <span>照片（選填）</span>
+          <label class="photo-picker" for="entry-photo">
+            <span>
+              <strong>＋ 選擇一張照片</strong>
+              <small>支援 JPG、PNG 或 WebP 圖片</small>
+            </span>
+            <input id="entry-photo" name="photo" type="file" accept="image/*" />
+          </label>
+          <div class="photo-preview" id="photo-preview" hidden>
+            <img id="photo-preview-image" alt="所選照片預覽" />
+            <span id="photo-file-name"></span>
+            <button class="photo-remove" id="remove-photo" type="button">移除</button>
+          </div>
+          <span class="photo-note">目前後端尚未提供照片儲存功能；所選照片僅供本次預覽，不會上傳或保存。</span>
+        </div>
+        <p class="status-message" id="form-status" role="status"></p>
+        <div class="modal-actions">
+          <button class="secondary-button" id="close-dialog" type="button">取消</button>
+          <button class="primary-button" id="save-entry" type="submit">儲存記錄</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script>
+      const entriesContainer = document.querySelector("#entries");
+      const entryCount = document.querySelector("#entry-count");
+      const dialog = document.querySelector("#entry-dialog");
+      const form = document.querySelector("#entry-form");
+      const statusMessage = document.querySelector("#form-status");
+      const saveButton = document.querySelector("#save-entry");
+      const loadError = document.querySelector("#load-error");
+      const loadErrorMessage = document.querySelector("#load-error-message");
+      const homeView = document.querySelector("#home-view");
+      const featureView = document.querySelector("#feature-view");
+      const serverStatusDot = document.querySelector("#server-status-dot");
+      const serverStatusLabel = document.querySelector("#server-status-label");
+      const serverStatusDetail = document.querySelector("#server-status-detail");
+      const photoInput = document.querySelector("#entry-photo");
+      const photoPreview = document.querySelector("#photo-preview");
+      const photoPreviewImage = document.querySelector("#photo-preview-image");
+      const photoFileName = document.querySelector("#photo-file-name");
+      const selectedMood = document.querySelector("#selected-mood");
+      let photoPreviewUrl = null;
+      const localHosts = new Set(["localhost", "127.0.0.1"]);
+      const isFilePreview = window.location.protocol === "file:";
+      const isAlternateLocalServer =
+        localHosts.has(window.location.hostname) &&
+        window.location.port !== "8000";
+      const apiBaseUrl =
+        isFilePreview || isAlternateLocalServer
+          ? "http://127.0.0.1:8000/api"
+          : "/api";
+
+      function apiUrl(path) {
+        return `${apiBaseUrl}${path}`;
+      }
+
+      function getFormText(formData, name) {
+        const value = formData.get(name);
+        return typeof value === "string" ? value.trim() : "";
+      }
+
+      const featureContent = {
+        map: {
+          icon: "⌖",
+          title: "地圖足跡",
+          description: "記下走過的地方，讓每一段旅程都成為生活地圖上的小小座標。足跡功能即將推出。",
+        },
+        trips: {
+          icon: "✧",
+          title: "行程包",
+          description: "把想去的地方與旅行計畫收進口袋，下一段旅程就從這裡開始。行程包功能即將推出。",
+        },
+      };
+
+      function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, (character) => {
+          const entities = {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          };
+          return entities[character];
+        });
+      }
+
+      function formatDate(value) {
+        if (!value) return "剛剛";
+        const date = new Date(value.replace(" ", "T"));
+        return Number.isNaN(date.getTime())
+          ? value
+          : new Intl.DateTimeFormat("zh-TW", {
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            }).format(date);
+      }
+
+      function renderEntries(entries) {
+        loadError.hidden = true;
+        entriesContainer.hidden = false;
+        entryCount.textContent = `${entries.length} 筆記錄`;
+        if (entries.length === 0) {
+          entriesContainer.innerHTML =
+            '<div class="empty-state">還沒有生活記錄，新增第一筆，為今天留下回憶吧。</div>';
+          return;
+        }
+
+        entriesContainer.innerHTML = entries
+          .map(
+            (entry) => `
+              <article class="entry-card">
+                <span class="mood">${escapeHtml(entry.mood || "生活")}</span>
+                <h3>${escapeHtml(entry.title)}</h3>
+                <p>${escapeHtml(entry.content)}</p>
+                <div class="entry-meta">
+                  <time>${escapeHtml(formatDate(entry.created_at))}</time>
+                  <span class="entry-location">${escapeHtml(entry.location || "未記錄地點")}</span>
+                </div>
+              </article>
+            `,
+          )
+          .join("");
+      }
+
+      async function loadEntries() {
+        entriesContainer.hidden = false;
+        loadError.hidden = true;
+        entryCount.textContent = "載入中…";
+        entriesContainer.innerHTML =
+          '<div class="empty-state">正在整理你的生活片段…</div>';
+
+        try {
+          const response = await fetch(apiUrl("/entries"));
+          if (response.status === 404) {
+            throw new Error("找不到日記 API（404）。請確認後端路由已啟動。");
+          }
+          if (!response.ok) {
+            throw new Error(`伺服器暫時無法提供記錄（HTTP ${response.status}）。`);
+          }
+          const entries = await response.json();
+          if (!Array.isArray(entries)) {
+            throw new Error("伺服器回傳的資料格式不正確，請稍後重試。");
+          }
+          renderEntries(entries);
+        } catch (error) {
+          entriesContainer.hidden = true;
+          entryCount.textContent = "載入失敗";
+          loadErrorMessage.textContent =
+            error instanceof TypeError
+              ? "目前連不上生活記錄服務，請確認後端已啟動，再重新整理。"
+              : error.message || "發生未知錯誤，請重新整理再試一次。";
+          loadError.hidden = false;
+        }
+      }
+
+      async function refreshServerStatus() {
+        serverStatusLabel.textContent = "正在檢查伺服器…";
+        serverStatusDetail.textContent = "正在檢查後端服務連線。";
+        serverStatusDot.classList.remove("is-offline");
+        try {
+          const response = await fetch(apiUrl("/health"));
+          if (!response.ok) {
+            throw new Error(`伺服器回應 HTTP ${response.status}`);
+          }
+          const health = await response.json();
+          if (health.status !== "ok") {
+            throw new Error("後端服務目前尚未就緒。");
+          }
+          serverStatusLabel.textContent = "已連線至 Mac mini 伺服器";
+          serverStatusDetail.textContent = "連線正常，生活記錄服務已就緒。";
+        } catch (error) {
+          serverStatusDot.classList.add("is-offline");
+          serverStatusLabel.textContent = "伺服器未連線";
+          serverStatusDetail.textContent =
+            error instanceof TypeError
+              ? "目前連不上後端，請確認 FastAPI 伺服器已啟動。"
+              : error.message;
+        }
+      }
+
+      function clearPhotoPreview(resetInput = true) {
+        if (photoPreviewUrl) {
+          URL.revokeObjectURL(photoPreviewUrl);
+          photoPreviewUrl = null;
+        }
+        if (resetInput) photoInput.value = "";
+        photoPreviewImage.removeAttribute("src");
+        photoFileName.textContent = "";
+        photoPreview.hidden = true;
+      }
+
+      photoInput.addEventListener("change", () => {
+        clearPhotoPreview(false);
+        const [file] = photoInput.files;
+        if (!file) return;
+        if (!file.type.startsWith("image/")) {
+          statusMessage.textContent = "請選擇有效的圖片檔案。";
+          photoInput.value = "";
+          return;
+        }
+        statusMessage.textContent = "";
+        photoPreviewUrl = URL.createObjectURL(file);
+        photoPreviewImage.src = photoPreviewUrl;
+        photoFileName.textContent = file.name;
+        photoPreview.hidden = false;
+      });
+
+      document.querySelector("#remove-photo").addEventListener("click", clearPhotoPreview);
+
+      document.querySelectorAll("[data-mood]").forEach((button) => {
+        button.addEventListener("click", () => {
+          selectedMood.value = button.dataset.mood;
+          document.querySelectorAll("[data-mood]").forEach((option) => {
+            option.setAttribute("aria-pressed", String(option === button));
+          });
+        });
+      });
+
+      document.querySelectorAll("[data-view]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const view = button.dataset.view;
+          document.querySelectorAll("[data-view]").forEach((item) => {
+            item.removeAttribute("aria-current");
+          });
+          button.setAttribute("aria-current", "page");
+
+          const isHome = view === "home";
+          homeView.hidden = !isHome;
+          featureView.hidden = isHome;
+          if (!isHome) {
+            const content = featureContent[view];
+            document.querySelector("#feature-icon").textContent = content.icon;
+            document.querySelector("#feature-title").textContent = content.title;
+            document.querySelector("#feature-description").textContent =
+              content.description;
+          }
+        });
+      });
+
+      document.querySelector("#retry-load").addEventListener("click", loadEntries);
+
+      document.querySelector("#open-entry").addEventListener("click", () => {
+        statusMessage.textContent = "";
+        dialog.showModal();
+        form.elements.title.focus();
+      });
+
+      document.querySelector("#close-dialog").addEventListener("click", () => {
+        dialog.close();
+      });
+
+      document.querySelector("#dismiss-dialog").addEventListener("click", () => {
+        dialog.close();
+      });
+
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog) dialog.close();
+      });
+
+      document.querySelector("#refresh-server-status").addEventListener(
+        "click",
+        refreshServerStatus,
+      );
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        statusMessage.textContent = "";
+        saveButton.disabled = true;
+        saveButton.textContent = "儲存中…";
+
+        const formData = new FormData(form);
+        const payload = {
+          title: getFormText(formData, "title"),
+          content: getFormText(formData, "content"),
+          location: getFormText(formData, "location") || null,
+          mood: selectedMood.value,
+          privacy: "private",
+          tags: "",
+        };
+
+        try {
+          const response = await fetch(apiUrl("/entries"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) {
+            let detail = "";
+            try {
+              const result = await response.json();
+              if (typeof result.detail === "string") {
+                detail = result.detail;
+              } else if (Array.isArray(result.detail)) {
+                detail = result.detail
+                  .map((issue) => {
+                    const field = Array.isArray(issue.loc)
+                      ? issue.loc.slice(1).join(".")
+                      : "";
+                    return `${field ? `${field}：` : ""}${issue.msg}`;
+                  })
+                  .join("；");
+              }
+            } catch {
+              detail = "";
+            }
+
+            if (response.status === 404) {
+              throw new Error(
+                "找不到日記 API。請確認 FastAPI 正在 8000 埠執行。",
+              );
+            }
+            throw new Error(
+              detail || `儲存失敗（HTTP ${response.status}），請稍後再試。`,
+            );
+          }
+          form.reset();
+          selectedMood.value = "開心";
+          document.querySelectorAll("[data-mood]").forEach((option) => {
+            option.setAttribute(
+              "aria-pressed",
+              String(option.dataset.mood === "開心"),
+            );
+          });
+          clearPhotoPreview();
+          dialog.close();
+          await loadEntries();
+        } catch (error) {
+          statusMessage.textContent = error.message;
+        } finally {
+          saveButton.disabled = false;
+          saveButton.textContent = "儲存記錄";
+        }
+      });
+
+      loadEntries();
+      refreshServerStatus();
+    </script>
+  </body>
+</html>
