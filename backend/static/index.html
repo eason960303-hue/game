@@ -501,6 +501,368 @@
         line-height: 1.7;
       }
 
+      .profile-shell {
+        max-width: 920px;
+        margin: 0 auto;
+      }
+
+      .profile-header {
+        display: grid;
+        grid-template-columns: minmax(150px, 0.72fr) minmax(0, 1.55fr);
+        align-items: center;
+        gap: clamp(24px, 7vw, 82px);
+        padding: 20px clamp(8px, 4vw, 52px) 28px;
+      }
+
+      .profile-avatar-wrap {
+        display: grid;
+        width: clamp(104px, 16vw, 152px);
+        aspect-ratio: 1;
+        justify-self: center;
+        overflow: hidden;
+        place-items: center;
+        border: 4px solid #fff;
+        border-radius: 50%;
+        background: linear-gradient(145deg, #f3d9c8, #dceaff 54%, #c1e6db);
+        box-shadow: 0 0 0 1px #e6edf5, 0 12px 30px #263e5a12;
+        color: #42658a;
+        font-size: clamp(34px, 6vw, 52px);
+        font-weight: 750;
+      }
+
+      .profile-avatar-wrap img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .profile-avatar-wrap img[hidden] {
+        display: none;
+      }
+
+      .profile-identity {
+        min-width: 0;
+      }
+
+      .profile-username-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .profile-username {
+        margin: 0;
+        color: #263b53;
+        font-size: clamp(22px, 4vw, 30px);
+        font-weight: 450;
+        overflow-wrap: anywhere;
+      }
+
+      .profile-edit-button {
+        min-height: 36px;
+        padding: 0 14px;
+        border: 1px solid #dfe7f0;
+        border-radius: 10px;
+        background: #f5f8fc;
+        color: #405772;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .profile-stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: clamp(18px, 5vw, 44px);
+        margin: 25px 0 20px;
+        color: #53677e;
+        font-size: 14px;
+      }
+
+      .profile-stat {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 6px;
+      }
+
+      .profile-stat strong {
+        color: #263b53;
+        font-size: 16px;
+      }
+
+      .profile-bio-name {
+        margin: 0 0 5px;
+        color: #334b65;
+        font-size: 14px;
+        font-weight: 750;
+        overflow-wrap: anywhere;
+      }
+
+      .profile-bio {
+        margin: 0;
+        color: #667a91;
+        font-size: 13px;
+        line-height: 1.75;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      .profile-posts-heading {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin: 10px 0 14px;
+        padding-top: 20px;
+        border-top: 1px solid #e6edf5;
+        color: #4a6078;
+        font-size: 13px;
+        font-weight: 750;
+        letter-spacing: 0.08em;
+      }
+
+      .profile-post-section + .profile-post-section {
+        margin-top: 32px;
+      }
+
+      .profile-post-section-heading {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        margin: 0 0 14px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #e6edf5;
+        color: #344c65;
+        font-size: 19px;
+        font-weight: 750;
+      }
+
+      .profile-post-section-count {
+        color: #8191a4;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .profile-post-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+        align-items: start;
+        gap: clamp(10px, 1.8vw, 18px);
+      }
+
+      .profile-post-tile {
+        position: relative;
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid #e2eaf2;
+        border-radius: 17px;
+        background: #fff;
+        box-shadow: 0 8px 25px #263e5a0a;
+        transition: border-color 160ms ease, box-shadow 160ms ease;
+      }
+
+      .profile-post-tile:hover,
+      .profile-post-tile.is-expanded {
+        border-color: #cbdced;
+        box-shadow: 0 12px 30px #263e5a14;
+      }
+
+      .profile-post-tile.is-expanded {
+        grid-column: 1 / -1;
+      }
+
+      .profile-post-toggle {
+        display: flex;
+        width: 100%;
+        min-height: 190px;
+        aspect-ratio: 1;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: clamp(14px, 2vw, 20px);
+        border: 0;
+        background:
+          radial-gradient(circle at 88% 12%, #fff9 0, #fff0 33%),
+          linear-gradient(145deg, #edf5ff, #f9f4ed 55%, #e8f4ef);
+        color: #354d68;
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .profile-post-tile:nth-child(3n + 2) .profile-post-toggle {
+        background:
+          radial-gradient(circle at 88% 12%, #fff9 0, #fff0 33%),
+          linear-gradient(145deg, #f6e8ed, #f9f4ed 55%, #e8eff9);
+      }
+
+      .profile-post-tile:nth-child(3n) .profile-post-toggle {
+        background:
+          radial-gradient(circle at 88% 12%, #fff9 0, #fff0 33%),
+          linear-gradient(145deg, #e5f2eb, #f7f1e7 55%, #e8eff9);
+      }
+
+      .profile-post-tile.is-expanded .profile-post-toggle {
+        min-height: 150px;
+        aspect-ratio: auto;
+      }
+
+      .profile-post-toggle:focus-visible {
+        outline: 3px solid #83b3e4;
+        outline-offset: -4px;
+      }
+
+      .profile-post-tile-top,
+      .profile-post-tile-bottom {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .profile-post-tile-bottom > div {
+        min-width: 0;
+      }
+
+      .profile-post-title-block {
+        display: block;
+        min-width: 0;
+      }
+
+      .profile-post-type,
+      .profile-post-privacy {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 8px;
+        border: 1px solid #ffffffbd;
+        border-radius: 999px;
+        background: #ffffffa6;
+        color: #62758a;
+        font-size: clamp(9px, 1.4vw, 11px);
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .profile-post-art {
+        display: grid;
+        flex: 1;
+        place-items: center;
+        color: #6b8eb2;
+        font-size: clamp(34px, 8vw, 76px);
+        opacity: 0.78;
+      }
+
+      .profile-post-tile h3,
+      .profile-post-tile-title {
+        display: -webkit-box;
+        margin: 0;
+        overflow: hidden;
+        color: #344c65;
+        font-size: clamp(12px, 1.9vw, 16px);
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+      }
+
+      .profile-post-date {
+        flex: 0 0 auto;
+        color: #718399;
+        font-size: clamp(9px, 1.4vw, 11px);
+        white-space: nowrap;
+      }
+
+      .profile-post-details {
+        display: grid;
+        grid-template-rows: 0fr;
+        opacity: 0;
+        transition:
+          grid-template-rows 300ms cubic-bezier(0.2, 0.75, 0.25, 1),
+          opacity 200ms ease;
+      }
+
+      .profile-post-tile.is-expanded .profile-post-details {
+        grid-template-rows: 1fr;
+        opacity: 1;
+      }
+
+      .profile-post-details-inner {
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .profile-post-details-content {
+        padding: 18px clamp(14px, 2.5vw, 24px) 22px;
+        border-top: 1px solid #edf1f6;
+        color: #53677e;
+        font-size: 13px;
+        line-height: 1.75;
+        overflow-wrap: anywhere;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .profile-post-details {
+          transition: none;
+        }
+      }
+
+      .profile-post-content {
+        margin: 0;
+        white-space: pre-wrap;
+      }
+
+      .profile-route-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .profile-route-list li {
+        display: grid;
+        grid-template-columns: 32px minmax(0, 1fr);
+        gap: 10px;
+        align-items: start;
+      }
+
+      .profile-route-order {
+        display: grid;
+        width: 28px;
+        height: 28px;
+        place-items: center;
+        border-radius: 50%;
+        background: #eaf3ff;
+        color: #4774a2;
+        font-size: 11px;
+        font-weight: 750;
+      }
+
+      .profile-route-name {
+        color: #344c65;
+        font-weight: 700;
+      }
+
+      .profile-route-coordinates {
+        display: block;
+        color: #8493a5;
+        font-size: 11px;
+      }
+
+      .profile-empty,
+      .profile-error {
+        grid-column: 1 / -1;
+        padding: 42px 20px;
+        border: 1px dashed #d4dfeb;
+        border-radius: 18px;
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.7;
+      }
+
+      .profile-error .retry-button {
+        display: block;
+        margin: 12px auto 0;
+      }
+
       .module-layout,
       .trip-layout {
         display: grid;
@@ -658,6 +1020,90 @@
         display: grid;
         align-content: start;
         gap: 12px;
+      }
+
+      .route-point-editor {
+        display: grid;
+        gap: 10px;
+      }
+
+      .route-point-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        color: #53667c;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .route-point-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .route-point-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 9px;
+        padding: 12px;
+        border: 1px solid #e1e9f2;
+        border-radius: 13px;
+        background: #f8faff;
+      }
+
+      .route-point-row-heading {
+        display: flex;
+        grid-column: 1 / -1;
+        align-items: center;
+        justify-content: space-between;
+        color: #354d68;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .route-point-row .compact-field {
+        min-width: 0;
+      }
+
+      .route-point-row .compact-field:first-of-type {
+        grid-column: 1 / -1;
+      }
+
+      .route-point-row .compact-field input {
+        min-width: 0;
+      }
+
+      .route-point-row-actions {
+        display: flex;
+        grid-column: 1 / -1;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .route-point-row-actions .secondary-button,
+      .route-point-remove {
+        min-height: 34px;
+        padding: 7px 10px;
+        font-size: 11px;
+      }
+
+      .route-point-remove {
+        border: 1px solid #eadcdb;
+        border-radius: 9px;
+        background: #fff;
+        color: #8a5c58;
+      }
+
+      .route-stops {
+        display: grid;
+        gap: 6px;
+        margin: 10px 0;
+        padding-left: 22px;
+        color: #526980;
+        font-size: 12px;
+        line-height: 1.6;
       }
 
       .map-form h2,
@@ -1493,6 +1939,25 @@
           grid-template-columns: minmax(0, 1fr);
         }
 
+        .profile-header {
+          gap: 18px;
+          padding-right: 4px;
+          padding-left: 4px;
+        }
+
+        .profile-stats {
+          gap: 12px 20px;
+          font-size: 12px;
+        }
+
+        .profile-stat {
+          gap: 4px;
+        }
+
+        .profile-stat strong {
+          font-size: 14px;
+        }
+
         .map-workspace {
           height: auto;
           min-height: 0;
@@ -1513,6 +1978,45 @@
         .page {
           width: min(100% - 28px, 520px);
           padding-top: 20px;
+        }
+
+        .profile-header {
+          grid-template-columns: 90px minmax(0, 1fr);
+          gap: 18px;
+          padding-top: 4px;
+        }
+
+        .profile-avatar-wrap {
+          width: 82px;
+          border-width: 3px;
+          font-size: 30px;
+        }
+
+        .profile-username-row {
+          gap: 8px;
+        }
+
+        .profile-username {
+          font-size: 20px;
+        }
+
+        .profile-edit-button {
+          min-height: 32px;
+          padding: 0 10px;
+          font-size: 11px;
+        }
+
+        .profile-stats {
+          grid-column: 1 / -1;
+          justify-content: space-between;
+          gap: 7px;
+          margin: 14px 0;
+          font-size: 11px;
+        }
+
+        .profile-bio-name,
+        .profile-bio {
+          font-size: 12px;
         }
 
         .top-note {
@@ -1593,6 +2097,16 @@
           grid-template-columns: 1fr;
         }
 
+        .route-point-row {
+          grid-template-columns: 1fr;
+        }
+
+        .route-point-row-heading,
+        .route-point-row-actions,
+        .route-point-row .compact-field:first-of-type {
+          grid-column: 1;
+        }
+
         .friend-card {
           align-items: flex-start;
           flex-direction: column;
@@ -1618,6 +2132,7 @@
             <button class="nav-link" type="button" data-view="ai-diary">AI 聊天日記</button>
             <button class="nav-link" type="button" data-view="map">地圖足跡</button>
             <button class="nav-link" type="button" data-view="trips">行程包</button>
+            <button class="nav-link" type="button" data-view="profile">個人檔案</button>
           </nav>
           <details class="server-menu" id="server-menu">
             <summary aria-label="伺服器連線狀態與設定">
@@ -1671,6 +2186,55 @@
         </section>
       </div>
 
+      <section class="module-view" id="profile-view" hidden aria-labelledby="profile-page-title">
+        <div class="profile-shell">
+          <div class="profile-header">
+            <div class="profile-avatar-wrap" id="profile-avatar-fallback" aria-label="個人檔案頭像">
+              <img id="profile-avatar" alt="個人頭像" hidden />
+              <span id="profile-avatar-initial">✦</span>
+            </div>
+            <div class="profile-identity">
+              <div class="profile-username-row">
+                <h1 class="profile-username" id="profile-page-title">個人檔案</h1>
+                <button class="profile-edit-button" id="profile-edit-open" type="button">編輯個人檔案</button>
+              </div>
+              <div class="profile-stats" aria-label="個人檔案統計">
+                <span class="profile-stat"><strong id="profile-posts-count">—</strong> 貼文</span>
+                <span class="profile-stat"><strong id="profile-followers-count">—</strong> 粉絲</span>
+                <span class="profile-stat"><strong id="profile-following-count">—</strong> 追蹤中</span>
+              </div>
+              <div class="profile-bio-block">
+                <p class="profile-bio-name" id="profile-display-name"></p>
+                <p class="profile-bio" id="profile-bio">正在載入個人簡介…</p>
+              </div>
+            </div>
+          </div>
+          <div class="profile-posts-heading">
+            <span aria-hidden="true">▦</span> 我的生活
+          </div>
+          <section class="profile-post-section" aria-labelledby="profile-diaries-title">
+            <h2 class="profile-post-section-heading" id="profile-diaries-title">
+              日記 <span class="profile-post-section-count" id="profile-diaries-count">0 篇</span>
+            </h2>
+            <div class="profile-post-grid" id="profile-diaries-grid" aria-live="polite">
+              <div class="profile-empty">正在載入日記…</div>
+            </div>
+          </section>
+          <section class="profile-post-section" aria-labelledby="profile-footprints-title">
+            <h2 class="profile-post-section-heading" id="profile-footprints-title">
+              足跡 <span class="profile-post-section-count" id="profile-footprints-count">0 趟</span>
+            </h2>
+            <div class="profile-post-grid" id="profile-footprints-grid" aria-live="polite">
+              <div class="profile-empty">正在載入足跡…</div>
+            </div>
+          </section>
+          <div class="error-state" id="profile-load-error" role="alert" hidden>
+            <p id="profile-load-error-message">目前無法載入個人檔案。</p>
+            <button class="retry-button" id="profile-retry" type="button">重新整理</button>
+          </div>
+        </div>
+      </section>
+
       <section class="module-view" id="ai-diary-view" hidden aria-labelledby="ai-diary-title">
         <div class="module-heading">
           <h1 id="ai-diary-title">AI 聊天日記</h1>
@@ -1711,13 +2275,13 @@
       <section class="module-view" id="map-view" hidden aria-labelledby="map-title">
         <div class="module-heading">
           <h1 id="map-title">地圖足跡</h1>
-          <p>點選右側足跡可定位地圖；同日足跡會依建立時間連線。</p>
+          <p>展開一趟足跡，即可在地圖查看依序排列的途經點與旅遊動線。</p>
         </div>
         <div class="map-workspace">
           <div class="map-panel">
             <div id="map-canvas" aria-label="互動式足跡地圖"></div>
             <div class="map-pick-banner" id="map-pick-banner" role="status" hidden>
-              <span>請在地圖上點選位置</span>
+              <span>請點選地圖，加入目前選擇的途經點</span>
               <button class="map-pick-cancel" id="cancel-map-pick" type="button">取消</button>
             </div>
             <button class="map-add-button" id="map-add-open" type="button" aria-label="新增足跡" title="新增足跡">＋</button>
@@ -1799,21 +2363,21 @@
         <form class="dialog-content map-form" id="map-point-form">
           <div class="dialog-heading">
             <div>
-              <h2 id="map-point-dialog-title">新增足跡</h2>
-              <p>在地圖上點選位置，或直接輸入座標。</p>
+              <h2 id="map-point-dialog-title">新增足跡行程</h2>
+              <p>新增多個途經點，並依照站序記錄旅遊動線。</p>
             </div>
             <button class="icon-button" id="map-point-dismiss" type="button" aria-label="關閉新增足跡">×</button>
           </div>
-            <button class="secondary-button" id="map-pick-open" type="button">在地圖上選點</button>
-          <label class="compact-field">地點名稱
-            <input name="name" maxlength="160" required placeholder="例如：旗津海岸" />
+          <label class="compact-field">這趟足跡的名稱
+            <input name="name" maxlength="160" required placeholder="例如：旗津一日散步" />
           </label>
-          <label class="compact-field">緯度
-            <input name="latitude" type="number" step="any" min="-90" max="90" required placeholder="地圖點選後自動填入" />
-          </label>
-          <label class="compact-field">經度
-            <input name="longitude" type="number" step="any" min="-180" max="180" required placeholder="地圖點選後自動填入" />
-          </label>
+          <section class="route-point-editor" aria-labelledby="route-point-editor-title">
+            <div class="route-point-heading">
+              <span id="route-point-editor-title">途經地點</span>
+              <button class="secondary-button" id="route-point-add" type="button">＋ 新增途經點</button>
+            </div>
+            <div class="route-point-list" id="route-point-list"></div>
+          </section>
           <label class="compact-field">小記
             <textarea name="note" maxlength="1000" placeholder="記下這裡的故事…"></textarea>
           </label>
@@ -1825,11 +2389,38 @@
             </select>
           </label>
           <p class="privacy-note">摯友足跡只會顯示給追蹤者中已獲作者允許的人；公開行程僅分享公開足跡。</p>
-          <button class="primary-button" type="submit">儲存足跡</button>
+          <button class="primary-button" id="map-point-save" type="submit">儲存足跡</button>
           <p class="status-message" id="map-form-status" role="status"></p>
         </form>
       </dialog>
     </main>
+
+    <dialog id="profile-edit-dialog" aria-labelledby="profile-edit-title">
+      <form class="dialog-content" id="profile-edit-form">
+        <div class="dialog-heading">
+          <div>
+            <h2 id="profile-edit-title">編輯個人檔案</h2>
+            <p>更新你的顯示名稱、個人簡介與大頭貼。</p>
+          </div>
+          <button class="icon-button" id="profile-edit-dismiss" type="button" aria-label="關閉編輯個人檔案">×</button>
+        </div>
+        <label class="field">顯示名稱
+          <input name="display_name" maxlength="80" required />
+        </label>
+        <label class="field">個人簡介
+          <textarea name="bio" maxlength="500" rows="4" placeholder="寫幾句話介紹自己…"></textarea>
+        </label>
+        <label class="field">頭像圖片網址
+          <input name="avatar_url" type="url" maxlength="2048" placeholder="https://example.com/avatar.jpg" />
+        </label>
+        <p class="privacy-note">留空頭像網址即可使用預設頭像。請使用公開可存取的 HTTPS 圖片網址。</p>
+        <p class="status-message" id="profile-edit-status" role="status"></p>
+        <div class="modal-actions">
+          <button class="secondary-button" id="profile-edit-cancel" type="button">取消</button>
+          <button class="primary-button" id="profile-edit-save" type="submit">儲存變更</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog id="entry-dialog" aria-labelledby="dialog-title">
       <form class="dialog-content" id="entry-form">
@@ -1945,6 +2536,25 @@
       const loadError = document.querySelector("#load-error");
       const loadErrorMessage = document.querySelector("#load-error-message");
       const homeView = document.querySelector("#home-view");
+      const profileView = document.querySelector("#profile-view");
+      const profilePageTitle = document.querySelector("#profile-page-title");
+      const profileAvatar = document.querySelector("#profile-avatar");
+      const profileAvatarInitial = document.querySelector("#profile-avatar-initial");
+      const profileDisplayName = document.querySelector("#profile-display-name");
+      const profileBio = document.querySelector("#profile-bio");
+      const profilePostsCount = document.querySelector("#profile-posts-count");
+      const profileFollowersCount = document.querySelector("#profile-followers-count");
+      const profileFollowingCount = document.querySelector("#profile-following-count");
+      const profileDiariesGrid = document.querySelector("#profile-diaries-grid");
+      const profileFootprintsGrid = document.querySelector("#profile-footprints-grid");
+      const profileDiariesCount = document.querySelector("#profile-diaries-count");
+      const profileFootprintsCount = document.querySelector("#profile-footprints-count");
+      const profileLoadError = document.querySelector("#profile-load-error");
+      const profileLoadErrorMessage = document.querySelector("#profile-load-error-message");
+      const profileEditDialog = document.querySelector("#profile-edit-dialog");
+      const profileEditForm = document.querySelector("#profile-edit-form");
+      const profileEditStatus = document.querySelector("#profile-edit-status");
+      const profileEditSaveButton = document.querySelector("#profile-edit-save");
       const aiDiaryView = document.querySelector("#ai-diary-view");
       const aiChatForm = document.querySelector("#ai-chat-form");
       const aiChatInput = document.querySelector("#ai-chat-input");
@@ -1964,6 +2574,9 @@
       const mapPointsContainer = document.querySelector("#map-points");
       const mapPointCount = document.querySelector("#map-point-count");
       const mapPickBanner = document.querySelector("#map-pick-banner");
+      const routePointList = document.querySelector("#route-point-list");
+      const mapPointDialogTitle = document.querySelector("#map-point-dialog-title");
+      const mapPointSaveButton = document.querySelector("#map-point-save");
       const friendForm = document.querySelector("#friend-form");
       const friendList = document.querySelector("#friend-list");
       const friendCount = document.querySelector("#friend-count");
@@ -1983,6 +2596,10 @@
       const displayNameField = document.querySelector("#display-name-field");
       const oauthSetupNote = document.querySelector("#oauth-setup-note");
       let currentUser = null;
+      let currentProfile = null;
+      let profilePosts = [];
+      let expandedProfileDiaryId = null;
+      let expandedProfileFootprintId = null;
       let registering = false;
       let photoPreviewUrl = null;
       let map = null;
@@ -1991,6 +2608,8 @@
       let mapPoints = [];
       let selectedMapPointId = null;
       let pickingMapPoint = false;
+      let pendingMapPickRow = null;
+      let editingMapPointId = null;
       let trips = [];
       const localHosts = new Set(["localhost", "127.0.0.1"]);
       const isFilePreview = window.location.protocol === "file:";
@@ -2117,6 +2736,216 @@
               .join("");
         entriesContainer.innerHTML = cards;
       }
+
+      function renderProfile(profile) {
+        currentProfile = profile;
+        profilePageTitle.textContent = `@${profile.username}`;
+        profileDisplayName.textContent = profile.display_name;
+        profileBio.textContent = profile.bio || "分享一段關於自己的小故事。";
+        profilePostsCount.textContent = Number(profile.posts_count).toLocaleString("zh-TW");
+        profileFollowersCount.textContent = Number(
+          profile.followers_count,
+        ).toLocaleString("zh-TW");
+        profileFollowingCount.textContent = Number(
+          profile.following_count,
+        ).toLocaleString("zh-TW");
+        profileAvatarInitial.textContent =
+          Array.from(profile.display_name || profile.username || "✦")[0] || "✦";
+        profileAvatar.hidden = true;
+        profileAvatar.removeAttribute("src");
+        if (profile.avatar_url) {
+          profileAvatar.onload = () => {
+            profileAvatar.hidden = false;
+            profileAvatarInitial.hidden = true;
+          };
+          profileAvatar.onerror = () => {
+            profileAvatar.hidden = true;
+            profileAvatarInitial.hidden = false;
+            profileAvatar.removeAttribute("src");
+          };
+          profileAvatar.src = profile.avatar_url;
+        } else {
+          profileAvatarInitial.hidden = false;
+        }
+      }
+
+      function renderProfilePostCard(post, type, expandedId) {
+        const isFootprint = type === "footprint";
+        const icon = isFootprint ? "⌖" : "✦";
+        const caption = isFootprint
+          ? `${Array.isArray(post.points) ? post.points.length : 1} 個途經地點`
+          : post.mood || "生活日記";
+        const isExpanded = expandedId === post.id;
+        const details = isFootprint
+          ? `
+              <p class="profile-post-content">${escapeHtml(post.content || "尚未新增旅程備註。")}</p>
+              <ol class="profile-route-list">
+                ${(Array.isArray(post.points) ? post.points : [])
+                  .slice()
+                  .sort((left, right) => left.order - right.order)
+                  .map(
+                    (point, index) => `
+                      <li>
+                        <span class="profile-route-order">${Number(point.order) || index + 1}</span>
+                        <span>
+                          <span class="profile-route-name">${escapeHtml(point.name)}</span>
+                          <span class="profile-route-coordinates">${Number(point.lat).toFixed(5)}, ${Number(point.lng).toFixed(5)}</span>
+                        </span>
+                      </li>
+                    `,
+                  )
+                  .join("")}
+              </ol>
+            `
+          : `
+              <p class="profile-post-content">${escapeHtml(post.content || "這篇日記尚無內容。")}</p>
+              ${post.location ? `<p>地點：${escapeHtml(post.location)}</p>` : ""}
+              ${post.tags ? `<p>標籤：${escapeHtml(post.tags)}</p>` : ""}
+            `;
+        return `
+          <article class="profile-post-tile${isExpanded ? " is-expanded" : ""}">
+            <button
+              class="profile-post-toggle"
+              type="button"
+              data-profile-post-type="${type}"
+              data-profile-post-id="${post.id}"
+              data-profile-post-title="${escapeHtml(post.title)}"
+              aria-expanded="${isExpanded}"
+              aria-controls="profile-post-details-${type}-${post.id}"
+              aria-label="${isExpanded ? "收合" : "展開"}${isFootprint ? "足跡" : "日記"}：${escapeHtml(post.title)}"
+            >
+              <span class="profile-post-tile-top">
+                <span class="profile-post-type">${icon} ${isFootprint ? "足跡" : "日記"}</span>
+                <span class="profile-post-privacy">${privacyLabel(post.privacy)}</span>
+              </span>
+              <span class="profile-post-art" aria-hidden="true">${icon}</span>
+              <span class="profile-post-tile-bottom">
+                <span class="profile-post-title-block">
+                  <strong class="profile-post-tile-title">${escapeHtml(post.title)}</strong>
+                  <span class="profile-post-date">${escapeHtml(caption)}</span>
+                </span>
+                <time class="profile-post-date" datetime="${escapeHtml(post.created_at || "")}">${escapeHtml(formatDate(post.created_at))}</time>
+              </span>
+            </button>
+            <div
+              class="profile-post-details"
+              id="profile-post-details-${type}-${post.id}"
+              aria-hidden="${!isExpanded}"${isExpanded ? "" : " inert"}
+            >
+              <div class="profile-post-details-inner">
+                <div class="profile-post-details-content">${details}</div>
+              </div>
+            </div>
+          </article>
+        `;
+      }
+
+      function renderProfilePosts(posts) {
+        const diaries = posts.filter((post) => post.type === "entry");
+        const footprints = posts.filter((post) => post.type === "footprint");
+        profileDiariesCount.textContent = `${diaries.length} 篇`;
+        profileFootprintsCount.textContent = `${footprints.length} 趟`;
+
+        profileDiariesGrid.innerHTML = diaries.length
+          ? diaries
+              .map((post) =>
+                renderProfilePostCard(post, "diary", expandedProfileDiaryId),
+              )
+              .join("")
+          : '<div class="profile-empty">還沒有日記，前往「AI 聊天日記」記下生活片段吧。</div>';
+        profileFootprintsGrid.innerHTML = footprints.length
+          ? footprints
+              .map((post) =>
+                renderProfilePostCard(
+                  post,
+                  "footprint",
+                  expandedProfileFootprintId,
+                ),
+              )
+              .join("")
+          : '<div class="profile-empty">還沒有足跡，前往「地圖足跡」新增一趟旅程吧。</div>';
+      }
+
+      async function loadProfile() {
+        if (!currentUser) {
+          profileDiariesGrid.innerHTML =
+            '<div class="profile-empty">請先登入以查看個人日記。</div>';
+          profileFootprintsGrid.innerHTML =
+            '<div class="profile-empty">請先登入以查看個人足跡。</div>';
+          return;
+        }
+        profileLoadError.hidden = true;
+        profileDiariesGrid.innerHTML =
+          '<div class="profile-empty">正在載入日記…</div>';
+        profileFootprintsGrid.innerHTML =
+          '<div class="profile-empty">正在載入足跡…</div>';
+        try {
+          const [profile, posts] = await Promise.all([
+            apiRequest("/user/profile"),
+            apiRequest("/user/posts"),
+          ]);
+          if (!Array.isArray(posts)) {
+            throw new Error("伺服器回傳的貼文資料格式不正確。");
+          }
+          profilePosts = posts;
+          expandedProfileDiaryId = null;
+          expandedProfileFootprintId = null;
+          renderProfile(profile);
+          renderProfilePosts(posts);
+        } catch (error) {
+          currentProfile = null;
+          profileDiariesGrid.innerHTML = "";
+          profileFootprintsGrid.innerHTML = "";
+          profileLoadErrorMessage.textContent =
+            error.status === 401
+              ? "登入已失效，請重新登入後查看個人檔案。"
+              : error.message || "目前無法載入個人檔案。";
+          profileLoadError.hidden = false;
+        }
+      }
+
+      function toggleProfilePost(event, type) {
+        const button = event.target.closest("[data-profile-post-type]");
+        if (!button || button.dataset.profilePostType !== type) return;
+        const postId = Number(button.dataset.profilePostId);
+        const expandedId =
+          type === "diary"
+            ? expandedProfileDiaryId
+            : expandedProfileFootprintId;
+        if (type === "diary") {
+          expandedProfileDiaryId = expandedId === postId ? null : postId;
+        } else {
+          expandedProfileFootprintId = expandedId === postId ? null : postId;
+        }
+        const nextExpandedId =
+          type === "diary"
+            ? expandedProfileDiaryId
+            : expandedProfileFootprintId;
+        const grid =
+          type === "diary" ? profileDiariesGrid : profileFootprintsGrid;
+        grid.querySelectorAll(".profile-post-tile").forEach((card) => {
+          const cardButton = card.querySelector("[data-profile-post-id]");
+          const isExpanded =
+            Number(cardButton.dataset.profilePostId) === nextExpandedId;
+          const details = card.querySelector(".profile-post-details");
+          card.classList.toggle("is-expanded", isExpanded);
+          cardButton.setAttribute("aria-expanded", String(isExpanded));
+          cardButton.setAttribute(
+            "aria-label",
+            `${isExpanded ? "收合" : "展開"}${type === "footprint" ? "足跡" : "日記"}：${cardButton.dataset.profilePostTitle}`,
+          );
+          details.setAttribute("aria-hidden", String(!isExpanded));
+          details.toggleAttribute("inert", !isExpanded);
+        });
+        button.focus();
+      }
+
+      profileDiariesGrid.addEventListener("click", (event) =>
+        toggleProfilePost(event, "diary"),
+      );
+      profileFootprintsGrid.addEventListener("click", (event) =>
+        toggleProfilePost(event, "footprint"),
+      );
 
       async function loadEntries() {
         entriesContainer.hidden = false;
@@ -2250,6 +3079,99 @@
         return { private: "私密", friends: "摯友", public: "公開" }[value] || "私密";
       }
 
+      function renumberRoutePoints() {
+        const rows = Array.from(routePointList.querySelectorAll(".route-point-row"));
+        rows.forEach((row, index) => {
+          const stationNumber = index + 1;
+          row.dataset.routeOrder = String(stationNumber);
+          row.querySelector("[data-route-point-label]").textContent =
+            `第 ${stationNumber} 站`;
+          const nameInput = row.querySelector("[data-route-name]");
+          const latitudeInput = row.querySelector("[data-route-lat]");
+          const longitudeInput = row.querySelector("[data-route-lng]");
+          nameInput.setAttribute("aria-label", `第 ${stationNumber} 站地點名稱`);
+          latitudeInput.setAttribute("aria-label", `第 ${stationNumber} 站緯度`);
+          longitudeInput.setAttribute("aria-label", `第 ${stationNumber} 站經度`);
+          row.querySelector("[data-route-remove]").disabled = rows.length <= 1;
+        });
+        document.querySelector("#route-point-add").disabled = rows.length >= 50;
+      }
+
+      function addRoutePoint(values = {}) {
+        if (routePointList.children.length >= 50) return null;
+        const row = document.createElement("div");
+        row.className = "route-point-row";
+        row.innerHTML = `
+          <div class="route-point-row-heading">
+            <span data-route-point-label></span>
+          </div>
+          <label class="compact-field">地點名稱
+            <input data-route-name maxlength="160" required placeholder="例如：旗津海岸" />
+          </label>
+          <label class="compact-field">緯度
+            <input data-route-lat type="number" step="any" min="-90" max="90" required placeholder="地圖選點或輸入座標" />
+          </label>
+          <label class="compact-field">經度
+            <input data-route-lng type="number" step="any" min="-180" max="180" required placeholder="地圖選點或輸入座標" />
+          </label>
+          <div class="route-point-row-actions">
+            <button class="secondary-button" type="button" data-route-pick>在地圖選點</button>
+            <button class="route-point-remove" type="button" data-route-remove>移除此站</button>
+          </div>
+        `;
+        row.querySelector("[data-route-name]").value = values.name || "";
+        row.querySelector("[data-route-lat]").value = values.lat ?? "";
+        row.querySelector("[data-route-lng]").value = values.lng ?? "";
+        routePointList.append(row);
+        renumberRoutePoints();
+        return row;
+      }
+
+      function resetRoutePoints() {
+        routePointList.replaceChildren();
+        addRoutePoint();
+      }
+
+      function placePendingRoutePoint(latlng) {
+        if (!pickingMapPoint || !pendingMapPickRow) return;
+        const latitudeInput = pendingMapPickRow.querySelector("[data-route-lat]");
+        const longitudeInput = pendingMapPickRow.querySelector("[data-route-lng]");
+        latitudeInput.value = latlng.lat.toFixed(6);
+        longitudeInput.value = latlng.lng.toFixed(6);
+        const nameInput = pendingMapPickRow.querySelector("[data-route-name]");
+        if (!nameInput.value.trim()) nameInput.value = "地圖途經點";
+        pickingMapPoint = false;
+        pendingMapPickRow = null;
+        mapPickBanner.hidden = true;
+        mapPointDialog.showModal();
+        nameInput.focus();
+        document.querySelector("#map-form-status").textContent =
+          "已將地圖座標加入所選途經點。";
+      }
+
+      resetRoutePoints();
+
+      document.querySelector("#route-point-add").addEventListener("click", () => {
+        const row = addRoutePoint();
+        row?.querySelector("[data-route-name]").focus();
+      });
+
+      routePointList.addEventListener("click", (event) => {
+        const pickButton = event.target.closest("[data-route-pick]");
+        if (pickButton) {
+          pendingMapPickRow = pickButton.closest(".route-point-row");
+          mapPointDialog.close();
+          pickingMapPoint = true;
+          mapPickBanner.hidden = false;
+          return;
+        }
+
+        const removeButton = event.target.closest("[data-route-remove]");
+        if (!removeButton || routePointList.children.length <= 1) return;
+        removeButton.closest(".route-point-row").remove();
+        renumberRoutePoints();
+      });
+
       function initMap() {
         if (map) {
           setTimeout(() => map.invalidateSize(), 100);
@@ -2267,32 +3189,40 @@
             '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         }).addTo(map);
         map.on("click", (event) => {
-          mapPointForm.elements.latitude.value = event.latlng.lat.toFixed(6);
-          mapPointForm.elements.longitude.value = event.latlng.lng.toFixed(6);
-          if (pickingMapPoint) {
-            pickingMapPoint = false;
-            mapPickBanner.hidden = true;
-            mapPointDialog.showModal();
-            document.querySelector("#map-form-status").textContent =
-              "已從地圖填入座標。";
-            mapPointForm.elements.name.focus();
-          }
+          placePendingRoutePoint(event.latlng);
         });
       }
 
-      function mapPointDay(point) {
-        return String(point.created_at || "").slice(0, 10);
+      function footprintRoutePoints(point) {
+        if (Array.isArray(point.points) && point.points.length > 0) {
+          return point.points
+            .filter(
+              (routePoint) =>
+                Number.isFinite(Number(routePoint.lat)) &&
+                Number.isFinite(Number(routePoint.lng)),
+            )
+            .map((routePoint, index) => ({
+              lat: Number(routePoint.lat),
+              lng: Number(routePoint.lng),
+              name: routePoint.name || point.name,
+              order: Number(routePoint.order) || index + 1,
+            }))
+            .sort((left, right) => left.order - right.order);
+        }
+        return [
+          {
+            lat: Number(point.latitude),
+            lng: Number(point.longitude),
+            name: point.name,
+            order: 1,
+          },
+        ];
       }
 
-      function mapMarkerIcon(point) {
-        const isSelected = point.id === selectedMapPointId;
-        const isSameDay =
-          selectedMapPointId !== null &&
-          mapPointDay(point) ===
-            mapPointDay(mapPoints.find((item) => item.id === selectedMapPointId) || {});
+      function mapMarkerIcon(isSelected) {
         return L.divIcon({
           className: "footprint-marker-shell",
-          html: `<span class="footprint-marker${isSameDay ? " is-day" : ""}${isSelected ? " is-selected" : ""}"></span>`,
+          html: `<span class="footprint-marker${isSelected ? " is-selected" : ""}"></span>`,
           iconSize: [24, 24],
           iconAnchor: [12, 12],
         });
@@ -2305,31 +3235,26 @@
         }
         if (!map || !selectedPoint) return;
 
-        const selectedDay = mapPointDay(selectedPoint);
-        if (!selectedDay) return;
-        const sameDayPoints = mapPoints
-          .filter((point) => mapPointDay(point) === selectedDay)
-          .sort(
-            (left, right) =>
-              new Date(left.created_at.replace(" ", "T")).getTime() -
-              new Date(right.created_at.replace(" ", "T")).getTime(),
-          );
-        if (sameDayPoints.length < 2) return;
-
-        mapRoute = L.polyline(
-          sameDayPoints.map((point) => [point.latitude, point.longitude]),
-          { color: "#4386d5", weight: 4, opacity: 0.75, dashArray: "8 8" },
-        ).addTo(map);
-      }
-
-      function focusMapPoint(point) {
-        if (!map || !point) return;
-        map.flyTo(
-          [point.latitude, point.longitude],
-          Math.max(map.getZoom(), 13),
-          { duration: 0.8 },
-        );
-        mapMarkers.get(point.id)?.openPopup();
+        const routePoints = footprintRoutePoints(selectedPoint);
+        const coordinates = routePoints.map((routePoint) => [
+          routePoint.lat,
+          routePoint.lng,
+        ]);
+        if (coordinates.length > 1) {
+          mapRoute = L.polyline(coordinates, {
+            color: "#4386d5",
+            weight: 4,
+            opacity: 0.82,
+            dashArray: "8 8",
+          }).addTo(map);
+        }
+        if (coordinates.length > 0) {
+          map.fitBounds(L.latLngBounds(coordinates), {
+            padding: [36, 36],
+            maxZoom: 15,
+            animate: true,
+          });
+        }
       }
 
       function selectMapPoint(pointId) {
@@ -2340,10 +3265,35 @@
         mapPointsContainer
           .querySelector(`[data-map-point="${point.id}"]`)
           ?.focus();
-        focusMapPoint(point);
+      }
+
+      function openMapPointEditor(pointId) {
+        const point = mapPoints.find(
+          (item) => item.id === pointId && item.is_owner,
+        );
+        if (!point) return;
+        editingMapPointId = point.id;
+        mapPointForm.reset();
+        mapPointForm.elements.name.value = point.name;
+        mapPointForm.elements.note.value = point.note || "";
+        mapPointForm.elements.privacy.value = point.privacy;
+        routePointList.replaceChildren();
+        footprintRoutePoints(point).forEach((routePoint) => {
+          addRoutePoint(routePoint);
+        });
+        mapPointDialogTitle.textContent = "編輯足跡行程";
+        mapPointSaveButton.textContent = "儲存變更";
+        document.querySelector("#map-form-status").textContent = "";
+        mapPointDialog.showModal();
+        mapPointForm.elements.name.focus();
       }
 
       mapPointsContainer.addEventListener("click", (event) => {
+        const editButton = event.target.closest("[data-edit-map-point]");
+        if (editButton) {
+          openMapPointEditor(Number(editButton.dataset.editMapPoint));
+          return;
+        }
         const button = event.target.closest("[data-map-point]");
         if (!button) return;
         const pointId = Number(button.dataset.mapPoint);
@@ -2351,7 +3301,7 @@
         if (isAlreadyExpanded) {
           selectedMapPointId = null;
           renderMapPoints();
-          mapMarkers.get(pointId)?.closePopup();
+          mapMarkers.get(`${pointId}:1`)?.closePopup();
           mapPointsContainer
             .querySelector(`[data-map-point="${pointId}"]`)
             ?.focus();
@@ -2361,11 +3311,11 @@
       });
 
       function renderMapPoints() {
-        mapPointCount.textContent = `${mapPoints.length} 個地點`;
+        mapPointCount.textContent = `${mapPoints.length} 趟足跡`;
         if (mapPoints.length === 0) {
           selectedMapPointId = null;
           mapPointsContainer.innerHTML =
-            '<div class="module-empty">還沒有足跡，在地圖點一下開始收藏。</div>';
+            '<div class="module-empty">還沒有足跡行程，按下「＋」開始新增並加入途經點。</div>';
           tripPointOptions.innerHTML =
             '<span class="privacy-note">新增足跡後即可加入行程包。</span>';
         } else {
@@ -2373,6 +3323,7 @@
             .map(
               (point) => {
                 const isSelected = point.id === selectedMapPointId;
+                const routePoints = footprintRoutePoints(point);
                 return `
                 <article class="map-point-card${isSelected ? " is-selected is-expanded" : ""}">
                   <button class="map-point-select" type="button" data-map-point="${point.id}" aria-expanded="${isSelected}" aria-controls="map-point-details-${point.id}">
@@ -2380,7 +3331,7 @@
                     <span class="map-point-summary">
                       <time datetime="${escapeHtml(point.created_at || "")}">${escapeHtml(formatDate(point.created_at))}</time>
                       <h3>${escapeHtml(point.name)}</h3>
-                      <p>${escapeHtml(point.owner_name || "我的足跡")} · ${escapeHtml(point.note || "尚未新增小記")}</p>
+                      <p>${escapeHtml(point.owner_name || "我的足跡")} · ${routePoints.length} 個途經點</p>
                     </span>
                     <span class="map-point-chevron" aria-hidden="true">⌄</span>
                   </button>
@@ -2390,7 +3341,18 @@
                       <span>此足跡尚無已儲存的照片</span>
                     </div>
                     <p>${escapeHtml(point.note || "尚未新增小記。")}</p>
-                    <p class="map-point-coordinates">座標：${Number(point.latitude).toFixed(5)}, ${Number(point.longitude).toFixed(5)}</p>
+                    <ol class="route-stops">
+                      ${routePoints
+                        .map(
+                          (routePoint) => `
+                            <li>
+                              <strong>第 ${routePoint.order} 站：${escapeHtml(routePoint.name)}</strong>
+                              <span> · ${routePoint.lat.toFixed(5)}, ${routePoint.lng.toFixed(5)}</span>
+                            </li>
+                          `,
+                        )
+                        .join("")}
+                    </ol>
                     <div class="map-point-top">
                       <span class="mood">${privacyLabel(point.privacy)}</span>
                       <span class="entry-owner">${escapeHtml(point.owner_name || "我的足跡")}</span>
@@ -2398,6 +3360,7 @@
                     ${
                       point.is_owner
                         ? `<div class="map-point-actions">
+                            <button class="secondary-button" type="button" data-edit-map-point="${point.id}">編輯這趟足跡</button>
                             <label class="compact-field">隱私層級
                               <select class="privacy-select" data-privacy-point="${point.id}" aria-label="設定 ${escapeHtml(point.name)} 的隱私層級">
                                 <option value="private" ${point.privacy === "private" ? "selected" : ""}>私密</option>
@@ -2434,31 +3397,42 @@
         const selectedPoint = mapPoints.find(
           (point) => point.id === selectedMapPointId,
         );
-        mapPointCount.textContent = `${mapPoints.length} 個地點`;
-        mapMarkers.forEach((marker, pointId) => {
-          const point = mapPoints.find((item) => item.id === pointId);
-          if (!point) {
-            marker.remove();
-            mapMarkers.delete(pointId);
-            return;
-          }
-          marker.setIcon(mapMarkerIcon(point));
-        });
+        const activeMarkerKeys = new Set();
         mapPoints.forEach((point) => {
-          let marker = mapMarkers.get(point.id);
-          const popupContent =
-            `<strong>${escapeHtml(point.name)}</strong><br>${escapeHtml(point.note || "")}<br><small>${privacyLabel(point.privacy)}</small>`;
-          if (!marker) {
-            marker = L.marker([point.latitude, point.longitude], {
-              icon: mapMarkerIcon(point),
-            })
-              .addTo(map)
-              .bindPopup(popupContent);
-            mapMarkers.set(point.id, marker);
-          } else {
-            marker.setLatLng([point.latitude, point.longitude]);
-            marker.setPopupContent(popupContent);
-          }
+          footprintRoutePoints(point).forEach((routePoint) => {
+            const markerKey = `${point.id}:${routePoint.order}`;
+            activeMarkerKeys.add(markerKey);
+            let marker = mapMarkers.get(markerKey);
+            const popupContent = `
+              <strong>${escapeHtml(point.name)}</strong><br>
+              第 ${routePoint.order} 站：${escapeHtml(routePoint.name)}<br>
+              <small>${privacyLabel(point.privacy)}</small>
+            `;
+            if (!marker) {
+              marker = L.marker([routePoint.lat, routePoint.lng], {
+                icon: mapMarkerIcon(point.id === selectedMapPointId),
+              })
+                .addTo(map)
+                .bindPopup(popupContent)
+                .on("click", (event) => {
+                  if (pickingMapPoint) {
+                    placePendingRoutePoint(event.latlng);
+                  } else {
+                    selectMapPoint(point.id);
+                  }
+                });
+              mapMarkers.set(markerKey, marker);
+            } else {
+              marker.setLatLng([routePoint.lat, routePoint.lng]);
+              marker.setIcon(mapMarkerIcon(point.id === selectedMapPointId));
+              marker.setPopupContent(popupContent);
+            }
+          });
+        });
+        mapMarkers.forEach((marker, markerKey) => {
+          if (activeMarkerKeys.has(markerKey)) return;
+          marker.remove();
+          mapMarkers.delete(markerKey);
         });
         updateMapRoute(selectedPoint);
       }
@@ -2664,6 +3638,7 @@
           const view = button.dataset.view;
           if (view !== "map" && pickingMapPoint) {
             pickingMapPoint = false;
+            pendingMapPickRow = null;
             mapPickBanner.hidden = true;
           }
           document.querySelectorAll("[data-view]").forEach((item) => {
@@ -2672,11 +3647,15 @@
           button.setAttribute("aria-current", "page");
 
           homeView.hidden = view !== "home";
+          profileView.hidden = view !== "profile";
           aiDiaryView.hidden = view !== "ai-diary";
           mapView.hidden = view !== "map";
           tripsView.hidden = view !== "trips";
           if (view === "ai-diary") {
             if (currentUser) loadAiDiaryStatus();
+            else openLoginDialog();
+          } else if (view === "profile") {
+            if (currentUser) loadProfile();
             else openLoginDialog();
           } else if (view === "map") {
             initMap();
@@ -2693,7 +3672,53 @@
       });
 
       document.querySelector("#retry-load").addEventListener("click", loadEntries);
+      document.querySelector("#profile-retry").addEventListener("click", loadProfile);
       entriesContainer.addEventListener("change", updateEntryPrivacy);
+
+      document.querySelector("#profile-edit-open").addEventListener("click", () => {
+        if (!currentUser) {
+          openLoginDialog();
+          return;
+        }
+        profileEditStatus.textContent = "";
+        profileEditForm.elements.display_name.value =
+          currentProfile?.display_name || "";
+        profileEditForm.elements.bio.value = currentProfile?.bio || "";
+        profileEditForm.elements.avatar_url.value =
+          currentProfile?.avatar_url || "";
+        profileEditDialog.showModal();
+        profileEditForm.elements.display_name.focus();
+      });
+
+      document
+        .querySelector("#profile-edit-dismiss")
+        .addEventListener("click", () => profileEditDialog.close());
+      document
+        .querySelector("#profile-edit-cancel")
+        .addEventListener("click", () => profileEditDialog.close());
+
+      profileEditForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        profileEditStatus.textContent = "";
+        profileEditSaveButton.disabled = true;
+        const values = new FormData(profileEditForm);
+        try {
+          await apiRequest(
+            "/user/profile",
+            jsonOptions("PATCH", {
+              display_name: getFormText(values, "display_name"),
+              bio: getFormText(values, "bio"),
+              avatar_url: getFormText(values, "avatar_url"),
+            }),
+          );
+          await loadProfile();
+          profileEditDialog.close();
+        } catch (error) {
+          profileEditStatus.textContent = error.message;
+        } finally {
+          profileEditSaveButton.disabled = false;
+        }
+      });
 
       document.querySelector("#login-open").addEventListener("click", openLoginDialog);
       document.querySelector("#login-dismiss").addEventListener("click", () => {
@@ -2760,6 +3785,7 @@
           const activeView = document.querySelector(
             '[data-view][aria-current="page"]',
           )?.dataset.view;
+          if (activeView === "profile") await loadProfile();
           if (activeView === "map") await loadFriends();
           if (activeView === "ai-diary") await loadAiDiaryStatus();
         } catch (error) {
@@ -2778,6 +3804,7 @@
           return;
         }
         currentUser = null;
+        currentProfile = null;
         updateAccountUi();
         form.reset();
         mapPointForm.reset();
@@ -2796,6 +3823,26 @@
         aiChatMessages.innerHTML =
           '<div class="ai-chat-message is-assistant">嗨！告訴我今天發生了什麼，我會幫你整理成一篇日記。</div>';
         aiProviderStatus.textContent = "登入後檢查 AI 服務設定。";
+        profilePageTitle.textContent = "個人檔案";
+        profileDisplayName.textContent = "";
+        profileBio.textContent = "請登入以查看個人簡介。";
+        profileAvatar.hidden = true;
+        profileAvatar.removeAttribute("src");
+        profileAvatarInitial.textContent = "✦";
+        profileAvatarInitial.hidden = false;
+        profilePostsCount.textContent = "—";
+        profileFollowersCount.textContent = "—";
+        profileFollowingCount.textContent = "—";
+        profilePosts = [];
+        currentProfile = null;
+        expandedProfileDiaryId = null;
+        expandedProfileFootprintId = null;
+        profileDiariesCount.textContent = "0 篇";
+        profileFootprintsCount.textContent = "0 趟";
+        profileDiariesGrid.innerHTML =
+          '<div class="profile-empty">請先登入以查看個人日記。</div>';
+        profileFootprintsGrid.innerHTML =
+          '<div class="profile-empty">請先登入以查看個人足跡。</div>';
         renderMapPoints();
         renderTrips();
       });
@@ -2832,26 +3879,29 @@
           openLoginDialog();
           return;
         }
+        mapPointForm.reset();
+        resetRoutePoints();
+        editingMapPointId = null;
+        mapPointDialogTitle.textContent = "新增足跡行程";
+        mapPointSaveButton.textContent = "儲存足跡";
         pickingMapPoint = false;
+        pendingMapPickRow = null;
         mapPickBanner.hidden = true;
         document.querySelector("#map-form-status").textContent = "";
         mapPointDialog.showModal();
         mapPointForm.elements.name.focus();
       });
 
-      document.querySelector("#map-pick-open").addEventListener("click", () => {
-        mapPointDialog.close();
-        pickingMapPoint = true;
-        mapPickBanner.hidden = false;
-      });
-
       document.querySelector("#cancel-map-pick").addEventListener("click", () => {
         pickingMapPoint = false;
+        pendingMapPickRow = null;
         mapPickBanner.hidden = true;
       });
 
       document.querySelector("#map-point-dismiss").addEventListener("click", () => {
         pickingMapPoint = false;
+        pendingMapPickRow = null;
+        editingMapPointId = null;
         mapPickBanner.hidden = true;
         mapPointDialog.close();
       });
@@ -2859,6 +3909,8 @@
       mapPointDialog.addEventListener("click", (event) => {
         if (event.target === mapPointDialog) {
           pickingMapPoint = false;
+          pendingMapPickRow = null;
+          editingMapPointId = null;
           mapPointDialog.close();
         }
       });
@@ -2868,21 +3920,42 @@
         const values = new FormData(mapPointForm);
         const status = document.querySelector("#map-form-status");
         status.textContent = "";
+        const points = Array.from(
+          routePointList.querySelectorAll(".route-point-row"),
+          (row, index) => ({
+            name: row.querySelector("[data-route-name]").value.trim(),
+            lat: Number(row.querySelector("[data-route-lat]").value),
+            lng: Number(row.querySelector("[data-route-lng]").value),
+            order: index + 1,
+          }),
+        );
         try {
-          await apiRequest(
-            "/map-points",
-            jsonOptions("POST", {
+          const payload = {
               name: getFormText(values, "name"),
-              latitude: Number(values.get("latitude")),
-              longitude: Number(values.get("longitude")),
+              latitude: points[0].lat,
+              longitude: points[0].lng,
               note: getFormText(values, "note"),
               privacy: values.get("privacy"),
-            }),
+              points,
+            };
+          await apiRequest(
+            editingMapPointId
+              ? `/map-points/${editingMapPointId}`
+              : "/map-points",
+            jsonOptions(editingMapPointId ? "PUT" : "POST", payload),
           );
+          const statusMessage = editingMapPointId
+            ? "足跡行程已更新。"
+            : "足跡行程已儲存。";
           mapPointForm.reset();
+          resetRoutePoints();
+          editingMapPointId = null;
+          mapPointDialogTitle.textContent = "新增足跡行程";
+          mapPointSaveButton.textContent = "儲存足跡";
           pickingMapPoint = false;
+          pendingMapPickRow = null;
           mapPickBanner.hidden = true;
-          status.textContent = "足跡已儲存。";
+          status.textContent = statusMessage;
           await loadMapPoints();
           mapPointDialog.close();
         } catch (error) {

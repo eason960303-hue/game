@@ -6,3 +6,5 @@
 build/
 .idea/
 .vscode/
+# Widget Preview related
+.widget_preview/

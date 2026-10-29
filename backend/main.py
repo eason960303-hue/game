@@ -10,9 +10,9 @@ import secrets
 import sqlite3
 import time
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 from urllib.request import Request as URLRequest
 from urllib.request import urlopen
 
@@ -93,6 +93,12 @@ class CloseFriendUpdate(BaseModel):
     is_close_friend: bool
 
 
+class ProfileUpdate(BaseModel):
+    display_name: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    bio: Optional[str] = Field(default=None, max_length=500)
+    avatar_url: Optional[str] = Field(default=None, max_length=2048)
+
+
 class DiaryChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=12000)
     privacy: Literal["private", "friends", "public"] = "private"
@@ -106,12 +112,20 @@ class ParsedDiaryEntry(BaseModel):
     reply: str = Field(..., min_length=1, max_length=500)
 
 
+class FootprintRoutePoint(BaseModel):
+    lat: float = Field(..., ge=-90, le=90)
+    lng: float = Field(..., ge=-180, le=180)
+    name: str = Field(..., min_length=1, max_length=160)
+    order: int = Field(..., ge=1, le=50)
+
+
 class MapPointCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=160)
-    latitude: float = Field(..., ge=-90, le=90)
-    longitude: float = Field(..., ge=-180, le=180)
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
     note: str = Field(default="", max_length=1000)
     privacy: Literal["private", "friends", "public"] = "private"
+    points: list[FootprintRoutePoint] = Field(default_factory=list, max_length=50)
 
 
 class MapPointPrivacyUpdate(BaseModel):
@@ -134,6 +148,8 @@ def init_feature_tables() -> None:
                 email TEXT UNIQUE,
                 password_hash TEXT,
                 display_name TEXT NOT NULL,
+                bio TEXT NOT NULL DEFAULT '',
+                avatar_url TEXT,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -204,6 +220,7 @@ def init_feature_tables() -> None:
                 note TEXT NOT NULL DEFAULT '',
                 privacy TEXT NOT NULL DEFAULT 'private'
                     CHECK (privacy IN ('private', 'friends', 'public')),
+                points_json TEXT NOT NULL DEFAULT '[]',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -238,6 +255,22 @@ def init_feature_tables() -> None:
                 conn.execute(
                     f"ALTER TABLE {table} ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE"
                 )
+
+        user_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(users)")
+        }
+        if "bio" not in user_columns:
+            conn.execute("ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT ''")
+        if "avatar_url" not in user_columns:
+            conn.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
+
+        map_point_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(map_points)")
+        }
+        if "points_json" not in map_point_columns:
+            conn.execute(
+                "ALTER TABLE map_points ADD COLUMN points_json TEXT NOT NULL DEFAULT '[]'"
+            )
 
         settings_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(settings)")
@@ -618,6 +651,162 @@ def login_account(credentials: AccountCredentials, response: Response) -> dict[s
 @app.get("/api/auth/me")
 def auth_me(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     return {"authenticated": True, "user": user}
+
+
+@app.get("/api/user/profile")
+def get_user_profile(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    with get_connection() as conn:
+        profile = conn.execute(
+            """
+            SELECT id, email, display_name, bio, avatar_url
+            FROM users
+            WHERE id = ?
+            """,
+            (user["id"],),
+        ).fetchone()
+        posts_count = conn.execute(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM entries WHERE owner_id = ?) +
+                (SELECT COUNT(*) FROM map_points WHERE owner_id = ?)
+            """,
+            (user["id"], user["id"]),
+        ).fetchone()[0]
+        followers_count = conn.execute(
+            "SELECT COUNT(*) FROM user_follows WHERE followed_id = ?",
+            (user["id"],),
+        ).fetchone()[0]
+        following_count = conn.execute(
+            "SELECT COUNT(*) FROM user_follows WHERE follower_id = ?",
+            (user["id"],),
+        ).fetchone()[0]
+    if profile is None:
+        raise HTTPException(status_code=404, detail="找不到使用者個人檔案")
+    return {
+        "username": profile["email"].split("@", 1)[0]
+        if profile["email"]
+        else f"user{profile['id']}",
+        "display_name": profile["display_name"],
+        "bio": profile["bio"] or "",
+        "avatar_url": profile["avatar_url"],
+        "posts_count": posts_count,
+        "followers_count": followers_count,
+        "following_count": following_count,
+    }
+
+
+@app.patch("/api/user/profile")
+def update_user_profile(
+    update: ProfileUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    fields = update.model_fields_set
+    if not fields:
+        raise HTTPException(status_code=422, detail="請提供要更新的個人檔案欄位")
+    values: dict[str, Any] = {}
+    if "display_name" in fields:
+        display_name = (update.display_name or "").strip()
+        if not display_name:
+            raise HTTPException(status_code=422, detail="顯示名稱不可空白")
+        values["display_name"] = display_name
+    if "bio" in fields:
+        values["bio"] = (update.bio or "").strip()
+    if "avatar_url" in fields:
+        avatar_url = (update.avatar_url or "").strip()
+        if avatar_url:
+            parsed_url = urlsplit(avatar_url)
+            if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+                raise HTTPException(
+                    status_code=422, detail="頭像網址必須是有效的 HTTP 或 HTTPS 網址"
+                )
+        values["avatar_url"] = avatar_url or None
+
+    assignments = ", ".join(f"{column} = ?" for column in values)
+    with get_connection() as conn:
+        conn.execute(
+            f"UPDATE users SET {assignments} WHERE id = ?",
+            [*values.values(), user["id"]],
+        )
+        conn.commit()
+        profile = conn.execute(
+            """
+            SELECT id, email, display_name, bio, avatar_url
+            FROM users
+            WHERE id = ?
+            """,
+            (user["id"],),
+        ).fetchone()
+    if profile is None:
+        raise HTTPException(status_code=404, detail="找不到使用者個人檔案")
+    return {
+        "username": profile["email"].split("@", 1)[0]
+        if profile["email"]
+        else f"user{profile['id']}",
+        "display_name": profile["display_name"],
+        "bio": profile["bio"] or "",
+        "avatar_url": profile["avatar_url"],
+    }
+
+
+@app.get("/api/user/posts")
+def list_user_posts(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    with get_connection() as conn:
+        entries = conn.execute(
+            """
+            SELECT id, title, content, mood, location, privacy, tags, created_at
+            FROM entries
+            WHERE owner_id = ?
+            """,
+            (user["id"],),
+        ).fetchall()
+        footprints = conn.execute(
+            """
+            SELECT *
+            FROM map_points
+            WHERE owner_id = ?
+            """,
+            (user["id"],),
+        ).fetchall()
+
+    posts = [
+        {
+            "id": row["id"],
+            "type": "entry",
+            "title": row["title"],
+            "content": row["content"],
+            "mood": row["mood"],
+            "location": row["location"],
+            "privacy": row["privacy"],
+            "tags": row["tags"],
+            "created_at": row["created_at"],
+        }
+        for row in entries
+    ]
+    for row in footprints:
+        footprint = map_point_output(dict(row))
+        posts.append(
+            {
+                "id": footprint["id"],
+                "type": "footprint",
+                "title": footprint["name"],
+                "content": footprint["note"],
+                "mood": None,
+                "location": footprint["name"],
+                "privacy": footprint["privacy"],
+                "tags": None,
+                "created_at": footprint["created_at"],
+                "points": footprint["points"],
+            }
+        )
+    posts.sort(
+        key=lambda post: (post["created_at"], post["id"]),
+        reverse=True,
+    )
+    return posts
 
 
 @app.post("/api/auth/logout")
@@ -1113,9 +1302,61 @@ def get_map_point(
         ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="找不到這個足跡")
-    point = dict(row)
+    return map_point_output(dict(row))
+
+
+def map_point_output(point: dict[str, Any]) -> dict[str, Any]:
+    stored_points = point.pop("points_json", None)
+    if stored_points:
+        try:
+            decoded_points = json.loads(stored_points)
+        except (json.JSONDecodeError, TypeError) as error:
+            raise HTTPException(
+                status_code=500, detail="足跡路線資料格式錯誤"
+            ) from error
+        if not isinstance(decoded_points, list):
+            raise HTTPException(status_code=500, detail="足跡路線資料格式錯誤")
+        route_points = [
+            FootprintRoutePoint.model_validate(route_point).model_dump()
+            for route_point in decoded_points
+        ]
+    else:
+        route_points = []
+    if not route_points and point.get("latitude") is not None:
+        route_points = [
+            FootprintRoutePoint(
+                lat=point["latitude"],
+                lng=point["longitude"],
+                name=point["name"],
+                order=1,
+            ).model_dump()
+        ]
+    point["points"] = route_points
     point.pop("owner_id", None)
     return point
+
+
+def build_route_points(point: MapPointCreate) -> list[FootprintRoutePoint]:
+    route_points = point.points
+    if not route_points:
+        if point.latitude is None or point.longitude is None:
+            raise HTTPException(status_code=422, detail="請至少新增一個完整的途經點")
+        route_points = [
+            FootprintRoutePoint(
+                lat=point.latitude,
+                lng=point.longitude,
+                name=point.name.strip(),
+                order=1,
+            )
+        ]
+    if any(not route_point.name.strip() for route_point in route_points):
+        raise HTTPException(status_code=422, detail="途經點名稱不可空白")
+    return [
+        route_point.model_copy(
+            update={"name": route_point.name.strip(), "order": index}
+        )
+        for index, route_point in enumerate(route_points, start=1)
+    ]
 
 
 def get_trip_with_points(
@@ -1134,7 +1375,7 @@ def get_trip_with_points(
     trip.pop("owner_id", None)
     trip["is_public"] = bool(trip["is_public"])
     trip["points"] = [
-        {key: value for key, value in dict(point).items() if key != "owner_id"}
+        map_point_output(dict(point))
         for point in conn.execute(
             """
             SELECT map_points.*
@@ -1169,9 +1410,8 @@ def list_map_points(
         ).fetchall()
     points = []
     for row in rows:
-        point = dict(row)
+        point = map_point_output(dict(row))
         point["is_owner"] = bool(point["is_owner"])
-        point.pop("owner_id", None)
         points.append(point)
     return points
 
@@ -1180,24 +1420,68 @@ def list_map_points(
 def create_map_point(
     point: MapPointCreate, user: dict[str, Any] = Depends(get_current_user)
 ) -> dict[str, Any]:
+    normalized_route_points = build_route_points(point)
+    first_point = normalized_route_points[0]
     with get_connection() as conn:
         cursor = conn.execute(
             """
-            INSERT INTO map_points (owner_id, name, latitude, longitude, note, privacy)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO map_points
+                (owner_id, name, latitude, longitude, note, privacy, points_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user["id"],
                 point.name.strip(),
-                point.latitude,
-                point.longitude,
+                first_point.lat,
+                first_point.lng,
                 point.note.strip(),
                 point.privacy,
+                json.dumps(
+                    [route_point.model_dump() for route_point in normalized_route_points],
+                    ensure_ascii=False,
+                ),
             ),
         )
         created = get_map_point(conn, cursor.lastrowid, user["id"])
         conn.commit()
     return created
+
+
+@app.put("/api/map-points/{point_id}")
+def replace_map_point(
+    point_id: int,
+    point: MapPointCreate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    route_points = build_route_points(point)
+    first_point = route_points[0]
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE map_points
+            SET name = ?, latitude = ?, longitude = ?, note = ?, privacy = ?,
+                points_json = ?
+            WHERE id = ? AND owner_id = ?
+            """,
+            (
+                point.name.strip(),
+                first_point.lat,
+                first_point.lng,
+                point.note.strip(),
+                point.privacy,
+                json.dumps(
+                    [route_point.model_dump() for route_point in route_points],
+                    ensure_ascii=False,
+                ),
+                point_id,
+                user["id"],
+            ),
+        )
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="找不到這個足跡")
+        updated = get_map_point(conn, point_id, user["id"])
+        conn.commit()
+    return updated
 
 
 @app.patch("/api/map-points/{point_id}/privacy")
