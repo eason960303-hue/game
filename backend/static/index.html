@@ -508,6 +508,40 @@
         gap: 16px;
       }
 
+      .map-workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.9fr);
+        gap: 18px;
+        height: min(72vh, 760px);
+        min-height: 480px;
+      }
+
+      .map-panel {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        border: 1px solid #dfe8f2;
+        border-radius: 22px;
+        background: #edf4f8;
+        box-shadow: 0 8px 28px #263e5a0a;
+      }
+
+      .map-sidebar {
+        display: flex;
+        min-width: 0;
+        min-height: 0;
+        flex-direction: column;
+      }
+
+      .map-sidebar-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
       .module-card,
       .map-point-card,
       .trip-card {
@@ -520,11 +554,97 @@
       }
 
       #map-canvas {
-        min-height: 390px;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
         overflow: hidden;
-        border: 1px solid #dfe8f2;
-        border-radius: 16px;
         background: #edf4f8;
+      }
+
+      .map-add-button {
+        position: absolute;
+        z-index: 500;
+        right: 20px;
+        bottom: 20px;
+        display: grid;
+        width: 58px;
+        height: 58px;
+        place-items: center;
+        border: 1px solid #ffffffb8;
+        border-radius: 20px;
+        background: linear-gradient(145deg, #5c9de7, #3479ca);
+        box-shadow: 0 10px 24px #20558c4a;
+        color: #fff;
+        font-size: 32px;
+        font-weight: 400;
+        line-height: 1;
+        transition: transform 160ms ease, box-shadow 160ms ease;
+      }
+
+      .map-add-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 14px 28px #20558c5c;
+      }
+
+      .map-pick-banner {
+        position: absolute;
+        z-index: 600;
+        top: 16px;
+        left: 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border: 1px solid #d6e5f4;
+        border-radius: 12px;
+        background: #ffffffed;
+        box-shadow: 0 8px 22px #263e5a1a;
+        color: #42617f;
+        font-size: 12px;
+      }
+
+      .map-pick-banner[hidden] {
+        display: none;
+      }
+
+      .map-pick-cancel {
+        padding: 5px 8px;
+        border: 1px solid #dce8f5;
+        border-radius: 8px;
+        background: #f5f9ff;
+        color: var(--blue-dark);
+        font-size: 11px;
+        font-weight: 650;
+      }
+
+      .map-add-button:focus-visible,
+      .map-point-select:focus-visible {
+        outline: 3px solid #90c2f5;
+        outline-offset: 3px;
+      }
+
+      .footprint-marker-shell {
+        border: 0;
+        background: transparent;
+      }
+
+      .footprint-marker {
+        width: 18px;
+        height: 18px;
+        border: 3px solid #fff;
+        border-radius: 50%;
+        background: #5d94cf;
+        box-shadow: 0 2px 8px #18355370;
+        transition: transform 160ms ease, background 160ms ease;
+      }
+
+      .footprint-marker.is-day {
+        background: #65a2df;
+      }
+
+      .footprint-marker.is-selected {
+        transform: scale(1.45);
+        background: #e47d55;
       }
 
       .map-help,
@@ -578,6 +698,236 @@
         resize: vertical;
       }
 
+      .ai-diary-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(240px, 0.62fr);
+        align-items: start;
+        gap: 16px;
+      }
+
+      .ai-chat-card {
+        display: grid;
+        min-height: 560px;
+        grid-template-rows: auto minmax(190px, 1fr) auto;
+        gap: 14px;
+      }
+
+      .ai-chat-heading h2 {
+        margin: 0;
+        color: #263b53;
+        font-size: 17px;
+      }
+
+      .ai-chat-heading p,
+      .ai-provider-status {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.65;
+      }
+
+      .ai-chat-messages {
+        display: flex;
+        min-height: 0;
+        flex-direction: column;
+        gap: 10px;
+        padding: 14px;
+        overflow: auto;
+        border: 1px solid #e8edf4;
+        border-radius: 16px;
+        background: #f7faff;
+      }
+
+      .ai-chat-message {
+        max-width: 88%;
+        padding: 11px 13px;
+        border-radius: 15px;
+        color: #445a71;
+        font-size: 13px;
+        line-height: 1.7;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+      }
+
+      .ai-chat-message.is-assistant {
+        align-self: flex-start;
+        border: 1px solid #e3ebf5;
+        border-bottom-left-radius: 5px;
+        background: #fff;
+      }
+
+      .ai-chat-message.is-user {
+        align-self: flex-end;
+        border-bottom-right-radius: 5px;
+        background: #e5f1ff;
+        color: #315d8a;
+      }
+
+      .ai-chat-message.is-error {
+        border-color: #f0caca;
+        background: #fffafa;
+        color: #875454;
+      }
+
+      .ai-chat-form {
+        display: grid;
+        gap: 11px;
+      }
+
+      .ai-chat-composer {
+        width: 100%;
+        min-height: 94px;
+        padding: 11px 12px;
+        border: 1px solid #dfe7f0;
+        border-radius: 12px;
+        outline: none;
+        background: #fff;
+        color: #263b53;
+        font: inherit;
+        font-size: 13px;
+        resize: vertical;
+      }
+
+      .ai-chat-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .ai-chat-controls .compact-field {
+        min-width: 140px;
+        flex: 1;
+      }
+
+      .privacy-note-card {
+        padding: 18px;
+      }
+
+      .privacy-note-card h2 {
+        margin: 0 0 10px;
+        color: #263b53;
+        font-size: 16px;
+      }
+
+      .privacy-note-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.75;
+      }
+
+      .friend-management {
+        display: grid;
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+        gap: 16px;
+        margin-top: 20px;
+      }
+
+      .friend-form {
+        display: grid;
+        align-content: start;
+        gap: 11px;
+      }
+
+      .friend-form h2,
+      .friend-list-heading {
+        margin: 0;
+        color: #263b53;
+        font-size: 16px;
+        font-weight: 700;
+      }
+
+      .friend-list {
+        display: grid;
+        align-content: start;
+        gap: 9px;
+      }
+
+      .friend-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 14px;
+        border: 1px solid #e6edf5;
+        border-radius: 14px;
+        background: #fff;
+      }
+
+      .friend-card-info {
+        min-width: 0;
+      }
+
+      .friend-card-info strong,
+      .friend-card-info span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .friend-card-info strong {
+        color: #344a62;
+        font-size: 13px;
+      }
+
+      .friend-card-info span {
+        margin-top: 3px;
+        color: #8392a5;
+        font-size: 11px;
+      }
+
+      .friend-card-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .friend-close-toggle {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        color: #64778d;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      .friend-remove {
+        padding: 6px 8px;
+        border: 1px solid #e6edf5;
+        border-radius: 8px;
+        background: #fff;
+        color: #7a8a9d;
+        font-size: 11px;
+      }
+
+      .entry-owner {
+        color: #8795a6;
+        font-size: 11px;
+      }
+
+      .entry-card-footer {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .entry-privacy-field {
+        display: grid;
+        min-width: 100px;
+        gap: 5px;
+        color: #7a8a9d;
+        font-size: 10px;
+      }
+
+      .entry-privacy-field .privacy-select {
+        min-height: 32px;
+      }
+
       .points-section {
         margin-top: 22px;
       }
@@ -591,6 +941,142 @@
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 12px;
+      }
+
+      .map-points {
+        grid-template-columns: minmax(0, 1fr);
+        min-height: 0;
+        flex: 1;
+        align-content: start;
+        padding: 2px 6px 12px 0;
+        overflow: auto;
+        scrollbar-color: #c7d7e8 transparent;
+        scrollbar-width: thin;
+      }
+
+      .map-point-card {
+        padding: 0;
+        overflow: hidden;
+        transition: border-color 160ms ease, box-shadow 160ms ease;
+      }
+
+      .map-point-card.is-selected {
+        border-color: #91b9e3;
+        box-shadow: 0 8px 24px #4386d51c;
+      }
+
+      .map-point-select {
+        display: grid;
+        width: 100%;
+        grid-template-columns: 72px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 13px;
+        padding: 13px;
+        border: 0;
+        background: #fff;
+        color: inherit;
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .map-point-thumb {
+        display: grid;
+        width: 72px;
+        height: 68px;
+        place-items: center;
+        overflow: hidden;
+        border-radius: 13px;
+        background:
+          radial-gradient(circle at 70% 28%, #fff 0 3px, transparent 4px),
+          linear-gradient(145deg, #dceeff, #b8d5f1 52%, #8eb6dd);
+        color: #386eaa;
+        font-size: 24px;
+      }
+
+      .map-point-summary {
+        min-width: 0;
+      }
+
+      .map-point-summary time {
+        display: block;
+        margin-bottom: 4px;
+        color: #8493a5;
+        font-size: 11px;
+      }
+
+      .map-point-summary h3,
+      .map-point-summary p {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .map-point-summary h3 {
+        margin: 0;
+        color: #2d435d;
+        font-size: 14px;
+      }
+
+      .map-point-summary p {
+        margin: 4px 0 0;
+        color: #75859a;
+        font-size: 12px;
+      }
+
+      .map-point-chevron {
+        color: #8a9bad;
+        font-size: 18px;
+        transition: transform 160ms ease;
+      }
+
+      .map-point-card.is-expanded .map-point-chevron {
+        transform: rotate(180deg);
+      }
+
+      .map-point-details {
+        padding: 0 15px 15px;
+        border-top: 1px solid #edf1f6;
+      }
+
+      .map-point-details[hidden] {
+        display: none;
+      }
+
+      .map-point-details p {
+        margin: 12px 0;
+        color: #63768c;
+        font-size: 13px;
+        line-height: 1.75;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+      }
+
+      .map-point-photo-placeholder {
+        display: grid;
+        min-height: 94px;
+        margin-top: 12px;
+        place-items: center;
+        border: 1px dashed #d7e2ee;
+        border-radius: 12px;
+        background: #f7faff;
+        color: #8292a5;
+        font-size: 12px;
+      }
+
+      .map-point-photo-placeholder > span:first-child {
+        color: #8cabc9;
+        font-size: 20px;
+      }
+
+      .map-point-photo-placeholder > span:last-child {
+        color: #8292a5;
+        font-size: 12px;
+      }
+
+      .map-point-details .map-point-coordinates {
+        margin: 0 0 10px;
+        color: #8795a6;
+        font-size: 11px;
       }
 
       .map-point-top,
@@ -1001,6 +1487,28 @@
         font-size: 13px;
       }
 
+      @media (max-width: 760px) {
+        .ai-diary-layout,
+        .friend-management {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .map-workspace {
+          height: auto;
+          min-height: 0;
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .map-panel {
+          height: min(58vh, 520px);
+          min-height: 340px;
+        }
+
+        .map-points {
+          max-height: 60vh;
+        }
+      }
+
       @media (max-width: 650px) {
         .page {
           width: min(100% - 28px, 520px);
@@ -1080,13 +1588,19 @@
           grid-template-columns: 1fr;
         }
 
-        #map-canvas {
-          min-height: 300px;
-        }
-
         .map-points,
         .trip-grid {
           grid-template-columns: 1fr;
+        }
+
+        .friend-card {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .friend-card-controls {
+          width: 100%;
+          justify-content: space-between;
         }
       }
     </style>
@@ -1101,6 +1615,7 @@
         <div class="topbar-tools">
           <nav class="navigation flex items-center gap-2" aria-label="主要導覽">
             <button class="nav-link" type="button" data-view="home" aria-current="page">首頁 / 時間軸</button>
+            <button class="nav-link" type="button" data-view="ai-diary">AI 聊天日記</button>
             <button class="nav-link" type="button" data-view="map">地圖足跡</button>
             <button class="nav-link" type="button" data-view="trips">行程包</button>
           </nav>
@@ -1156,48 +1671,91 @@
         </section>
       </div>
 
+      <section class="module-view" id="ai-diary-view" hidden aria-labelledby="ai-diary-title">
+        <div class="module-heading">
+          <h1 id="ai-diary-title">AI 聊天日記</h1>
+          <p>像聊天一樣說說今天發生的事，AI 會整理成日記並自動儲存。</p>
+        </div>
+        <div class="ai-diary-layout">
+          <section class="module-card ai-chat-card" aria-label="AI 日記對話">
+            <div class="ai-chat-heading">
+              <h2>生活對話</h2>
+              <p>描述一段經歷、心情或想記住的片刻。</p>
+              <p class="ai-provider-status" id="ai-provider-status" role="status">正在檢查 AI 服務設定…</p>
+            </div>
+            <div class="ai-chat-messages" id="ai-chat-messages" role="log" aria-live="polite">
+              <div class="ai-chat-message is-assistant">嗨！告訴我今天發生了什麼，我會幫你整理成一篇日記。</div>
+            </div>
+            <form class="ai-chat-form" id="ai-chat-form">
+              <label class="compact-field" for="ai-chat-input">今天想記下什麼？</label>
+              <textarea class="compact-field ai-chat-composer" id="ai-chat-input" name="message" maxlength="12000" required placeholder="例如：下班後去河邊散步，看到夕陽覺得很放鬆…"></textarea>
+              <div class="ai-chat-controls">
+                <label class="compact-field">日記隱私
+                  <select name="privacy">
+                    <option value="private">私密（只有自己）</option>
+                    <option value="friends">摯友（允許名單）</option>
+                    <option value="public">公開（追蹤者可見）</option>
+                  </select>
+                </label>
+                <button class="primary-button" id="ai-chat-send" type="submit">整理並儲存</button>
+              </div>
+            </form>
+          </section>
+          <aside class="module-card privacy-note-card">
+            <h2>日記隱私說明</h2>
+            <p>AI 會收到你提交的這段文字，用來整理標題、內容、心情與標籤。日記會依你選擇的隱私層級儲存；AI 服務尚未設定時，不會儲存未完成解析的訊息。</p>
+          </aside>
+        </div>
+      </section>
+
       <section class="module-view" id="map-view" hidden aria-labelledby="map-title">
         <div class="module-heading">
           <h1 id="map-title">地圖足跡</h1>
-          <p>收藏走過的地方，為每段回憶標記座標。</p>
+          <p>點選右側足跡可定位地圖；同日足跡會依建立時間連線。</p>
         </div>
-        <div class="module-layout">
-          <div class="module-card">
+        <div class="map-workspace">
+          <div class="map-panel">
             <div id="map-canvas" aria-label="互動式足跡地圖"></div>
-            <p class="map-help">在地圖點選位置可自動填入座標。公開分享只會顯示設為「公開」的足跡。</p>
+            <div class="map-pick-banner" id="map-pick-banner" role="status" hidden>
+              <span>請在地圖上點選位置</span>
+              <button class="map-pick-cancel" id="cancel-map-pick" type="button">取消</button>
+            </div>
+            <button class="map-add-button" id="map-add-open" type="button" aria-label="新增足跡" title="新增足跡">＋</button>
           </div>
-          <form class="module-card map-form" id="map-point-form">
-            <h2>新增足跡</h2>
-            <label class="compact-field">地點名稱
-              <input name="name" maxlength="160" required placeholder="例如：旗津海岸" />
+          <aside class="map-sidebar" aria-labelledby="map-points-title">
+            <div class="map-sidebar-heading">
+              <h2 class="points-heading" id="map-points-title">已收藏的足跡</h2>
+              <span class="entry-count" id="map-point-count">0 個地點</span>
+            </div>
+            <div class="map-points" id="map-points" aria-live="polite">
+              <div class="module-empty">登入後載入你的足跡。</div>
+            </div>
+          </aside>
+        </div>
+        <section class="friend-management" aria-labelledby="friend-management-title">
+          <form class="module-card friend-form" id="friend-form">
+            <h2 id="friend-management-title">追蹤好友與摯友名單</h2>
+            <label class="compact-field">好友電子郵件
+              <input name="email" type="email" maxlength="254" required placeholder="friend@example.com" />
             </label>
-            <label class="compact-field">緯度
-              <input name="latitude" type="number" step="any" min="-90" max="90" required placeholder="地圖點選後自動填入" />
+            <label class="checkbox-field">
+              <input name="is_close_friend" type="checkbox" />
+              同時加入我的摯友允許名單
             </label>
-            <label class="compact-field">經度
-              <input name="longitude" type="number" step="any" min="-180" max="180" required placeholder="地圖點選後自動填入" />
-            </label>
-            <label class="compact-field">小記
-              <textarea name="note" maxlength="1000" placeholder="記下這裡的故事…"></textarea>
-            </label>
-            <label class="compact-field">隱私層級
-              <select name="privacy">
-                <option value="private">私密</option>
-                <option value="friends">好友</option>
-                <option value="public">公開</option>
-              </select>
-            </label>
-            <p class="privacy-note">「好友」目前是隱私標記，尚無好友社交網路；公開行程僅分享公開足跡。</p>
-            <button class="primary-button" type="submit">儲存足跡</button>
-            <p class="status-message" id="map-form-status" role="status"></p>
+            <p class="privacy-note">追蹤好友可看到其公開日記與足跡；只有列入作者摯友名單的追蹤者可看到摯友內容。</p>
+            <button class="primary-button" type="submit">追蹤好友</button>
+            <p class="status-message" id="friend-form-status" role="status"></p>
           </form>
-        </div>
-        <div class="points-section">
-          <h2 class="points-heading">已收藏的足跡</h2>
-          <div class="map-points" id="map-points" aria-live="polite">
-            <div class="module-empty">登入後載入你的足跡。</div>
+          <div class="module-card">
+            <div class="map-sidebar-heading">
+              <h2 class="friend-list-heading">我追蹤的帳號</h2>
+              <span class="entry-count" id="friend-count">載入中…</span>
+            </div>
+            <div class="friend-list" id="friend-list" aria-live="polite">
+              <div class="module-empty">登入後載入好友名單。</div>
+            </div>
           </div>
-        </div>
+        </section>
       </section>
 
       <section class="module-view" id="trips-view" hidden aria-labelledby="trips-title">
@@ -1236,6 +1794,41 @@
           </div>
         </div>
       </section>
+
+      <dialog id="map-point-dialog" aria-labelledby="map-point-dialog-title">
+        <form class="dialog-content map-form" id="map-point-form">
+          <div class="dialog-heading">
+            <div>
+              <h2 id="map-point-dialog-title">新增足跡</h2>
+              <p>在地圖上點選位置，或直接輸入座標。</p>
+            </div>
+            <button class="icon-button" id="map-point-dismiss" type="button" aria-label="關閉新增足跡">×</button>
+          </div>
+            <button class="secondary-button" id="map-pick-open" type="button">在地圖上選點</button>
+          <label class="compact-field">地點名稱
+            <input name="name" maxlength="160" required placeholder="例如：旗津海岸" />
+          </label>
+          <label class="compact-field">緯度
+            <input name="latitude" type="number" step="any" min="-90" max="90" required placeholder="地圖點選後自動填入" />
+          </label>
+          <label class="compact-field">經度
+            <input name="longitude" type="number" step="any" min="-180" max="180" required placeholder="地圖點選後自動填入" />
+          </label>
+          <label class="compact-field">小記
+            <textarea name="note" maxlength="1000" placeholder="記下這裡的故事…"></textarea>
+          </label>
+          <label class="compact-field">隱私層級
+            <select name="privacy">
+              <option value="private">私密</option>
+              <option value="friends">摯友</option>
+              <option value="public">公開</option>
+            </select>
+          </label>
+          <p class="privacy-note">摯友足跡只會顯示給追蹤者中已獲作者允許的人；公開行程僅分享公開足跡。</p>
+          <button class="primary-button" type="submit">儲存足跡</button>
+          <p class="status-message" id="map-form-status" role="status"></p>
+        </form>
+      </dialog>
     </main>
 
     <dialog id="entry-dialog" aria-labelledby="dialog-title">
@@ -1271,6 +1864,14 @@
         <label class="field">
           地點（選填）
           <input name="location" placeholder="例如：河岸散步" />
+        </label>
+        <label class="field">
+          隱私層級
+          <select name="privacy">
+            <option value="private">私密（只有自己）</option>
+            <option value="friends">摯友（允許名單）</option>
+            <option value="public">公開（追蹤者可見）</option>
+          </select>
         </label>
         <div class="field">
           <span>照片（選填）</span>
@@ -1344,6 +1945,12 @@
       const loadError = document.querySelector("#load-error");
       const loadErrorMessage = document.querySelector("#load-error-message");
       const homeView = document.querySelector("#home-view");
+      const aiDiaryView = document.querySelector("#ai-diary-view");
+      const aiChatForm = document.querySelector("#ai-chat-form");
+      const aiChatInput = document.querySelector("#ai-chat-input");
+      const aiChatMessages = document.querySelector("#ai-chat-messages");
+      const aiChatSendButton = document.querySelector("#ai-chat-send");
+      const aiProviderStatus = document.querySelector("#ai-provider-status");
       const mapView = document.querySelector("#map-view");
       const tripsView = document.querySelector("#trips-view");
       const serverStatusDot = document.querySelector("#server-status-dot");
@@ -1355,9 +1962,15 @@
       const photoFileName = document.querySelector("#photo-file-name");
       const selectedMood = document.querySelector("#selected-mood");
       const mapPointsContainer = document.querySelector("#map-points");
+      const mapPointCount = document.querySelector("#map-point-count");
+      const mapPickBanner = document.querySelector("#map-pick-banner");
+      const friendForm = document.querySelector("#friend-form");
+      const friendList = document.querySelector("#friend-list");
+      const friendCount = document.querySelector("#friend-count");
       const tripPointOptions = document.querySelector("#trip-point-options");
       const tripList = document.querySelector("#trip-list");
       const mapPointForm = document.querySelector("#map-point-form");
+      const mapPointDialog = document.querySelector("#map-point-dialog");
       const tripForm = document.querySelector("#trip-form");
       const loginDialog = document.querySelector("#login-dialog");
       const loginForm = document.querySelector("#login-form");
@@ -1374,7 +1987,10 @@
       let photoPreviewUrl = null;
       let map = null;
       let mapMarkers = new Map();
+      let mapRoute = null;
       let mapPoints = [];
+      let selectedMapPointId = null;
+      let pickingMapPoint = false;
       let trips = [];
       const localHosts = new Set(["localhost", "127.0.0.1"]);
       const isFilePreview = window.location.protocol === "file:";
@@ -1465,15 +2081,23 @@
         loadError.hidden = true;
         entriesContainer.hidden = false;
         entryCount.textContent = `${entries.length} 筆記錄`;
-        if (entries.length === 0) {
-          entriesContainer.innerHTML =
-            '<div class="empty-state">還沒有生活記錄，新增第一筆，為今天留下回憶吧。</div>';
-          return;
-        }
-
-        entriesContainer.innerHTML = entries
-          .map(
-            (entry) => `
+        const cards = entries.length === 0
+          ? '<div class="empty-state">還沒有生活記錄，透過 AI 聊天日記留下第一段回憶吧。</div>'
+          : entries
+              .map(
+                (entry) => {
+                  const privacyControl = entry.is_owner
+                    ? `
+                      <label class="entry-privacy-field">日記隱私
+                        <select class="privacy-select" data-entry-privacy="${entry.id}" aria-label="設定「${escapeHtml(entry.title)}」的隱私層級">
+                          <option value="private" ${entry.privacy === "private" ? "selected" : ""}>私密</option>
+                          <option value="friends" ${entry.privacy === "friends" ? "selected" : ""}>摯友</option>
+                          <option value="public" ${entry.privacy === "public" ? "selected" : ""}>公開</option>
+                        </select>
+                      </label>
+                    `
+                    : `<span class="mood">${privacyLabel(entry.privacy)}</span>`;
+                  return `
               <article class="entry-card">
                 <span class="mood">${escapeHtml(entry.mood || "生活")}</span>
                 <h3>${escapeHtml(entry.title)}</h3>
@@ -1482,10 +2106,16 @@
                   <time>${escapeHtml(formatDate(entry.created_at))}</time>
                   <span class="entry-location">${escapeHtml(entry.location || "未記錄地點")}</span>
                 </div>
+                <div class="entry-card-footer">
+                  <span class="entry-owner">${escapeHtml(entry.owner_name || "我的日記")}</span>
+                  ${privacyControl}
+                </div>
               </article>
-            `,
-          )
-          .join("");
+                  `;
+                },
+              )
+              .join("");
+        entriesContainer.innerHTML = cards;
       }
 
       async function loadEntries() {
@@ -1504,7 +2134,7 @@
         } catch (error) {
           entriesContainer.hidden = true;
           entryCount.textContent = "載入失敗";
-          loadErrorMessage.textContent =
+          const errorMessage =
             error.status === 401
               ? "請先登入，登入後即可查看與新增生活記錄。"
               : error.status === 404
@@ -1512,6 +2142,7 @@
                 : error instanceof TypeError
                   ? "目前連不上生活記錄服務，請確認後端已啟動，再重新整理。"
                   : error.message || "發生未知錯誤，請重新整理再試一次。";
+          loadErrorMessage.textContent = errorMessage;
           loadError.hidden = false;
         }
       }
@@ -1537,8 +2168,86 @@
         }
       }
 
+      function appendAiChatMessage(message, type = "assistant") {
+        const element = document.createElement("div");
+        element.className = `ai-chat-message is-${type}`;
+        element.textContent = message;
+        aiChatMessages.append(element);
+        aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+        return element;
+      }
+
+      async function loadAiDiaryStatus() {
+        aiProviderStatus.textContent = "正在檢查 AI 服務設定…";
+        try {
+          const result = await apiRequest("/ai/status");
+          aiProviderStatus.textContent = result.configured
+            ? `AI 日記已就緒${result.model ? ` · ${result.model}` : ""}。提交內容會傳送至已設定的 AI 服務。`
+            : "AI 服務尚未設定。請在後端設定 AI_API_KEY，並重啟服務後使用。";
+        } catch (error) {
+          aiProviderStatus.textContent = `無法檢查 AI 服務：${error.message}`;
+        }
+      }
+
+      async function loadFriends() {
+        friendCount.textContent = "載入中…";
+        friendList.innerHTML = '<div class="module-empty">正在載入追蹤名單…</div>';
+        try {
+          const friends = await apiRequest("/friends");
+          if (!Array.isArray(friends)) {
+            throw new Error("伺服器回傳的好友資料格式不正確。");
+          }
+          friendCount.textContent = `${friends.length} 位`;
+          if (friends.length === 0) {
+            friendList.innerHTML =
+              '<div class="module-empty">尚未追蹤任何帳號。輸入好友電子郵件即可開始。</div>';
+            return;
+          }
+          friendList.innerHTML = friends
+            .map(
+              (friend) => `
+                <article class="friend-card">
+                  <div class="friend-card-info">
+                    <strong>${escapeHtml(friend.display_name)}</strong>
+                    <span>${escapeHtml(friend.email)}</span>
+                  </div>
+                  <div class="friend-card-controls">
+                    <label class="friend-close-toggle">
+                      <input type="checkbox" data-close-friend="${friend.id}" ${friend.is_close_friend ? "checked" : ""} />
+                      摯友名單
+                    </label>
+                    <button class="friend-remove" type="button" data-unfollow-friend="${friend.id}">取消追蹤</button>
+                  </div>
+                </article>
+              `,
+            )
+            .join("");
+        } catch (error) {
+          friendCount.textContent = "載入失敗";
+          friendList.innerHTML = `<div class="error-state">${escapeHtml(error.message)}<button class="retry-button" id="retry-friends" type="button">重新整理</button></div>`;
+          document
+            .querySelector("#retry-friends")
+            .addEventListener("click", loadFriends);
+        }
+      }
+
+      async function updateEntryPrivacy(event) {
+        const select = event.target.closest("[data-entry-privacy]");
+        if (!select) return;
+        try {
+          await apiRequest(
+            `/entries/${select.dataset.entryPrivacy}/privacy`,
+            jsonOptions("PATCH", { privacy: select.value }),
+          );
+          await loadEntries();
+        } catch (error) {
+          window.alert(`更新日記隱私設定失敗：${error.message}`);
+          await loadEntries();
+        }
+      }
+
       function privacyLabel(value) {
-        return { private: "私密", friends: "好友", public: "公開" }[value] || "私密";
+        return { private: "私密", friends: "摯友", public: "公開" }[value] || "私密";
       }
 
       function initMap() {
@@ -1560,11 +2269,101 @@
         map.on("click", (event) => {
           mapPointForm.elements.latitude.value = event.latlng.lat.toFixed(6);
           mapPointForm.elements.longitude.value = event.latlng.lng.toFixed(6);
+          if (pickingMapPoint) {
+            pickingMapPoint = false;
+            mapPickBanner.hidden = true;
+            mapPointDialog.showModal();
+            document.querySelector("#map-form-status").textContent =
+              "已從地圖填入座標。";
+            mapPointForm.elements.name.focus();
+          }
         });
       }
 
+      function mapPointDay(point) {
+        return String(point.created_at || "").slice(0, 10);
+      }
+
+      function mapMarkerIcon(point) {
+        const isSelected = point.id === selectedMapPointId;
+        const isSameDay =
+          selectedMapPointId !== null &&
+          mapPointDay(point) ===
+            mapPointDay(mapPoints.find((item) => item.id === selectedMapPointId) || {});
+        return L.divIcon({
+          className: "footprint-marker-shell",
+          html: `<span class="footprint-marker${isSameDay ? " is-day" : ""}${isSelected ? " is-selected" : ""}"></span>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        });
+      }
+
+      function updateMapRoute(selectedPoint) {
+        if (mapRoute) {
+          mapRoute.remove();
+          mapRoute = null;
+        }
+        if (!map || !selectedPoint) return;
+
+        const selectedDay = mapPointDay(selectedPoint);
+        if (!selectedDay) return;
+        const sameDayPoints = mapPoints
+          .filter((point) => mapPointDay(point) === selectedDay)
+          .sort(
+            (left, right) =>
+              new Date(left.created_at.replace(" ", "T")).getTime() -
+              new Date(right.created_at.replace(" ", "T")).getTime(),
+          );
+        if (sameDayPoints.length < 2) return;
+
+        mapRoute = L.polyline(
+          sameDayPoints.map((point) => [point.latitude, point.longitude]),
+          { color: "#4386d5", weight: 4, opacity: 0.75, dashArray: "8 8" },
+        ).addTo(map);
+      }
+
+      function focusMapPoint(point) {
+        if (!map || !point) return;
+        map.flyTo(
+          [point.latitude, point.longitude],
+          Math.max(map.getZoom(), 13),
+          { duration: 0.8 },
+        );
+        mapMarkers.get(point.id)?.openPopup();
+      }
+
+      function selectMapPoint(pointId) {
+        const point = mapPoints.find((item) => item.id === pointId);
+        if (!point) return;
+        selectedMapPointId = point.id;
+        renderMapPoints();
+        mapPointsContainer
+          .querySelector(`[data-map-point="${point.id}"]`)
+          ?.focus();
+        focusMapPoint(point);
+      }
+
+      mapPointsContainer.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-map-point]");
+        if (!button) return;
+        const pointId = Number(button.dataset.mapPoint);
+        const isAlreadyExpanded = selectedMapPointId === pointId;
+        if (isAlreadyExpanded) {
+          selectedMapPointId = null;
+          renderMapPoints();
+          mapMarkers.get(pointId)?.closePopup();
+          mapPointsContainer
+            .querySelector(`[data-map-point="${pointId}"]`)
+            ?.focus();
+          return;
+        }
+        selectMapPoint(pointId);
+      });
+
       function renderMapPoints() {
+        mapPointCount.textContent = `${mapPoints.length} 個地點`;
         if (mapPoints.length === 0) {
+          selectedMapPointId = null;
           mapPointsContainer.innerHTML =
             '<div class="module-empty">還沒有足跡，在地圖點一下開始收藏。</div>';
           tripPointOptions.innerHTML =
@@ -1572,54 +2371,96 @@
         } else {
           mapPointsContainer.innerHTML = mapPoints
             .map(
-              (point) => `
-                <article class="map-point-card">
-                  <div class="map-point-top">
-                    <div>
+              (point) => {
+                const isSelected = point.id === selectedMapPointId;
+                return `
+                <article class="map-point-card${isSelected ? " is-selected is-expanded" : ""}">
+                  <button class="map-point-select" type="button" data-map-point="${point.id}" aria-expanded="${isSelected}" aria-controls="map-point-details-${point.id}">
+                    <span class="map-point-thumb" aria-hidden="true">⌖</span>
+                    <span class="map-point-summary">
+                      <time datetime="${escapeHtml(point.created_at || "")}">${escapeHtml(formatDate(point.created_at))}</time>
                       <h3>${escapeHtml(point.name)}</h3>
-                      <p>${escapeHtml(point.note || "尚未新增小記")}<br>
-                        ${Number(point.latitude).toFixed(5)}, ${Number(point.longitude).toFixed(5)}
-                      </p>
+                      <p>${escapeHtml(point.owner_name || "我的足跡")} · ${escapeHtml(point.note || "尚未新增小記")}</p>
+                    </span>
+                    <span class="map-point-chevron" aria-hidden="true">⌄</span>
+                  </button>
+                  <div class="map-point-details" id="map-point-details-${point.id}"${isSelected ? "" : " hidden"}>
+                    <div class="map-point-photo-placeholder" role="img" aria-label="此足跡沒有已儲存的照片">
+                      <span aria-hidden="true">▧</span>
+                      <span>此足跡尚無已儲存的照片</span>
                     </div>
-                    <span class="mood">${privacyLabel(point.privacy)}</span>
-                  </div>
-                  <div class="map-point-actions">
-                    <label class="compact-field">隱私層級
-                      <select class="privacy-select" data-privacy-point="${point.id}" aria-label="設定 ${escapeHtml(point.name)} 的隱私層級">
-                        <option value="private" ${point.privacy === "private" ? "selected" : ""}>私密</option>
-                        <option value="friends" ${point.privacy === "friends" ? "selected" : ""}>好友</option>
-                        <option value="public" ${point.privacy === "public" ? "selected" : ""}>公開</option>
-                      </select>
-                    </label>
+                    <p>${escapeHtml(point.note || "尚未新增小記。")}</p>
+                    <p class="map-point-coordinates">座標：${Number(point.latitude).toFixed(5)}, ${Number(point.longitude).toFixed(5)}</p>
+                    <div class="map-point-top">
+                      <span class="mood">${privacyLabel(point.privacy)}</span>
+                      <span class="entry-owner">${escapeHtml(point.owner_name || "我的足跡")}</span>
+                    </div>
+                    ${
+                      point.is_owner
+                        ? `<div class="map-point-actions">
+                            <label class="compact-field">隱私層級
+                              <select class="privacy-select" data-privacy-point="${point.id}" aria-label="設定 ${escapeHtml(point.name)} 的隱私層級">
+                                <option value="private" ${point.privacy === "private" ? "selected" : ""}>私密</option>
+                                <option value="friends" ${point.privacy === "friends" ? "selected" : ""}>摯友</option>
+                                <option value="public" ${point.privacy === "public" ? "selected" : ""}>公開</option>
+                              </select>
+                            </label>
+                          </div>`
+                        : ""
+                    }
                   </div>
                 </article>
-              `,
+                `;
+              },
             )
             .join("");
-          tripPointOptions.innerHTML = mapPoints
-            .map(
-              (point) => `
+          const ownPoints = mapPoints.filter((point) => point.is_owner);
+          tripPointOptions.innerHTML = ownPoints.length
+            ? ownPoints
+                .map(
+                  (point) => `
                 <label>
                   <input type="checkbox" value="${point.id}" data-trip-point>
                   ${escapeHtml(point.name)}
                   <span class="mood">${privacyLabel(point.privacy)}</span>
                 </label>
               `,
-            )
-            .join("");
+                )
+                .join("")
+            : '<span class="privacy-note">新增自己的足跡後即可加入行程包。</span>';
         }
 
         if (!map || !window.L) return;
-        mapMarkers.forEach((marker) => marker.remove());
-        mapMarkers = new Map();
-        mapPoints.forEach((point) => {
-          const marker = L.marker([point.latitude, point.longitude])
-            .addTo(map)
-            .bindPopup(
-              `<strong>${escapeHtml(point.name)}</strong><br>${escapeHtml(point.note || "")}<br><small>${privacyLabel(point.privacy)}</small>`,
-            );
-          mapMarkers.set(point.id, marker);
+        const selectedPoint = mapPoints.find(
+          (point) => point.id === selectedMapPointId,
+        );
+        mapPointCount.textContent = `${mapPoints.length} 個地點`;
+        mapMarkers.forEach((marker, pointId) => {
+          const point = mapPoints.find((item) => item.id === pointId);
+          if (!point) {
+            marker.remove();
+            mapMarkers.delete(pointId);
+            return;
+          }
+          marker.setIcon(mapMarkerIcon(point));
         });
+        mapPoints.forEach((point) => {
+          let marker = mapMarkers.get(point.id);
+          const popupContent =
+            `<strong>${escapeHtml(point.name)}</strong><br>${escapeHtml(point.note || "")}<br><small>${privacyLabel(point.privacy)}</small>`;
+          if (!marker) {
+            marker = L.marker([point.latitude, point.longitude], {
+              icon: mapMarkerIcon(point),
+            })
+              .addTo(map)
+              .bindPopup(popupContent);
+            mapMarkers.set(point.id, marker);
+          } else {
+            marker.setLatLng([point.latitude, point.longitude]);
+            marker.setPopupContent(popupContent);
+          }
+        });
+        updateMapRoute(selectedPoint);
       }
 
       async function loadMapPoints() {
@@ -1627,8 +2468,15 @@
           '<div class="module-empty">正在載入足跡…</div>';
         try {
           mapPoints = await apiRequest("/map-points");
+          if (!Array.isArray(mapPoints)) {
+            throw new Error("伺服器回傳的足跡資料格式不正確。");
+          }
+          if (!mapPoints.some((point) => point.id === selectedMapPointId)) {
+            selectedMapPointId = null;
+          }
           renderMapPoints();
         } catch (error) {
+          mapPointCount.textContent = "載入失敗";
           mapPointsContainer.innerHTML =
             `<div class="error-state">${escapeHtml(error.message)}<button class="retry-button" id="retry-map-points" type="button">重新整理</button></div>`;
           document
@@ -1765,20 +2613,77 @@
         });
       });
 
+      aiChatForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!currentUser) {
+          openLoginDialog();
+          return;
+        }
+        const values = new FormData(aiChatForm);
+        const message = getFormText(values, "message");
+        if (!message) return;
+        appendAiChatMessage(message, "user");
+        const pending = appendAiChatMessage("正在整理你的日記…");
+        aiChatSendButton.disabled = true;
+        aiChatSendButton.textContent = "整理中…";
+        try {
+          const result = await apiRequest(
+            "/diary-chat",
+            jsonOptions("POST", {
+              message,
+              privacy: values.get("privacy"),
+            }),
+          );
+          pending.remove();
+          const entry = result.entry;
+          const tags = entry.tags
+            ? `\n標籤：${entry.tags
+                .split(",")
+                .map((tag) => `#${tag.trim().replace(/^#/, "")}`)
+                .join(" ")}`
+            : "";
+          appendAiChatMessage(
+            `${result.reply}\n\n已整理並儲存「${entry.title}」\n心情：${entry.mood}${tags}`,
+          );
+          aiChatInput.value = "";
+          await loadEntries();
+        } catch (error) {
+          pending.remove();
+          appendAiChatMessage(
+            `這次尚未儲存日記：${error.message}`,
+            "error",
+          );
+        } finally {
+          aiChatSendButton.disabled = false;
+          aiChatSendButton.textContent = "整理並儲存";
+        }
+      });
+
       document.querySelectorAll("[data-view]").forEach((button) => {
         button.addEventListener("click", () => {
           const view = button.dataset.view;
+          if (view !== "map" && pickingMapPoint) {
+            pickingMapPoint = false;
+            mapPickBanner.hidden = true;
+          }
           document.querySelectorAll("[data-view]").forEach((item) => {
             item.removeAttribute("aria-current");
           });
           button.setAttribute("aria-current", "page");
 
           homeView.hidden = view !== "home";
+          aiDiaryView.hidden = view !== "ai-diary";
           mapView.hidden = view !== "map";
           tripsView.hidden = view !== "trips";
-          if (view === "map") {
+          if (view === "ai-diary") {
+            if (currentUser) loadAiDiaryStatus();
+            else openLoginDialog();
+          } else if (view === "map") {
             initMap();
-            if (currentUser) loadMapPoints();
+            if (currentUser) {
+              loadMapPoints();
+              loadFriends();
+            }
             else openLoginDialog();
           } else if (view === "trips") {
             if (currentUser) loadTravelData();
@@ -1788,6 +2693,7 @@
       });
 
       document.querySelector("#retry-load").addEventListener("click", loadEntries);
+      entriesContainer.addEventListener("change", updateEntryPrivacy);
 
       document.querySelector("#login-open").addEventListener("click", openLoginDialog);
       document.querySelector("#login-dismiss").addEventListener("click", () => {
@@ -1851,6 +2757,11 @@
           loginDialog.close();
           loginForm.reset();
           await Promise.all([loadEntries(), loadTravelData()]);
+          const activeView = document.querySelector(
+            '[data-view][aria-current="page"]',
+          )?.dataset.view;
+          if (activeView === "map") await loadFriends();
+          if (activeView === "ai-diary") await loadAiDiaryStatus();
         } catch (error) {
           loginStatus.textContent = error.message;
         } finally {
@@ -1868,9 +2779,23 @@
         }
         currentUser = null;
         updateAccountUi();
+        form.reset();
+        mapPointForm.reset();
+        aiChatForm.reset();
+        if (dialog.open) dialog.close();
+        if (mapPointDialog.open) mapPointDialog.close();
+        pickingMapPoint = false;
+        mapPickBanner.hidden = true;
         await loadEntries();
         mapPoints = [];
         trips = [];
+        friendList.innerHTML = '<div class="module-empty">登入後載入好友名單。</div>';
+        friendCount.textContent = "登入後載入";
+        friendForm.reset();
+        document.querySelector("#friend-form-status").textContent = "";
+        aiChatMessages.innerHTML =
+          '<div class="ai-chat-message is-assistant">嗨！告訴我今天發生了什麼，我會幫你整理成一篇日記。</div>';
+        aiProviderStatus.textContent = "登入後檢查 AI 服務設定。";
         renderMapPoints();
         renderTrips();
       });
@@ -1902,6 +2827,42 @@
         refreshServerStatus,
       );
 
+      document.querySelector("#map-add-open").addEventListener("click", () => {
+        if (!currentUser) {
+          openLoginDialog();
+          return;
+        }
+        pickingMapPoint = false;
+        mapPickBanner.hidden = true;
+        document.querySelector("#map-form-status").textContent = "";
+        mapPointDialog.showModal();
+        mapPointForm.elements.name.focus();
+      });
+
+      document.querySelector("#map-pick-open").addEventListener("click", () => {
+        mapPointDialog.close();
+        pickingMapPoint = true;
+        mapPickBanner.hidden = false;
+      });
+
+      document.querySelector("#cancel-map-pick").addEventListener("click", () => {
+        pickingMapPoint = false;
+        mapPickBanner.hidden = true;
+      });
+
+      document.querySelector("#map-point-dismiss").addEventListener("click", () => {
+        pickingMapPoint = false;
+        mapPickBanner.hidden = true;
+        mapPointDialog.close();
+      });
+
+      mapPointDialog.addEventListener("click", (event) => {
+        if (event.target === mapPointDialog) {
+          pickingMapPoint = false;
+          mapPointDialog.close();
+        }
+      });
+
       mapPointForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         const values = new FormData(mapPointForm);
@@ -1919,8 +2880,11 @@
             }),
           );
           mapPointForm.reset();
+          pickingMapPoint = false;
+          mapPickBanner.hidden = true;
           status.textContent = "足跡已儲存。";
           await loadMapPoints();
+          mapPointDialog.close();
         } catch (error) {
           status.textContent = error.message;
         }
@@ -1938,6 +2902,60 @@
         } catch (error) {
           window.alert(`更新隱私設定失敗：${error.message}`);
           await loadMapPoints();
+        }
+      });
+
+      friendForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const status = document.querySelector("#friend-form-status");
+        status.textContent = "";
+        const values = new FormData(friendForm);
+        try {
+          await apiRequest(
+            "/friends",
+            jsonOptions("POST", {
+              email: getFormText(values, "email"),
+              is_close_friend: values.get("is_close_friend") === "on",
+            }),
+          );
+          friendForm.reset();
+          status.textContent = "已追蹤好友，權限清單已更新。";
+          await Promise.all([loadFriends(), loadEntries(), loadMapPoints()]);
+        } catch (error) {
+          status.textContent = error.message;
+        }
+      });
+
+      friendList.addEventListener("change", async (event) => {
+        const checkbox = event.target.closest("[data-close-friend]");
+        if (!checkbox) return;
+        checkbox.disabled = true;
+        try {
+          await apiRequest(
+            `/friends/${checkbox.dataset.closeFriend}`,
+            jsonOptions("PATCH", { is_close_friend: checkbox.checked }),
+          );
+          await Promise.all([loadFriends(), loadEntries(), loadMapPoints()]);
+        } catch (error) {
+          window.alert(`更新摯友名單失敗：${error.message}`);
+          await loadFriends();
+        } finally {
+          checkbox.disabled = false;
+        }
+      });
+
+      friendList.addEventListener("click", async (event) => {
+        const button = event.target.closest("[data-unfollow-friend]");
+        if (!button) return;
+        button.disabled = true;
+        try {
+          await apiRequest(`/friends/${button.dataset.unfollowFriend}`, {
+            method: "DELETE",
+          });
+          await Promise.all([loadFriends(), loadEntries(), loadMapPoints()]);
+        } catch (error) {
+          window.alert(`取消追蹤失敗：${error.message}`);
+          await loadFriends();
         }
       });
 
@@ -1994,7 +3012,7 @@
           content: getFormText(formData, "content"),
           location: getFormText(formData, "location") || null,
           mood: selectedMood.value,
-          privacy: "private",
+          privacy: formData.get("privacy"),
           tags: "",
         };
 

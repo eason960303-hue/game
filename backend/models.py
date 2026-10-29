@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -10,7 +10,7 @@ class EntryCreate(BaseModel):
     content: str = Field(..., min_length=1)
     mood: str = Field(default="happy")
     location: Optional[str] = None
-    privacy: str = Field(default="private")
+    privacy: Literal["private", "friends", "public"] = "private"
     tags: Optional[str] = None
 
 
@@ -23,6 +23,8 @@ class EntryOut(BaseModel):
     privacy: str
     tags: Optional[str] = None
     created_at: str
+    owner_name: Optional[str] = None
+    is_owner: bool = False
 
 
 class LocationLogCreate(BaseModel):
