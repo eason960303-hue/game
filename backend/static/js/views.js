@@ -18,6 +18,14 @@ function renderEntries(entries) {
                 </label>
               `
               : `<span class="mood">${privacyLabel(entry.privacy)}</span>`;
+            const entryActions = entry.is_owner
+              ? `
+                <div class="entry-actions" aria-label="日記操作">
+                  <button class="small-action${entryCanBeEdited(entry.created_at) ? "" : " is-locked"}" type="button" data-edit-entry="${Number(entry.id)}" aria-disabled="${!entryCanBeEdited(entry.created_at)}" title="${entryCanBeEdited(entry.created_at) ? "編輯日記" : "發布已超過 24 小時，無法變更內容"}">編輯</button>
+                  <button class="small-action is-destructive" type="button" data-delete-entry="${Number(entry.id)}">刪除</button>
+                </div>
+              `
+              : "";
             return `
         <article class="entry-card">
           <span class="mood">${escapeHtml(entry.mood || "生活")}</span>
@@ -30,6 +38,7 @@ function renderEntries(entries) {
           <div class="entry-card-footer">
             <span class="entry-owner">${escapeHtml(entry.owner_name || "我的日記")}</span>
             ${privacyControl}
+            ${entryActions}
           </div>
         </article>
             `;
@@ -37,6 +46,53 @@ function renderEntries(entries) {
         )
         .join("");
   entriesContainer.innerHTML = cards;
+}
+
+function entryCanBeEdited(createdAt) {
+  const normalized = String(createdAt || "").replace(" ", "T");
+  const timestamp = Date.parse(
+    /(Z|[+-]\d{2}:\d{2})$/i.test(normalized) ? normalized : `${normalized}Z`,
+  );
+  return Number.isFinite(timestamp) && Date.now() - timestamp <= 24 * 60 * 60 * 1000;
+}
+
+function renderTimelineFootprints(points) {
+  if (!Array.isArray(points)) {
+    timelineFootprints.innerHTML =
+      '<div class="error-state">足跡資料格式不正確，請重新整理。</div>';
+    return;
+  }
+  if (points.length === 0) {
+    timelineFootprints.innerHTML =
+      '<div class="module-empty">目前還沒有可顯示的足跡，新增一趟旅程或追蹤好友後就會出現在這裡。</div>';
+    return;
+  }
+  timelineFootprints.innerHTML = points
+    .map((point) => {
+      const stops = Array.isArray(point.points) ? point.points : [];
+      const stopSummary = stops
+        .slice(0, 3)
+        .map((stop) => escapeHtml(stop.name))
+        .join(" ・ ");
+      const remainingStops = stops.length > 3 ? ` 等 ${stops.length} 個地點` : "";
+      return `
+        <article class="timeline-footprint-card">
+          <div class="timeline-footprint-icon" aria-hidden="true">⌖</div>
+          <div class="timeline-footprint-content">
+            <div class="timeline-footprint-meta">
+              <time datetime="${escapeHtml(point.created_at || "")}">${escapeHtml(formatDate(point.created_at))}</time>
+              <span class="mood">${privacyLabel(point.privacy)}</span>
+            </div>
+            <h3>${escapeHtml(point.name)}</h3>
+            <p>${escapeHtml(point.owner_name || "我的足跡")} · ${stops.length} 個途經點</p>
+            <p class="timeline-footprint-stops">${stopSummary || "尚未新增途經點"}${remainingStops}</p>
+            ${point.note ? `<p class="timeline-footprint-note">${escapeHtml(point.note)}</p>` : ""}
+          </div>
+          <button class="small-action" type="button" data-timeline-map-point="${Number(point.id)}">在地圖查看</button>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function renderProfile(profile) {
@@ -91,7 +147,7 @@ function renderProfilePostCard(post, type, expandedId) {
                   <span class="profile-route-order">${Number(point.order) || index + 1}</span>
                   <span>
                     <span class="profile-route-name">${escapeHtml(point.name)}</span>
-                    <span class="profile-route-coordinates">${Number(point.lat).toFixed(5)}, ${Number(point.lng).toFixed(5)}</span>
+                    ${hasCoordinates(point) ? `<span class="profile-route-coordinates">${Number(point.lat).toFixed(5)}, ${Number(point.lng).toFixed(5)}</span>` : ""}
                   </span>
                 </li>
               `,
@@ -104,6 +160,15 @@ function renderProfilePostCard(post, type, expandedId) {
         ${post.location ? `<p>地點：${escapeHtml(post.location)}</p>` : ""}
         ${post.tags ? `<p>標籤：${escapeHtml(post.tags)}</p>` : ""}
       `;
+  const entryActions =
+    !isFootprint && post.is_owner
+      ? `
+        <div class="entry-actions profile-entry-actions">
+          <button class="small-action${entryCanBeEdited(post.created_at) ? "" : " is-locked"}" type="button" data-edit-entry="${Number(post.id)}" aria-disabled="${!entryCanBeEdited(post.created_at)}" title="${entryCanBeEdited(post.created_at) ? "編輯日記" : "發布已超過 24 小時，無法變更內容"}">編輯日記</button>
+          <button class="small-action is-destructive" type="button" data-delete-entry="${Number(post.id)}">刪除日記</button>
+        </div>
+      `
+      : "";
   return `
     <article class="profile-post-tile${isExpanded ? " is-expanded" : ""}">
       <button
@@ -135,7 +200,7 @@ function renderProfilePostCard(post, type, expandedId) {
         aria-hidden="${!isExpanded}"${isExpanded ? "" : " inert"}
       >
         <div class="profile-post-details-inner">
-          <div class="profile-post-details-content">${details}</div>
+          <div class="profile-post-details-content">${details}${entryActions}</div>
         </div>
       </div>
     </article>

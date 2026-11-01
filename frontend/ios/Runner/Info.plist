@@ -2,8 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>DartDefines</key>
+	<string>$(DART_DEFINES)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>寫下足跡時可以直接帶入你目前的位置。</string>
+	<string>寫下足跡或在地圖上顯示你的位置時會使用定位。</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

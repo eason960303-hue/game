@@ -7,9 +7,8 @@
       name="description"
       content="把日常的風景、心情與足跡，收藏成自己的生活記錄。"
     />
-    <meta name="theme-color" content="#f5f8fc" />
+    <meta name="theme-color" content="#f5f5f7" />
     <title>我的生活記錄</title>
-    <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
     <link rel="stylesheet" href="css/base.css" />
     <link rel="stylesheet" href="css/home.css" />
     <link rel="stylesheet" href="css/profile.css" />
@@ -19,13 +18,24 @@
     <link rel="stylesheet" href="css/dialogs.css" />
     <link rel="stylesheet" href="css/responsive.css" />
     <link rel="stylesheet" href="css/reset.css" />
+    <link rel="stylesheet" href="css/apple-theme.css" />
+    <link rel="stylesheet" href="css/map-tools.css" />
   </head>
   <body>
-    <main class="page">
-      <header class="topbar">
+    <main class="page app-shell">
+      <header class="topbar floating-topbar">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">✦</span>
           <span>Life Logger</span>
+        </div>
+        <div class="account-search" id="account-search">
+          <form class="account-search-form" id="account-search-form" role="search" autocomplete="off">
+            <label class="sr-only" for="account-search-input">搜尋帳號或使用者名稱</label>
+            <span class="account-search-icon" aria-hidden="true">⌕</span>
+            <input id="account-search-input" type="search" maxlength="80" placeholder="搜尋好友" aria-controls="account-search-results" aria-expanded="false" />
+            <button type="submit" aria-label="搜尋帳號">搜尋</button>
+          </form>
+          <div class="account-search-results" id="account-search-results" role="list" aria-label="帳號搜尋結果" hidden></div>
         </div>
         <div class="topbar-tools">
           <nav class="navigation flex items-center gap-2" aria-label="主要導覽">
@@ -56,7 +66,7 @@
         </div>
       </header>
 
-      <div id="home-view">
+      <div class="app-view" id="home-view">
         <section class="hero" aria-labelledby="page-title">
           <div class="hero-copy">
             <p class="eyebrow">YOUR LITTLE MOMENTS</p>
@@ -85,9 +95,22 @@
             <button class="retry-button" id="retry-load" type="button">重新整理</button>
           </div>
         </section>
+
+        <section class="entries-section timeline-footprints" aria-labelledby="timeline-footprints-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">MOMENTS ALONG THE WAY</p>
+              <h2 id="timeline-footprints-title">好友與我的足跡</h2>
+            </div>
+            <button class="secondary-button" type="button" data-view="map">開啟地圖</button>
+          </div>
+          <div class="timeline-footprint-grid" id="timeline-footprints" aria-live="polite">
+            <div class="module-empty">登入後載入你與好友分享的足跡。</div>
+          </div>
+        </section>
       </div>
 
-      <section class="module-view" id="profile-view" hidden aria-labelledby="profile-page-title">
+      <section class="app-view module-view" id="profile-view" hidden aria-labelledby="profile-page-title">
         <div class="profile-shell">
           <div class="profile-header">
             <div class="profile-avatar-wrap" id="profile-avatar-fallback" aria-label="個人檔案頭像">
@@ -101,8 +124,12 @@
               </div>
               <div class="profile-stats" aria-label="個人檔案統計">
                 <span class="profile-stat"><strong id="profile-posts-count">—</strong> 貼文</span>
-                <span class="profile-stat"><strong id="profile-followers-count">—</strong> 粉絲</span>
-                <span class="profile-stat"><strong id="profile-following-count">—</strong> 追蹤中</span>
+                <button class="profile-stat profile-stat-button" id="profile-followers-open" type="button" data-profile-relations="followers" aria-label="查看粉絲">
+                  <strong id="profile-followers-count">—</strong> 粉絲
+                </button>
+                <button class="profile-stat profile-stat-button" id="profile-following-open" type="button" data-profile-relations="following" aria-label="查看追蹤中">
+                  <strong id="profile-following-count">—</strong> 追蹤中
+                </button>
               </div>
               <div class="profile-bio-block">
                 <p class="profile-bio-name" id="profile-display-name"></p>
@@ -136,7 +163,7 @@
         </div>
       </section>
 
-      <section class="module-view" id="ai-diary-view" hidden aria-labelledby="ai-diary-title">
+      <section class="app-view module-view" id="ai-diary-view" hidden aria-labelledby="ai-diary-title">
         <div class="module-heading">
           <h1 id="ai-diary-title">AI 聊天日記</h1>
           <p>像聊天一樣說說今天發生的事，AI 會整理成日記並自動儲存。</p>
@@ -159,7 +186,7 @@
                   <select name="privacy">
                     <option value="private">私密（只有自己）</option>
                     <option value="friends">摯友（允許名單）</option>
-                    <option value="public">公開（追蹤者可見）</option>
+                    <option value="public">公開（依帳號設定）</option>
                   </select>
                 </label>
                 <button class="primary-button" id="ai-chat-send" type="submit">整理並儲存</button>
@@ -173,7 +200,7 @@
         </div>
       </section>
 
-      <section class="module-view" id="map-view" hidden aria-labelledby="map-title">
+      <section class="app-view module-view" id="map-view" hidden aria-labelledby="map-title">
         <div class="module-heading">
           <h1 id="map-title">地圖足跡</h1>
           <p>展開一趟足跡，即可在地圖查看依序排列的途經點與旅遊動線。</p>
@@ -181,9 +208,89 @@
         <div class="map-workspace">
           <div class="map-panel">
             <div id="map-canvas" aria-label="互動式足跡地圖"></div>
+            <p class="map-embed-note" id="map-embed-note" role="status" hidden></p>
             <div class="map-pick-banner" id="map-pick-banner" role="status" hidden>
               <span>請點選地圖，加入目前選擇的途經點</span>
               <button class="map-pick-cancel" id="cancel-map-pick" type="button">取消</button>
+            </div>
+            <div class="map-tools">
+              <div class="map-search-bar">
+                <form class="map-search" id="map-search-form" role="search" autocomplete="off">
+                  <input id="map-search-input" type="search" maxlength="200" placeholder="搜尋 Google 地圖" aria-label="搜尋 Google 地圖" />
+                  <button class="map-tool-icon" type="submit" aria-label="搜尋" title="搜尋"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></button>
+                  <button class="map-tool-icon is-accent" id="map-directions-open" type="button" aria-label="規劃路線" title="規劃路線"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.71 11.29l-9-9a.996.996 0 00-1.41 0l-9 9a.996.996 0 000 1.41l9 9c.39.39 1.02.39 1.41 0l9-9a.996.996 0 000-1.41zM14 14.5V12h-4v3H8v-4c0-.55.45-1 1-1h5V7.5l3.5 3.5-3.5 3.5z"/></svg></button>
+                </form>
+                <ul class="map-suggestions" id="map-suggestions" hidden></ul>
+              </div>
+              <div class="map-chips" aria-label="快速搜尋">
+                <button type="button" data-map-chip="餐廳">餐廳</button>
+                <button type="button" data-map-chip="咖啡廳">咖啡廳</button>
+                <button type="button" data-map-chip="飯店">飯店</button>
+                <button type="button" data-map-chip="景點">景點</button>
+                <button type="button" data-map-chip="加油站">加油站</button>
+                <button type="button" data-map-chip="超商">超商</button>
+                <button type="button" data-map-chip="停車場">停車場</button>
+              </div>
+              <button class="map-search-area" id="map-search-area" type="button" hidden>搜尋這個區域</button>
+              <div class="map-sheet">
+                <div class="map-results" id="map-results" aria-live="polite" hidden></div>
+                <article class="map-place" id="map-place" aria-live="polite" hidden></article>
+                <form class="map-directions" id="map-directions-form" autocomplete="off" hidden>
+                  <div class="map-directions-heading">
+                    <strong>路線</strong>
+                    <button class="map-tool-icon" id="map-directions-close" type="button" aria-label="關閉路線規劃">×</button>
+                  </div>
+                  <div class="map-travel-modes" role="radiogroup" aria-label="交通方式">
+                    <label><input type="radio" name="travel-mode" value="DRIVING" checked />開車</label>
+                    <label><input type="radio" name="travel-mode" value="TRANSIT" />大眾運輸</label>
+                    <label><input type="radio" name="travel-mode" value="WALKING" />步行</label>
+                    <label><input type="radio" name="travel-mode" value="BICYCLING" />單車</label>
+                  </div>
+                  <div class="map-direction-stops" id="map-direction-stops"></div>
+                  <ul class="map-suggestions" id="map-direction-suggestions" hidden></ul>
+                  <div class="map-directions-actions">
+                    <button class="map-text-button" id="map-stop-add" type="button">＋ 新增停靠站</button>
+                    <button class="map-text-button" id="map-directions-swap" type="button">⇅ 對調起訖點</button>
+                  </div>
+                  <details class="map-route-options">
+                    <summary>路線選項</summary>
+                    <label>出發時間 <input id="map-departure-time" type="datetime-local" /></label>
+                    <label><input id="map-avoid-tolls" type="checkbox" />避開收費路段</label>
+                    <label><input id="map-avoid-highways" type="checkbox" />避開高速公路</label>
+                    <label><input id="map-avoid-ferries" type="checkbox" />避開渡輪</label>
+                  </details>
+                  <button class="map-route-submit" type="submit">查詢路線</button>
+                  <p class="map-tool-status" id="map-directions-status" role="status"></p>
+                  <div class="map-route-list" id="map-route-list"></div>
+                </form>
+              </div>
+            </div>
+            <div class="map-layers">
+              <button class="map-layers-toggle" id="map-layers-toggle" type="button" aria-expanded="false" aria-controls="map-layers-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg><span>圖層</span></button>
+              <div class="map-layers-menu" id="map-layers-menu" hidden>
+                <strong>地圖類型</strong>
+                <div class="map-layer-options">
+                  <button type="button" data-map-type="roadmap" aria-pressed="true">預設</button>
+                  <button type="button" data-map-type="hybrid" aria-pressed="false">衛星</button>
+                  <button type="button" data-map-type="terrain" aria-pressed="false">地形</button>
+                </div>
+                <strong>地圖詳細資料</strong>
+                <div class="map-layer-options">
+                  <button type="button" data-map-layer="traffic" aria-pressed="false">路況</button>
+                  <button type="button" data-map-layer="transit" aria-pressed="false">大眾運輸</button>
+                  <button type="button" data-map-layer="bicycling" aria-pressed="false">單車</button>
+                  <button type="button" data-map-layer="streetView" aria-pressed="false">街景服務</button>
+                </div>
+              </div>
+            </div>
+            <div class="map-fabs">
+              <button class="map-fab" id="map-fullscreen" type="button" aria-pressed="false" aria-label="全螢幕" title="全螢幕"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg></button>
+              <button class="map-fab" id="map-my-location" type="button" aria-label="顯示我的位置" title="顯示我的位置"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></button>
+            </div>
+            <ul class="map-context-menu" id="map-context-menu" role="menu" hidden></ul>
+            <div class="map-measure" id="map-measure" role="status" hidden>
+              <span id="map-measure-text">點選地圖開始測量</span>
+              <button class="map-text-button" id="map-measure-close" type="button">結束</button>
             </div>
             <button class="map-add-button" id="map-add-open" type="button" aria-label="新增足跡" title="新增足跡">＋</button>
           </div>
@@ -197,33 +304,9 @@
             </div>
           </aside>
         </div>
-        <section class="friend-management" aria-labelledby="friend-management-title">
-          <form class="module-card friend-form" id="friend-form">
-            <h2 id="friend-management-title">追蹤好友與摯友名單</h2>
-            <label class="compact-field">好友電子郵件
-              <input name="email" type="email" maxlength="254" required placeholder="friend@example.com" />
-            </label>
-            <label class="checkbox-field">
-              <input name="is_close_friend" type="checkbox" />
-              同時加入我的摯友允許名單
-            </label>
-            <p class="privacy-note">追蹤好友可看到其公開日記與足跡；只有列入作者摯友名單的追蹤者可看到摯友內容。</p>
-            <button class="primary-button" type="submit">追蹤好友</button>
-            <p class="status-message" id="friend-form-status" role="status"></p>
-          </form>
-          <div class="module-card">
-            <div class="map-sidebar-heading">
-              <h2 class="friend-list-heading">我追蹤的帳號</h2>
-              <span class="entry-count" id="friend-count">載入中…</span>
-            </div>
-            <div class="friend-list" id="friend-list" aria-live="polite">
-              <div class="module-empty">登入後載入好友名單。</div>
-            </div>
-          </div>
-        </section>
       </section>
 
-      <section class="module-view" id="trips-view" hidden aria-labelledby="trips-title">
+      <section class="app-view module-view" id="trips-view" hidden aria-labelledby="trips-title">
         <div class="module-heading">
           <h1 id="trips-title">行程包</h1>
           <p>把足跡整理成專屬行程，收藏或分享旅途清單。</p>
@@ -265,9 +348,9 @@
           <div class="dialog-heading">
             <div>
               <h2 id="map-point-dialog-title">新增足跡行程</h2>
-              <p>新增多個途經點，並依照站序記錄旅遊動線。</p>
+              <p id="map-point-dialog-description">新增多個途經點，並依照站序記錄旅遊動線。</p>
             </div>
-            <button class="icon-button" id="map-point-dismiss" type="button" aria-label="關閉新增足跡">×</button>
+            <button class="icon-button" id="map-point-dismiss" type="button" aria-label="關閉視窗">×</button>
           </div>
           <label class="compact-field">這趟足跡的名稱
             <input name="name" maxlength="160" required placeholder="例如：旗津一日散步" />
@@ -277,6 +360,7 @@
               <span id="route-point-editor-title">途經地點</span>
               <button class="secondary-button" id="route-point-add" type="button">＋ 新增途經點</button>
             </div>
+            <p class="privacy-note">輸入地點名稱或地址，Google 地圖會自動找到位置。名稱太籠統時可能找到同名地點，請改填完整地址。</p>
             <div class="route-point-list" id="route-point-list"></div>
           </section>
           <label class="compact-field">小記
@@ -290,8 +374,12 @@
             </select>
           </label>
           <p class="privacy-note">摯友足跡只會顯示給追蹤者中已獲作者允許的人；公開行程僅分享公開足跡。</p>
-          <button class="primary-button" id="map-point-save" type="submit">儲存足跡</button>
           <p class="status-message" id="map-form-status" role="status"></p>
+          <div class="map-point-form-actions">
+            <button class="route-point-remove" id="map-point-delete" type="button" hidden>刪除這趟足跡</button>
+            <button class="secondary-button" id="map-point-cancel" type="button">取消</button>
+            <button class="primary-button" id="map-point-save" type="submit">儲存足跡</button>
+          </div>
         </form>
       </dialog>
     </main>
@@ -315,12 +403,31 @@
           <input name="avatar_url" type="url" maxlength="2048" placeholder="https://example.com/avatar.jpg" />
         </label>
         <p class="privacy-note">留空頭像網址即可使用預設頭像。請使用公開可存取的 HTTPS 圖片網址。</p>
+        <label class="checkbox-field">
+          <input name="is_private" type="checkbox" />
+          私人帳號
+        </label>
+        <p class="privacy-note">公開帳號的公開貼文所有人都能看見；私人帳號的公開貼文只有粉絲能看見。摯友與私密貼文的規則不變。</p>
         <p class="status-message" id="profile-edit-status" role="status"></p>
         <div class="modal-actions">
           <button class="secondary-button" id="profile-edit-cancel" type="button">取消</button>
           <button class="primary-button" id="profile-edit-save" type="submit">儲存變更</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="profile-social-dialog" aria-labelledby="profile-social-title">
+      <section class="dialog-content profile-social-content">
+        <div class="dialog-heading">
+          <div>
+            <button class="profile-social-back" id="profile-social-back" type="button" hidden>‹ 返回名單</button>
+            <h2 id="profile-social-title">社群名單</h2>
+            <p id="profile-social-description">查看粉絲與追蹤中的帳號。</p>
+          </div>
+          <button class="icon-button" id="profile-social-close" type="button" aria-label="關閉社群名單">×</button>
+        </div>
+        <div class="profile-social-list" id="profile-social-list" aria-live="polite"></div>
+      </section>
     </dialog>
 
     <dialog id="entry-dialog" aria-labelledby="dialog-title">
@@ -362,7 +469,7 @@
           <select name="privacy">
             <option value="private">私密（只有自己）</option>
             <option value="friends">摯友（允許名單）</option>
-            <option value="public">公開（追蹤者可見）</option>
+            <option value="public">公開（依帳號設定）</option>
           </select>
         </label>
         <div class="field">
@@ -381,6 +488,7 @@
           </div>
           <span class="photo-note">目前後端尚未提供照片儲存功能；所選照片僅供本次預覽，不會上傳或保存。</span>
         </div>
+        <input name="tags" type="hidden" value="" />
         <p class="status-message" id="form-status" role="status"></p>
         <div class="modal-actions">
           <button class="secondary-button" id="close-dialog" type="button">取消</button>
@@ -420,16 +528,63 @@
         <button class="secondary-button" id="login-cancel" type="button">取消</button>
         <button class="primary-button" id="login-submit" type="submit">登入</button>
         <button class="auth-switch" id="resend-verification" type="button" hidden>重新寄送驗證信</button>
+        <button class="auth-switch" id="forgot-password-open" type="button">忘記密碼？</button>
         <button class="auth-switch" id="auth-mode-toggle" type="button">還沒有帳號？註冊</button>
       </form>
     </dialog>
 
-    <script src="vendor/leaflet/leaflet.js"></script>
+    <dialog id="forgot-password-dialog" aria-labelledby="forgot-password-title">
+      <form class="dialog-content" id="forgot-password-form">
+        <div class="dialog-heading">
+          <div>
+            <h2 id="forgot-password-title">重設密碼</h2>
+            <p>輸入註冊的電子郵件，我們會寄送一次性重設連結。</p>
+          </div>
+          <button class="icon-button" id="forgot-password-dismiss" type="button" aria-label="關閉重設密碼視窗">×</button>
+        </div>
+        <label class="field">
+          電子郵件
+          <input id="forgot-password-email" name="email" type="email" maxlength="254" required autocomplete="email" placeholder="name@example.com" />
+        </label>
+        <p class="status-message" id="forgot-password-status" role="status"></p>
+        <div class="modal-actions">
+          <button class="secondary-button" id="forgot-password-cancel" type="button">取消</button>
+          <button class="primary-button" id="forgot-password-submit" type="submit">寄送重設連結</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="reset-password-dialog" aria-labelledby="reset-password-title">
+      <form class="dialog-content" id="reset-password-form">
+        <div class="dialog-heading">
+          <div>
+            <h2 id="reset-password-title">設定新密碼</h2>
+            <p>請設定至少 8 個字元的新密碼。</p>
+          </div>
+          <button class="icon-button" id="reset-password-dismiss" type="button" aria-label="關閉設定新密碼視窗">×</button>
+        </div>
+        <label class="field">
+          新密碼
+          <input name="password" type="password" minlength="8" maxlength="256" required autocomplete="new-password" />
+        </label>
+        <label class="field">
+          再輸入一次新密碼
+          <input name="confirm_password" type="password" minlength="8" maxlength="256" required autocomplete="new-password" />
+        </label>
+        <p class="status-message" id="reset-password-status" role="status"></p>
+        <div class="modal-actions">
+          <button class="secondary-button" id="reset-password-cancel" type="button">取消</button>
+          <button class="primary-button" id="reset-password-submit" type="submit">更新密碼</button>
+        </div>
+      </form>
+    </dialog>
+
     <script src="js/state.js"></script>
     <script src="js/api.js"></script>
     <script src="js/views.js"></script>
     <script src="js/social.js"></script>
     <script src="js/map.js"></script>
+    <script src="js/map-tools.js"></script>
     <script src="js/trips.js"></script>
     <script src="js/session.js"></script>
     <script src="js/compose-events.js"></script>

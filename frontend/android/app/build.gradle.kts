@@ -19,7 +19,8 @@ android {
         applicationId = "com.lifelogger.life_logger"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // google_maps_flutter requires API 24.
+        minSdk = maxOf(flutter.minSdkVersion, 24)
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
@@ -27,6 +28,15 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Same key as the Dart side: flutter run --dart-define=GOOGLE_MAPS_API_KEY=...
+        val dartDefines = (project.findProperty("dart-defines") as String?)
+            ?.split(",")
+            .orEmpty()
+            .map { String(java.util.Base64.getDecoder().decode(it)) }
+        manifestPlaceholders["googleMapsApiKey"] = dartDefines
+            .firstOrNull { it.startsWith("GOOGLE_MAPS_API_KEY=") }
+            ?.substringAfter("=")
+            .orEmpty()
     }
 
     buildTypes {

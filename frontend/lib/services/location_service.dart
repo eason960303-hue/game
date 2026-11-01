@@ -23,7 +23,7 @@ Future<Coordinates> currentCoordinates() async {
   }
   if (permission == LocationPermission.denied ||
       permission == LocationPermission.deniedForever) {
-    throw const LocationException('沒有定位權限，請到系統設定開啟，或手動輸入座標');
+    throw const LocationException('沒有定位權限，請到系統設定開啟，或直接輸入地點名稱');
   }
   try {
     final position = await Geolocator.getCurrentPosition(
@@ -34,6 +34,6 @@ Future<Coordinates> currentCoordinates() async {
     );
     return (latitude: position.latitude, longitude: position.longitude);
   } on TimeoutException {
-    throw const LocationException('定位逾時，請到空曠處再試，或手動輸入座標');
+    throw const LocationException('定位逾時，請到空曠處再試，或直接輸入地點名稱');
   }
 }

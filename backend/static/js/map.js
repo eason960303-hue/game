@@ -6,14 +6,47 @@ function renumberRoutePoints() {
     row.querySelector("[data-route-point-label]").textContent =
       `第 ${stationNumber} 站`;
     const nameInput = row.querySelector("[data-route-name]");
-    const latitudeInput = row.querySelector("[data-route-lat]");
-    const longitudeInput = row.querySelector("[data-route-lng]");
-    nameInput.setAttribute("aria-label", `第 ${stationNumber} 站地點名稱`);
-    latitudeInput.setAttribute("aria-label", `第 ${stationNumber} 站緯度`);
-    longitudeInput.setAttribute("aria-label", `第 ${stationNumber} 站經度`);
+    nameInput.setAttribute("aria-label", `第 ${stationNumber} 站地點名稱或地址`);
     row.querySelector("[data-route-remove]").disabled = rows.length <= 1;
+    row.querySelector('[data-route-move="up"]').disabled = index === 0;
+    row.querySelector('[data-route-move="down"]').disabled =
+      index === rows.length - 1;
+    // Google's embedded map cannot report where it was clicked.
+    row.querySelector("[data-route-pick]").hidden = !map;
   });
   document.querySelector("#route-point-add").disabled = rows.length >= 50;
+}
+
+function hasCoordinates(routePoint) {
+  return (
+    routePoint.lat !== null &&
+    routePoint.lat !== undefined &&
+    routePoint.lat !== "" &&
+    Number.isFinite(Number(routePoint.lat)) &&
+    routePoint.lng !== null &&
+    routePoint.lng !== undefined &&
+    routePoint.lng !== "" &&
+    Number.isFinite(Number(routePoint.lng))
+  );
+}
+
+// What Google is asked to find: exact coordinates when known, otherwise the text.
+function routePointQuery(routePoint) {
+  return hasCoordinates(routePoint)
+    ? `${routePoint.lat},${routePoint.lng}`
+    : routePoint.name;
+}
+
+function setRowCoordinates(row, coordinates) {
+  row.dataset.lat = String(coordinates.lat);
+  row.dataset.lng = String(coordinates.lng);
+  row.querySelector("[data-route-located]").hidden = false;
+}
+
+function clearRowCoordinates(row) {
+  delete row.dataset.lat;
+  delete row.dataset.lng;
+  row.querySelector("[data-route-located]").hidden = true;
 }
 
 function addRoutePoint(values = {}) {
@@ -23,24 +56,23 @@ function addRoutePoint(values = {}) {
   row.innerHTML = `
     <div class="route-point-row-heading">
       <span data-route-point-label></span>
+      <span class="route-point-move">
+        <button class="secondary-button" type="button" data-route-move="up" aria-label="往前移一站" title="往前移一站">↑</button>
+        <button class="secondary-button" type="button" data-route-move="down" aria-label="往後移一站" title="往後移一站">↓</button>
+      </span>
     </div>
-    <label class="compact-field">地點名稱
-      <input data-route-name maxlength="160" required placeholder="例如：旗津海岸" />
+    <label class="compact-field">地點名稱或地址
+      <input data-route-name maxlength="160" required placeholder="例如：旗津海岸公園、高雄市旗津區旗津三路" />
     </label>
-    <label class="compact-field">緯度
-      <input data-route-lat type="number" step="any" min="-90" max="90" required placeholder="地圖選點或輸入座標" />
-    </label>
-    <label class="compact-field">經度
-      <input data-route-lng type="number" step="any" min="-180" max="180" required placeholder="地圖選點或輸入座標" />
-    </label>
+    <p class="privacy-note route-point-located" data-route-located hidden>已定位，修改名稱後會改用名稱搜尋地點。</p>
     <div class="route-point-row-actions">
+      <button class="secondary-button" type="button" data-route-locate>使用目前位置</button>
       <button class="secondary-button" type="button" data-route-pick>在地圖選點</button>
       <button class="route-point-remove" type="button" data-route-remove>移除此站</button>
     </div>
   `;
   row.querySelector("[data-route-name]").value = values.name || "";
-  row.querySelector("[data-route-lat]").value = values.lat ?? "";
-  row.querySelector("[data-route-lng]").value = values.lng ?? "";
+  if (hasCoordinates(values)) setRowCoordinates(row, values);
   routePointList.append(row);
   renumberRoutePoints();
   return row;
@@ -51,14 +83,14 @@ function resetRoutePoints() {
   addRoutePoint();
 }
 
-function placePendingRoutePoint(latlng) {
+function placePendingRoutePoint(latlng, placeName = "") {
   if (!pickingMapPoint || !pendingMapPickRow) return;
-  const latitudeInput = pendingMapPickRow.querySelector("[data-route-lat]");
-  const longitudeInput = pendingMapPickRow.querySelector("[data-route-lng]");
-  latitudeInput.value = latlng.lat.toFixed(6);
-  longitudeInput.value = latlng.lng.toFixed(6);
+  setRowCoordinates(pendingMapPickRow, {
+    lat: latlng.lat.toFixed(6),
+    lng: latlng.lng.toFixed(6),
+  });
   const nameInput = pendingMapPickRow.querySelector("[data-route-name]");
-  if (!nameInput.value.trim()) nameInput.value = "地圖途經點";
+  if (!nameInput.value.trim()) nameInput.value = placeName || "地圖途經點";
   pickingMapPoint = false;
   pendingMapPickRow = null;
   mapPickBanner.hidden = true;
@@ -75,7 +107,58 @@ document.querySelector("#route-point-add").addEventListener("click", () => {
   row?.querySelector("[data-route-name]").focus();
 });
 
+async function fillRowWithCurrentLocation(button) {
+  const row = button.closest(".route-point-row");
+  const status = document.querySelector("#map-form-status");
+  button.disabled = true;
+  status.textContent = "正在取得目前位置…";
+  try {
+    const { lat, lng } = await currentCoordinates();
+    setRowCoordinates(row, { lat: lat.toFixed(6), lng: lng.toFixed(6) });
+    const nameInput = row.querySelector("[data-route-name]");
+    if (!nameInput.value.trim()) nameInput.value = "目前位置";
+    status.textContent = "";
+    nameInput.focus();
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function moveRoutePoint(button) {
+  const row = button.closest(".route-point-row");
+  const direction = button.dataset.routeMove;
+  if (direction === "up") {
+    row.previousElementSibling?.before(row);
+  } else {
+    row.nextElementSibling?.after(row);
+  }
+  renumberRoutePoints();
+  // The pressed button is disabled at either end, which would drop keyboard focus.
+  const focusTarget = button.disabled
+    ? row.querySelector("[data-route-move]:not(:disabled)")
+    : button;
+  focusTarget?.focus();
+}
+
+routePointList.addEventListener("input", (event) => {
+  if (event.target.matches("[data-route-name]")) {
+    clearRowCoordinates(event.target.closest(".route-point-row"));
+  }
+});
+
 routePointList.addEventListener("click", (event) => {
+  const moveButton = event.target.closest("[data-route-move]");
+  if (moveButton) {
+    moveRoutePoint(moveButton);
+    return;
+  }
+  const locateButton = event.target.closest("[data-route-locate]");
+  if (locateButton) {
+    fillRowWithCurrentLocation(locateButton);
+    return;
+  }
   const pickButton = event.target.closest("[data-route-pick]");
   if (pickButton) {
     pendingMapPickRow = pickButton.closest(".route-point-row");
@@ -91,38 +174,113 @@ routePointList.addEventListener("click", (event) => {
   renumberRoutePoints();
 });
 
-function initMap() {
-  if (map) {
-    setTimeout(() => map.invalidateSize(), 100);
-    return;
+function embeddedMapUrl(selectedPoint) {
+  const routePoints = selectedPoint ? footprintRoutePoints(selectedPoint) : [];
+  const params = new URLSearchParams({ hl: "zh-TW", output: "embed" });
+  if (routePoints.length > 1) {
+    params.set("saddr", routePointQuery(routePoints[0]));
+    params.set("daddr", routePoints.slice(1).map(routePointQuery).join(" to:"));
+  } else if (routePoints.length === 1) {
+    params.set("q", routePointQuery(routePoints[0]));
+    params.set("z", "15");
+  } else {
+    params.set("ll", "23.7,120.95");
+    params.set("z", "7");
   }
-  if (!window.L) {
-    document.querySelector("#map-canvas").textContent =
-      "地圖服務目前無法載入。你仍可手動輸入座標新增足跡。";
-    return;
+  return `https://www.google.com/maps?${params}`;
+}
+
+function updateEmbeddedMap() {
+  const frame = document.querySelector("#map-canvas iframe");
+  if (!frame) return;
+  const url = embeddedMapUrl(
+    mapPoints.find((point) => point.id === selectedMapPointId),
+  );
+  if (frame.getAttribute("src") !== url) frame.setAttribute("src", url);
+}
+
+// Google's iframe map needs no key, so the page still shows a real map without one.
+function showMapUnavailable(message) {
+  map = null;
+  const frame = document.createElement("iframe");
+  frame.title = "Google 地圖";
+  frame.loading = "lazy";
+  frame.referrerPolicy = "strict-origin";
+  document.querySelector("#map-canvas").replaceChildren(frame);
+  updateEmbeddedMap();
+  const note = document.querySelector("#map-embed-note");
+  note.textContent = `${message}目前是內嵌地圖，只能瀏覽和看路線。`;
+  note.hidden = false;
+  mapPanel.classList.remove("map-ready");
+  mapPanel.classList.add("map-unavailable");
+}
+
+function loadGoogleMaps() {
+  googleMapsLoad ??= apiRequest("/maps/config").then(
+    (config) =>
+      new Promise((resolve, reject) => {
+        if (!config.api_key) {
+          reject(new Error("地圖尚未設定 GOOGLE_MAPS_API_KEY。"));
+          return;
+        }
+        window.onGoogleMapsReady = () => resolve(config);
+        window.gm_authFailure = () =>
+          showMapUnavailable("Google 地圖金鑰無效或未獲授權。");
+        const params = new URLSearchParams({
+          key: config.api_key,
+          v: "weekly",
+          loading: "async",
+          language: "zh-TW",
+          region: "TW",
+          callback: "onGoogleMapsReady",
+        });
+        const script = document.createElement("script");
+        script.src = `https://maps.googleapis.com/maps/api/js?${params}`;
+        script.async = true;
+        script.onerror = () => reject(new Error("地圖服務目前無法載入。"));
+        document.head.append(script);
+      }),
+  );
+  return googleMapsLoad;
+}
+
+async function initMap() {
+  if (map || document.querySelector("#map-canvas iframe")) return;
+  try {
+    const config = await loadGoogleMaps();
+    if (map) return;
+    const { Map: GoogleMap, InfoWindow } =
+      await google.maps.importLibrary("maps");
+    await google.maps.importLibrary("marker");
+    map = new GoogleMap(document.querySelector("#map-canvas"), {
+      center: { lat: 23.7, lng: 120.95 },
+      zoom: 7,
+      mapId: config.map_id,
+      gestureHandling: "greedy",
+      streetViewControl: true,
+      scaleControl: true,
+      rotateControl: true,
+      // The panel's own buttons replace these so the tools stay visible.
+      mapTypeControl: false,
+      fullscreenControl: false,
+    });
+    mapInfoWindow = new InfoWindow();
+    map.addListener("click", handleMapClick);
+    map.addListener("contextmenu", handleMapContextMenu);
+    initMapTools();
+    renderMapMarkers();
+  } catch (error) {
+    googleMapsLoad = null;
+    showMapUnavailable(error.message);
   }
-  map = L.map("map-canvas").setView([23.7, 120.95], 7);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  }).addTo(map);
-  map.on("click", (event) => {
-    placePendingRoutePoint(event.latlng);
-  });
 }
 
 function footprintRoutePoints(point) {
   if (Array.isArray(point.points) && point.points.length > 0) {
     return point.points
-      .filter(
-        (routePoint) =>
-          Number.isFinite(Number(routePoint.lat)) &&
-          Number.isFinite(Number(routePoint.lng)),
-      )
       .map((routePoint, index) => ({
-        lat: Number(routePoint.lat),
-        lng: Number(routePoint.lng),
+        lat: hasCoordinates(routePoint) ? Number(routePoint.lat) : null,
+        lng: hasCoordinates(routePoint) ? Number(routePoint.lng) : null,
         name: routePoint.name || point.name,
         order: Number(routePoint.order) || index + 1,
       }))
@@ -138,41 +296,53 @@ function footprintRoutePoints(point) {
   ];
 }
 
-function mapMarkerIcon(isSelected) {
-  return L.divIcon({
-    className: "footprint-marker-shell",
-    html: `<span class="footprint-marker${isSelected ? " is-selected" : ""}"></span>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-  });
+function mapMarkerContent(isSelected, order) {
+  const shell = document.createElement("div");
+  shell.className = "footprint-marker-shell";
+  const dot = document.createElement("div");
+  dot.className = `footprint-marker${isSelected ? " is-numbered" : ""}`;
+  if (isSelected) dot.textContent = String(order);
+  shell.append(dot);
+  return shell;
 }
 
 function updateMapRoute(selectedPoint) {
   if (mapRoute) {
-    mapRoute.remove();
+    mapRoute.setMap(null);
     mapRoute = null;
   }
   if (!map || !selectedPoint) return;
 
-  const routePoints = footprintRoutePoints(selectedPoint);
-  const coordinates = routePoints.map((routePoint) => [
-    routePoint.lat,
-    routePoint.lng,
-  ]);
+  const coordinates = footprintRoutePoints(selectedPoint)
+    .filter(hasCoordinates)
+    .map((routePoint) => ({
+      lat: routePoint.lat,
+      lng: routePoint.lng,
+    }));
   if (coordinates.length > 1) {
-    mapRoute = L.polyline(coordinates, {
-      color: "#4386d5",
-      weight: 4,
-      opacity: 0.82,
-      dashArray: "8 8",
-    }).addTo(map);
-  }
-  if (coordinates.length > 0) {
-    map.fitBounds(L.latLngBounds(coordinates), {
-      padding: [36, 36],
-      maxZoom: 15,
-      animate: true,
+    mapRoute = new google.maps.Polyline({
+      map,
+      path: coordinates,
+      strokeOpacity: 0,
+      icons: [
+        {
+          icon: {
+            path: "M 0,-1 0,1",
+            strokeColor: "#4386d5",
+            strokeOpacity: 0.82,
+            scale: 3,
+          },
+          offset: "0",
+          repeat: "16px",
+        },
+      ],
     });
+    const bounds = new google.maps.LatLngBounds();
+    coordinates.forEach((coordinate) => bounds.extend(coordinate));
+    map.fitBounds(bounds, { top: 72, right: 48, bottom: 48, left: 48 });
+  } else if (coordinates.length === 1) {
+    map.panTo(coordinates[0]);
+    map.setZoom(15);
   }
 }
 
@@ -180,10 +350,46 @@ function selectMapPoint(pointId) {
   const point = mapPoints.find((item) => item.id === pointId);
   if (!point) return;
   selectedMapPointId = point.id;
+  if (map) clearMapSheet();
   renderMapPoints();
   mapPointsContainer
     .querySelector(`[data-map-point="${point.id}"]`)
     ?.focus();
+}
+
+function setMapPointDialogMode(isEditing) {
+  mapPointDialogTitle.textContent = isEditing ? "編輯足跡行程" : "新增足跡行程";
+  document.querySelector("#map-point-dialog-description").textContent = isEditing
+    ? "修改內容、調整站點順序，或刪除這趟足跡。"
+    : "新增多個途經點，並依照站序記錄旅遊動線。";
+  mapPointSaveButton.textContent = isEditing ? "儲存變更" : "儲存足跡";
+  document.querySelector("#map-point-delete").hidden = !isEditing;
+}
+
+function mapPointFormSnapshot() {
+  return JSON.stringify([
+    mapPointForm.elements.name.value,
+    mapPointForm.elements.note.value,
+    mapPointForm.elements.privacy.value,
+    Array.from(
+      routePointList.querySelectorAll(".route-point-row"),
+      (row) => [row.querySelector("[data-route-name]").value, row.dataset.lat],
+    ),
+  ]);
+}
+
+function closeMapPointDialog() {
+  if (
+    mapPointFormSnapshot() !== savedMapPointForm &&
+    !window.confirm("要放棄尚未儲存的修改嗎？")
+  ) {
+    return;
+  }
+  pickingMapPoint = false;
+  pendingMapPickRow = null;
+  editingMapPointId = null;
+  mapPickBanner.hidden = true;
+  mapPointDialog.close();
 }
 
 function openMapPointEditor(pointId) {
@@ -200,9 +406,9 @@ function openMapPointEditor(pointId) {
   footprintRoutePoints(point).forEach((routePoint) => {
     addRoutePoint(routePoint);
   });
-  mapPointDialogTitle.textContent = "編輯足跡行程";
-  mapPointSaveButton.textContent = "儲存變更";
+  setMapPointDialogMode(true);
   document.querySelector("#map-form-status").textContent = "";
+  savedMapPointForm = mapPointFormSnapshot();
   mapPointDialog.showModal();
   mapPointForm.elements.name.focus();
 }
@@ -220,7 +426,7 @@ mapPointsContainer.addEventListener("click", (event) => {
   if (isAlreadyExpanded) {
     selectedMapPointId = null;
     renderMapPoints();
-    mapMarkers.get(`${pointId}:1`)?.closePopup();
+    mapInfoWindow?.close();
     mapPointsContainer
       .querySelector(`[data-map-point="${pointId}"]`)
       ?.focus();
@@ -266,12 +472,13 @@ function renderMapPoints() {
                     (routePoint) => `
                       <li>
                         <strong>第 ${routePoint.order} 站：${escapeHtml(routePoint.name)}</strong>
-                        <span> · ${routePoint.lat.toFixed(5)}, ${routePoint.lng.toFixed(5)}</span>
+                        ${hasCoordinates(routePoint) ? `<span> · ${routePoint.lat.toFixed(5)}, ${routePoint.lng.toFixed(5)}</span>` : ""}
                       </li>
                     `,
                   )
                   .join("")}
               </ol>
+              <button class="secondary-button map-point-directions" type="button" data-google-route-navigation="${Number(point.id)}">前往 Google 導航</button>
               <div class="map-point-top">
                 <span class="mood">${privacyLabel(point.privacy)}</span>
                 <span class="entry-owner">${escapeHtml(point.owner_name || "我的足跡")}</span>
@@ -312,45 +519,57 @@ function renderMapPoints() {
       : '<span class="privacy-note">新增自己的足跡後即可加入行程包。</span>';
   }
 
-  if (!map || !window.L) return;
+  renderMapMarkers();
+}
+
+function renderMapMarkers() {
+  if (!map) {
+    updateEmbeddedMap();
+    return;
+  }
   const selectedPoint = mapPoints.find(
     (point) => point.id === selectedMapPointId,
   );
   const activeMarkerKeys = new Set();
   mapPoints.forEach((point) => {
-    footprintRoutePoints(point).forEach((routePoint) => {
+    footprintRoutePoints(point).filter(hasCoordinates).forEach((routePoint) => {
       const markerKey = `${point.id}:${routePoint.order}`;
       activeMarkerKeys.add(markerKey);
       let marker = mapMarkers.get(markerKey);
-      const popupContent = `
-        <strong>${escapeHtml(point.name)}</strong><br>
-        第 ${routePoint.order} 站：${escapeHtml(routePoint.name)}<br>
-        <small>${privacyLabel(point.privacy)}</small>
-      `;
+      const position = { lat: routePoint.lat, lng: routePoint.lng };
       if (!marker) {
-        marker = L.marker([routePoint.lat, routePoint.lng], {
-          icon: mapMarkerIcon(point.id === selectedMapPointId),
-        })
-          .addTo(map)
-          .bindPopup(popupContent)
-          .on("click", (event) => {
-            if (pickingMapPoint) {
-              placePendingRoutePoint(event.latlng);
-            } else {
-              selectMapPoint(point.id);
-            }
-          });
+        marker = new google.maps.marker.AdvancedMarkerElement({
+          map,
+          gmpClickable: true,
+        });
+        marker.addEventListener("gmp-click", () => {
+          const { point, routePoint } = marker.footprint;
+          if (pickingMapPoint) {
+            placePendingRoutePoint({ lat: routePoint.lat, lng: routePoint.lng });
+            return;
+          }
+          selectMapPoint(point.id);
+          mapInfoWindow.setContent(`
+            <div class="footprint-popup">
+              <strong>${escapeHtml(point.name)}</strong><br>
+              第 ${routePoint.order} 站：${escapeHtml(routePoint.name)}<br>
+              <small>${privacyLabel(point.privacy)}</small>
+              <button class="map-google-navigation" type="button" data-google-navigation data-navigation-lat="${routePoint.lat}" data-navigation-lng="${routePoint.lng}">前往 Google 導航</button>
+            </div>
+          `);
+          mapInfoWindow.open({ map, anchor: marker });
+        });
         mapMarkers.set(markerKey, marker);
-      } else {
-        marker.setLatLng([routePoint.lat, routePoint.lng]);
-        marker.setIcon(mapMarkerIcon(point.id === selectedMapPointId));
-        marker.setPopupContent(popupContent);
       }
+      marker.footprint = { point, routePoint };
+      marker.position = position;
+      marker.title = `${point.name}：${routePoint.name}`;
+      marker.content = mapMarkerContent(point.id === selectedMapPointId, routePoint.order);
     });
   });
   mapMarkers.forEach((marker, markerKey) => {
     if (activeMarkerKeys.has(markerKey)) return;
-    marker.remove();
+    marker.map = null;
     mapMarkers.delete(markerKey);
   });
   updateMapRoute(selectedPoint);
@@ -367,9 +586,11 @@ async function loadMapPoints() {
     if (!mapPoints.some((point) => point.id === selectedMapPointId)) {
       selectedMapPointId = null;
     }
+    renderTimelineFootprints(mapPoints);
     renderMapPoints();
   } catch (error) {
     mapPointCount.textContent = "載入失敗";
+    timelineFootprints.innerHTML = `<div class="error-state">${escapeHtml(error.message)}<button class="retry-button" type="button" data-retry-timeline-footprints>重新整理</button></div>`;
     mapPointsContainer.innerHTML =
       `<div class="error-state">${escapeHtml(error.message)}<button class="retry-button" id="retry-map-points" type="button">重新整理</button></div>`;
     document
@@ -379,3 +600,16 @@ async function loadMapPoints() {
       error.status === 401 ? "請先登入以管理足跡。" : "足跡載入失敗。";
   }
 }
+
+timelineFootprints.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-timeline-map-point]");
+  if (button) {
+    selectedMapPointId = Number(button.dataset.timelineMapPoint);
+    document.querySelector('[data-view="map"]').click();
+    clearMapSheet();
+    return;
+  }
+  if (event.target.closest("[data-retry-timeline-footprints]")) {
+    loadMapPoints();
+  }
+});

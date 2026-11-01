@@ -6,9 +6,30 @@ document.querySelector("#login-cancel").addEventListener("click", () => {
   loginDialog.close();
 });
 
+document.querySelector("#forgot-password-dismiss").addEventListener("click", () => {
+  forgotPasswordDialog.close();
+});
+document.querySelector("#forgot-password-cancel").addEventListener("click", () => {
+  forgotPasswordDialog.close();
+});
+forgotPasswordOpenButton.addEventListener("click", () => {
+  forgotPasswordEmail.value = loginForm.elements.email.value.trim();
+  forgotPasswordStatus.textContent = "";
+  loginDialog.close();
+  forgotPasswordDialog.showModal();
+});
+
+document.querySelector("#reset-password-dismiss").addEventListener("click", () => {
+  resetPasswordDialog.close();
+});
+document.querySelector("#reset-password-cancel").addEventListener("click", () => {
+  resetPasswordDialog.close();
+});
+
 loginModeToggle.addEventListener("click", () => {
   registering = !registering;
   showVerificationPrompt(null);
+  forgotPasswordOpenButton.hidden = registering;
   displayNameField.hidden = !registering;
   loginForm.elements.display_name.required = registering;
   loginForm.elements.password.autocomplete = registering
@@ -29,6 +50,63 @@ loginModeToggle.addEventListener("click", () => {
     ? "已經有帳號？登入"
     : "還沒有帳號？註冊";
   loginStatus.textContent = "";
+});
+
+forgotPasswordForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const submitButton = document.querySelector("#forgot-password-submit");
+  submitButton.disabled = true;
+  forgotPasswordStatus.textContent = "正在處理請求…";
+  try {
+    const result = await apiRequest(
+      "/auth/forgot-password",
+      jsonOptions("POST", { email: getFormText(new FormData(forgotPasswordForm), "email") }),
+    );
+    forgotPasswordStatus.textContent = result.message;
+  } catch (error) {
+    forgotPasswordStatus.textContent = error.message;
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+resetPasswordForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(resetPasswordForm);
+  const password = getFormText(formData, "password");
+  const confirmPassword = getFormText(formData, "confirm_password");
+  const submitButton = document.querySelector("#reset-password-submit");
+  if (password !== confirmPassword) {
+    resetPasswordStatus.textContent = "兩次輸入的密碼不一致。";
+    return;
+  }
+  if (!pendingPasswordResetToken) {
+    resetPasswordStatus.textContent = "重設連結無效或已過期，請重新申請。";
+    return;
+  }
+  submitButton.disabled = true;
+  resetPasswordStatus.textContent = "正在更新密碼…";
+  try {
+    await apiRequest(
+      "/auth/reset-password",
+      jsonOptions("POST", {
+        token: pendingPasswordResetToken,
+        password,
+      }),
+    );
+    pendingPasswordResetToken = null;
+    resetPasswordDialog.close();
+    resetPasswordForm.reset();
+    registering = false;
+    forgotPasswordOpenButton.hidden = false;
+    loginModeToggle.textContent = "還沒有帳號？註冊";
+    openLoginDialog();
+    loginStatus.textContent = "密碼已更新。請使用新密碼登入；其他裝置已登出。";
+  } catch (error) {
+    resetPasswordStatus.textContent = error.message;
+  } finally {
+    submitButton.disabled = false;
+  }
 });
 
 document.querySelector("#google-login").addEventListener("click", () => {
@@ -86,7 +164,6 @@ loginForm.addEventListener("submit", async (event) => {
       '[data-view][aria-current="page"]',
     )?.dataset.view;
     if (activeView === "profile") await loadProfile();
-    if (activeView === "map") await loadFriends();
     if (activeView === "ai-diary") await loadAiDiaryStatus();
   } catch (error) {
     loginStatus.textContent = error.message;
@@ -117,10 +194,6 @@ logoutButton.addEventListener("click", async () => {
   await loadEntries();
   mapPoints = [];
   trips = [];
-  friendList.innerHTML = '<div class="module-empty">登入後載入好友名單。</div>';
-  friendCount.textContent = "登入後載入";
-  friendForm.reset();
-  document.querySelector("#friend-form-status").textContent = "";
   aiChatMessages.innerHTML =
     '<div class="ai-chat-message is-assistant">嗨！告訴我今天發生了什麼，我會幫你整理成一篇日記。</div>';
   aiProviderStatus.textContent = "登入後檢查 AI 服務設定。";

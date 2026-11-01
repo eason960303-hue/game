@@ -16,8 +16,7 @@ python3 main.py
 backend/static/
 ├── index.html   頁面結構
 ├── css/         依功能分開的樣式，reset.css 必須最後載入
-├── js/          一般 script，共用全域範圍，index.html 裡的順序就是執行順序
-└── vendor/      第三方函式庫（Leaflet 1.9.4）
+└── js/          一般 script，共用全域範圍，index.html 裡的順序就是執行順序
 ```
 
 ### 環境變數
@@ -28,11 +27,23 @@ backend/static/
 | `PORT` | `8000` | 服務連接埠 |
 | `RELOAD` | `true` | 程式變更時自動重啟，正式環境請設為 `false` |
 | `LIFE_LOGGER_DB` | `backend/data/life_app.db` | SQLite 檔案位置 |
-| `PUBLIC_BASE_URL` | `http://127.0.0.1:8000` | 對外網址，用於驗證信連結與第三方登入。使用 `https://` 時 Cookie 會加上 Secure |
+| `PUBLIC_BASE_URL` | `http://127.0.0.1:8000` | 對外網址，用於驗證信、密碼重設連結與第三方登入。使用 `https://` 時 Cookie 會加上 Secure |
+
+### Google 地圖
+
+地圖使用 Google Maps Platform，完整功能需要已啟用計費的 Google Cloud 專案。未設定金鑰時會改用 Google 的內嵌地圖，可以瀏覽地圖和足跡路線，但沒有站內搜尋、圖層和地圖選點。
+
+| 變數 | 預設值 | 說明 |
+|---|---|---|
+| `GOOGLE_MAPS_API_KEY` | 無 | 網頁版金鑰。會傳到瀏覽器，請在 Google Cloud 限制 HTTP 參照網址，例如 `http://127.0.0.1:8000/*` |
+| `GOOGLE_MAPS_MAP_ID` | `DEMO_MAP_ID` | 地圖 ID，`DEMO_MAP_ID` 僅供開發，正式環境請建立自己的 |
+| `GOOGLE_MAPS_SERVER_KEY` | 無 | App 內搜尋、地點資訊和路線使用的伺服器金鑰，只留在後端。請另建一把，用 IP 限制，並啟用 Places API (New)、Routes API、Geocoding API |
+
+金鑰要啟用 Maps JavaScript API、Places API (New)、Routes API、Geocoding API。搜尋、地點資訊和路線都會按用量計費，建議在 Google Cloud 設定預算與配額上限。
 
 ### Email 驗證
 
-設定 `SMTP_HOST` 和 `SMTP_FROM` 後就會啟用：註冊後要先開啟信中的連結才能登入。未設定時可直接註冊登入，方便本機開發，但帳號會維持未驗證。
+設定 `SMTP_HOST` 和 `SMTP_FROM` 後就會啟用電子郵件驗證與忘記密碼功能：註冊後要先開啟信中的連結才能登入；忘記密碼時可申請一次性重設連結，連結一小時後失效，更新密碼後會登出所有裝置。未設定時可直接註冊登入，方便本機開發，但不會寄送驗證或重設郵件。
 
 | 變數 | 預設值 | 說明 |
 |---|---|---|
@@ -68,6 +79,7 @@ flutter run
 - App 的第三方登入會開啟系統瀏覽器，再透過 `lifelogger://auth` 回到 App。模擬器和實機都必須連得到 `PUBLIC_BASE_URL`，所以實務上需要公開的 HTTPS 網址。
 - macOS 版未加入 Keychain 權限，因為那需要 Apple 開發者簽章。App 可以正常登入，但關閉後要重新登入。要保存登入狀態，請設定簽章並加入 `keychain-access-groups`。
 - 不支援 Flutter Web，網頁版請使用後端提供的介面。
+- 真實地圖需要 `--dart-define=GOOGLE_MAPS_API_KEY=<金鑰>`，金鑰要啟用 Maps SDK for Android 和 Maps SDK for iOS。未提供金鑰或在 macOS 上會顯示簡易示意圖。App 內的搜尋、地點資訊和路線透過後端取得，需要在後端設定 `GOOGLE_MAPS_SERVER_KEY`。
 - 上架前請把 `com.lifelogger.life_logger`（Android）和 `com.lifelogger.lifeLogger`（iOS、macOS）換成你自己的識別碼。
 
 ## 測試

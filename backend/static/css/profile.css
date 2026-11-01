@@ -70,6 +70,7 @@
 .profile-stats {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: clamp(18px, 5vw, 44px);
   margin: 25px 0 20px;
   color: #53677e;
@@ -78,8 +79,9 @@
 
 .profile-stat {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
+  line-height: 1.25;
 }
 
 .profile-stat strong {

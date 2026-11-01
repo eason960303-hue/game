@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:life_logger/models/location_point.dart';
 import 'package:life_logger/services/api_service.dart';
 import 'package:life_logger/services/location_service.dart';
 import 'package:life_logger/theme/app_theme.dart';
@@ -7,21 +8,30 @@ import 'package:life_logger/widgets/privacy_selector.dart';
 
 class _RouteStop {
   final name = TextEditingController();
-  final latitude = TextEditingController();
-  final longitude = TextEditingController();
+  // Only set when the position is known exactly; otherwise Google finds the name.
+  double? latitude;
+  double? longitude;
   bool isLocating = false;
 
-  void dispose() {
-    name.dispose();
-    latitude.dispose();
-    longitude.dispose();
+  bool get isLocated => latitude != null && longitude != null;
+
+  void clearLocation() {
+    latitude = null;
+    longitude = null;
   }
+
+  void dispose() => name.dispose();
 }
 
 class CreateFootprintScreen extends StatefulWidget {
-  const CreateFootprintScreen({super.key, this.locate = currentCoordinates});
+  const CreateFootprintScreen({
+    super.key,
+    this.locate = currentCoordinates,
+    this.initialStop,
+  });
 
   final Future<Coordinates> Function() locate;
+  final RouteStop? initialStop;
 
   @override
   State<CreateFootprintScreen> createState() => _CreateFootprintScreenState();
@@ -37,6 +47,16 @@ class _CreateFootprintScreenState extends State<CreateFootprintScreen> {
 
   String _privacy = defaultPrivacy;
   bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialStop = widget.initialStop;
+    if (initialStop == null) return;
+    _stops.first.name.text = initialStop.name;
+    _stops.first.latitude = initialStop.latitude;
+    _stops.first.longitude = initialStop.longitude;
+  }
 
   @override
   void dispose() {
@@ -69,13 +89,14 @@ class _CreateFootprintScreenState extends State<CreateFootprintScreen> {
     try {
       final coordinates = await widget.locate();
       if (!mounted || !_stops.contains(stop)) return;
-      stop.latitude.text = coordinates.latitude.toStringAsFixed(6);
-      stop.longitude.text = coordinates.longitude.toStringAsFixed(6);
+      stop.latitude = coordinates.latitude;
+      stop.longitude = coordinates.longitude;
+      if (stop.name.text.trim().isEmpty) stop.name.text = '目前位置';
     } catch (error) {
       debugPrint('Failed to read location: $error');
       if (mounted) {
         _showError(
-          error is LocationException ? error.message : '無法取得目前位置，請手動輸入座標',
+          error is LocationException ? error.message : '無法取得目前位置，請直接輸入地點名稱或地址',
         );
       }
     } finally {
@@ -97,8 +118,10 @@ class _CreateFootprintScreenState extends State<CreateFootprintScreen> {
         'points': [
           for (final (index, stop) in _stops.indexed)
             {
-              'lat': double.parse(stop.latitude.text.trim()),
-              'lng': double.parse(stop.longitude.text.trim()),
+              if (stop.isLocated) ...{
+                'lat': stop.latitude,
+                'lng': stop.longitude,
+              },
               'name': stop.name.text.trim(),
               'order': index + 1,
             },
@@ -116,13 +139,6 @@ class _CreateFootprintScreenState extends State<CreateFootprintScreen> {
 
   String? _requireText(String? value, String message) {
     if (value == null || value.trim().isEmpty) return message;
-    return null;
-  }
-
-  String? _validateCoordinate(String? value, double limit, String label) {
-    final coordinate = double.tryParse(value?.trim() ?? '');
-    if (coordinate == null) return '請輸入$label';
-    if (coordinate.abs() > limit) return '需介於 ±${limit.toInt()}';
     return null;
   }
 
@@ -177,6 +193,11 @@ class _CreateFootprintScreenState extends State<CreateFootprintScreen> {
                           ],
                         ),
                         const SizedBox(height: 16),
+                        const Text(
+                          '輸入地點名稱或地址，Google 地圖會自動找到位置。名稱太籠統時可能找到同名地點，請改填完整地址。',
+                          style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                        ),
+                        const SizedBox(height: 12),
                         for (final (index, stop) in _stops.indexed) ...[
                           _buildStopCard(index, stop),
                           const SizedBox(height: 12),
@@ -250,32 +271,22 @@ class _CreateFootprintScreenState extends State<CreateFootprintScreen> {
           maxLength: 160,
           textInputAction: TextInputAction.next,
           decoration: const InputDecoration(
-            hintText: '地點名稱，例如：旗津海岸',
+            hintText: '地點名稱或地址，例如：旗津海岸公園',
             counterText: '',
           ),
-          validator: (value) => _requireText(value, '請輸入地點名稱'),
+          onChanged: (_) {
+            if (stop.isLocated) setState(stop.clearLocation);
+          },
+          validator: (value) => _requireText(value, '請輸入地點名稱或地址'),
         ),
-        const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _buildCoordinateField(
-                stop.latitude,
-                hint: '緯度',
-                limit: 90,
-              ),
+        if (stop.isLocated)
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+              '已定位，修改名稱後會改用名稱搜尋地點。',
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildCoordinateField(
-                stop.longitude,
-                hint: '經度',
-                limit: 180,
-              ),
-            ),
-          ],
-        ),
+          ),
         const SizedBox(height: 4),
         Align(
           alignment: Alignment.centerLeft,
@@ -288,22 +299,6 @@ class _CreateFootprintScreenState extends State<CreateFootprintScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildCoordinateField(
-    TextEditingController controller, {
-    required String hint,
-    required double limit,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(
-        decimal: true,
-        signed: true,
-      ),
-      decoration: InputDecoration(hintText: hint),
-      validator: (value) => _validateCoordinate(value, limit, hint),
     );
   }
 }

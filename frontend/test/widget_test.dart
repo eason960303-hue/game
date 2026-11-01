@@ -19,6 +19,8 @@ http.Response jsonResponse(Object body, {int status = 200}) {
   return http.Response.bytes(utf8.encode(jsonEncode(body)), status);
 }
 
+const stopHint = '地點名稱或地址，例如：旗津海岸公園';
+
 Widget themed(Widget child) => MaterialApp(theme: AppTheme.dark, home: child);
 
 Future<void> useSmallPhone(WidgetTester tester) async {
@@ -306,7 +308,7 @@ void main() {
       addTearDown(tester.view.reset);
     }
 
-    testWidgets('requires a name and valid coordinates', (tester) async {
+    testWidgets('requires a footprint name and a place for each stop', (tester) async {
       useTallWindow(tester);
       var calls = 0;
       ApiService.client = MockClient((_) async {
@@ -319,21 +321,13 @@ void main() {
       await tester.pump();
 
       expect(find.text('請輸入足跡名稱'), findsOneWidget);
-      expect(find.text('請輸入地點名稱'), findsOneWidget);
-      expect(find.text('請輸入緯度'), findsOneWidget);
-      expect(find.text('請輸入經度'), findsOneWidget);
-
-      await tester.enterText(find.widgetWithText(TextFormField, '緯度'), '91');
-      await tester.enterText(find.widgetWithText(TextFormField, '經度'), '181');
-      await tester.tap(find.text('儲存足跡'));
-      await tester.pump();
-
-      expect(find.text('需介於 ±90'), findsOneWidget);
-      expect(find.text('需介於 ±180'), findsOneWidget);
+      expect(find.text('請輸入地點名稱或地址'), findsOneWidget);
+      expect(find.textContaining('緯度'), findsNothing);
+      expect(find.textContaining('經度'), findsNothing);
       expect(calls, 0);
     });
 
-    testWidgets('saves ordered stops, using the current location when asked', (tester) async {
+    testWidgets('saves ordered stops by name, with coordinates only when located', (tester) async {
       useTallWindow(tester);
       Map<String, dynamic>? sent;
       ApiService.client = MockClient((request) async {
@@ -351,16 +345,14 @@ void main() {
       await tester.enterText(find.widgetWithText(TextFormField, '例如：旗津一日散步'), ' 旗津 ');
       await tester.enterText(find.widgetWithText(TextFormField, '記下這裡的故事…'), '海風');
 
-      await tester.enterText(find.widgetWithText(TextFormField, '地點名稱，例如：旗津海岸').first, '渡輪站');
       await tester.tap(find.text('使用目前位置').first);
       await tester.pumpAndSettle();
-      expect(find.text('22.610000'), findsOneWidget);
+      expect(find.text('目前位置'), findsOneWidget);
+      expect(find.text('已定位，修改名稱後會改用名稱搜尋地點。'), findsOneWidget);
 
       await tester.tap(find.text('新增途經點'));
       await tester.pump();
-      await tester.enterText(find.widgetWithText(TextFormField, '地點名稱，例如：旗津海岸').last, '海岸');
-      await tester.enterText(find.widgetWithText(TextFormField, '緯度').last, '22.6');
-      await tester.enterText(find.widgetWithText(TextFormField, '經度').last, '120.26');
+      await tester.enterText(find.widgetWithText(TextFormField, stopHint).last, '旗津海岸公園');
       await tester.tap(find.text('公開'));
       await tester.pump();
       await tester.tap(find.text('儲存足跡'));
@@ -371,10 +363,40 @@ void main() {
         'note': '海風',
         'privacy': 'public',
         'points': [
-          {'lat': 22.61, 'lng': 120.27, 'name': '渡輪站', 'order': 1},
-          {'lat': 22.6, 'lng': 120.26, 'name': '海岸', 'order': 2},
+          {'lat': 22.61, 'lng': 120.27, 'name': '目前位置', 'order': 1},
+          {'name': '旗津海岸公園', 'order': 2},
         ],
       });
+    });
+
+    testWidgets('renaming a located stop goes back to searching by name', (tester) async {
+      useTallWindow(tester);
+      Map<String, dynamic>? sent;
+      ApiService.client = MockClient((request) async {
+        sent = jsonDecode(request.body) as Map<String, dynamic>;
+        return jsonResponse({}, status: 201);
+      });
+
+      await tester.pumpWidget(
+        themed(
+          CreateFootprintScreen(
+            locate: () async => (latitude: 22.61, longitude: 120.27),
+          ),
+        ),
+      );
+      await tester.enterText(find.widgetWithText(TextFormField, '例如：旗津一日散步'), '旗津');
+      await tester.tap(find.text('使用目前位置'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextFormField, '目前位置'), '駁二藝術特區');
+      await tester.pump();
+
+      expect(find.text('已定位，修改名稱後會改用名稱搜尋地點。'), findsNothing);
+      await tester.tap(find.text('儲存足跡'));
+      await tester.pumpAndSettle();
+
+      expect(sent!['points'], [
+        {'name': '駁二藝術特區', 'order': 1},
+      ]);
     });
 
     testWidgets('removing a stop keeps the others and their text', (tester) async {
@@ -384,7 +406,7 @@ void main() {
       expect(find.byTooltip('移除第 1 站'), findsNothing);
       await tester.tap(find.text('新增途經點'));
       await tester.pump();
-      await tester.enterText(find.widgetWithText(TextFormField, '地點名稱，例如：旗津海岸').last, '留下來');
+      await tester.enterText(find.widgetWithText(TextFormField, stopHint).last, '留下來');
       await tester.tap(find.byTooltip('移除第 1 站'));
       await tester.pump();
 
@@ -454,9 +476,7 @@ void main() {
       expect(find.byType(CreateFootprintScreen), findsOneWidget);
 
       await tester.enterText(find.widgetWithText(TextFormField, '例如：旗津一日散步'), '旗津');
-      await tester.enterText(find.widgetWithText(TextFormField, '地點名稱，例如：旗津海岸'), '渡輪站');
-      await tester.enterText(find.widgetWithText(TextFormField, '緯度'), '22.6');
-      await tester.enterText(find.widgetWithText(TextFormField, '經度'), '120.2');
+      await tester.enterText(find.widgetWithText(TextFormField, stopHint), '渡輪站');
       final loadsBefore = mapPointLoads;
       await tester.tap(find.text('儲存足跡'));
       await tester.pumpAndSettle();
@@ -468,6 +488,38 @@ void main() {
   });
 
   group('HomeScreen', () {
+    testWidgets('a footprint found by name can be opened in Google Maps', (tester) async {
+      ApiService.client = MockClient(
+        backendHandler(
+          points: [
+            {
+              'id': 1,
+              'name': '文字路線',
+              'created_at': '2026-11-02 00:00:00',
+              'latitude': null,
+              'longitude': null,
+              'points': [
+                {'name': '駁二藝術特區', 'lat': null, 'lng': null, 'order': 1},
+              ],
+            },
+            {'id': 2, 'name': '沒有地點', 'created_at': '2026-11-02 00:00:00'},
+          ],
+        ),
+      );
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(themed(const HomeScreen()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('足跡'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('文字路線'), findsOneWidget);
+      expect(find.text('在 Google 地圖查看'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('long content does not overflow on a small phone', (tester) async {
       await useSmallPhone(tester);
       final long = '很長的文字' * 40;

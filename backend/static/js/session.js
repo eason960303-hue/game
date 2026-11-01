@@ -43,6 +43,16 @@ function showVerificationPrompt(email) {
 
 async function handleEmailVerificationLink() {
   const url = new URL(window.location.href);
+  const resetToken = url.searchParams.get("reset_password");
+  if (resetToken) {
+    url.searchParams.delete("reset_password");
+    window.history.replaceState(null, "", url);
+    pendingPasswordResetToken = resetToken;
+    resetPasswordForm.reset();
+    resetPasswordStatus.textContent = "";
+    resetPasswordDialog.showModal();
+    return;
+  }
   const token = url.searchParams.get("verify_email");
   if (!token) return;
   // Drop the token from the address bar and history before anything else runs.

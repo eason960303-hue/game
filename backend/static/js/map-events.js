@@ -1,19 +1,19 @@
 document.querySelector("#open-entry").addEventListener("click", () => {
-  statusMessage.textContent = "";
   if (!currentUser) {
     openLoginDialog();
     return;
   }
-  dialog.showModal();
-  form.elements.title.focus();
+  openEntryEditor();
 });
 
 document.querySelector("#close-dialog").addEventListener("click", () => {
   dialog.close();
+  resetEntryEditor();
 });
 
 document.querySelector("#dismiss-dialog").addEventListener("click", () => {
   dialog.close();
+  resetEntryEditor();
 });
 
 dialog.addEventListener("click", (event) => {
@@ -33,12 +33,12 @@ document.querySelector("#map-add-open").addEventListener("click", () => {
   mapPointForm.reset();
   resetRoutePoints();
   editingMapPointId = null;
-  mapPointDialogTitle.textContent = "新增足跡行程";
-  mapPointSaveButton.textContent = "儲存足跡";
+  setMapPointDialogMode(false);
   pickingMapPoint = false;
   pendingMapPickRow = null;
   mapPickBanner.hidden = true;
   document.querySelector("#map-form-status").textContent = "";
+  savedMapPointForm = mapPointFormSnapshot();
   mapPointDialog.showModal();
   mapPointForm.elements.name.focus();
 });
@@ -47,22 +47,46 @@ document.querySelector("#cancel-map-pick").addEventListener("click", () => {
   pickingMapPoint = false;
   pendingMapPickRow = null;
   mapPickBanner.hidden = true;
+  // Picking only hid the form; bring it back with what was already typed.
+  mapPointDialog.showModal();
 });
 
-document.querySelector("#map-point-dismiss").addEventListener("click", () => {
-  pickingMapPoint = false;
-  pendingMapPickRow = null;
-  editingMapPointId = null;
-  mapPickBanner.hidden = true;
-  mapPointDialog.close();
+document
+  .querySelector("#map-point-dismiss")
+  .addEventListener("click", closeMapPointDialog);
+document
+  .querySelector("#map-point-cancel")
+  .addEventListener("click", closeMapPointDialog);
+
+mapPointDialog.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeMapPointDialog();
 });
 
 mapPointDialog.addEventListener("click", (event) => {
-  if (event.target === mapPointDialog) {
-    pickingMapPoint = false;
-    pendingMapPickRow = null;
+  if (event.target === mapPointDialog) closeMapPointDialog();
+});
+
+document.querySelector("#map-point-delete").addEventListener("click", async () => {
+  const status = document.querySelector("#map-form-status");
+  const name = mapPointForm.elements.name.value.trim();
+  if (
+    !window.confirm(`確定要刪除「${name}」嗎？也會從行程包中移除，刪除後無法復原。`)
+  ) {
+    return;
+  }
+  const deleteButton = document.querySelector("#map-point-delete");
+  deleteButton.disabled = true;
+  status.textContent = "";
+  try {
+    await apiRequest(`/map-points/${editingMapPointId}`, { method: "DELETE" });
     editingMapPointId = null;
     mapPointDialog.close();
+    await loadMapPoints();
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    deleteButton.disabled = false;
   }
 });
 
@@ -75,42 +99,42 @@ mapPointForm.addEventListener("submit", async (event) => {
     routePointList.querySelectorAll(".route-point-row"),
     (row, index) => ({
       name: row.querySelector("[data-route-name]").value.trim(),
-      lat: Number(row.querySelector("[data-route-lat]").value),
-      lng: Number(row.querySelector("[data-route-lng]").value),
+      lat: row.dataset.lat ? Number(row.dataset.lat) : null,
+      lng: row.dataset.lng ? Number(row.dataset.lng) : null,
       order: index + 1,
     }),
   );
+  mapPointSaveButton.disabled = true;
   try {
     const payload = {
         name: getFormText(values, "name"),
-        latitude: points[0].lat,
-        longitude: points[0].lng,
         note: getFormText(values, "note"),
         privacy: values.get("privacy"),
         points,
       };
-    await apiRequest(
+    const saved = await apiRequest(
       editingMapPointId
         ? `/map-points/${editingMapPointId}`
         : "/map-points",
       jsonOptions(editingMapPointId ? "PUT" : "POST", payload),
     );
-    const statusMessage = editingMapPointId
-      ? "足跡行程已更新。"
-      : "足跡行程已儲存。";
     mapPointForm.reset();
     resetRoutePoints();
     editingMapPointId = null;
-    mapPointDialogTitle.textContent = "新增足跡行程";
-    mapPointSaveButton.textContent = "儲存足跡";
     pickingMapPoint = false;
     pendingMapPickRow = null;
     mapPickBanner.hidden = true;
-    status.textContent = statusMessage;
-    await loadMapPoints();
     mapPointDialog.close();
+    // Open the saved footprint so the map and card show the result right away.
+    selectedMapPointId = saved.id;
+    await loadMapPoints();
+    mapPointsContainer
+      .querySelector(`[data-map-point="${saved.id}"]`)
+      ?.scrollIntoView({ block: "nearest" });
   } catch (error) {
     status.textContent = error.message;
+  } finally {
+    mapPointSaveButton.disabled = false;
   }
 });
 

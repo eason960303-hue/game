@@ -8,6 +8,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:http/http.dart' as http;
+import 'package:life_logger/models/map_place.dart';
 import 'package:life_logger/models/user_profile.dart';
 
 class ApiException implements Exception {
@@ -170,6 +171,68 @@ class ApiService {
 
   static String _base64Url(List<int> bytes) {
     return base64UrlEncode(bytes).replaceAll('=', '');
+  }
+
+  static Future<List<PlaceSuggestion>> fetchPlaceSuggestions(
+    String query, {
+    required String sessionToken,
+    ({double latitude, double longitude})? center,
+  }) async {
+    final data = await _request(
+      'POST',
+      '/maps/autocomplete',
+      body: {
+        'query': query,
+        'session_token': sessionToken,
+        if (center != null) 'center': _centerJson(center),
+      },
+    ) as List<dynamic>;
+    return [for (final item in data) PlaceSuggestion.fromJson(item)];
+  }
+
+  static Future<List<MapPlace>> searchPlaces(
+    String query, {
+    ({double latitude, double longitude})? center,
+  }) async {
+    final data = await _request(
+      'POST',
+      '/maps/search',
+      body: {
+        'query': query,
+        if (center != null) 'center': _centerJson(center),
+      },
+    ) as List<dynamic>;
+    return [for (final item in data) MapPlace.fromJson(item)];
+  }
+
+  static Future<MapPlace> fetchPlace(String placeId, {String? sessionToken}) async {
+    final query = sessionToken == null
+        ? ''
+        : '?${Uri(queryParameters: {'session_token': sessionToken}).query}';
+    final data = await _request(
+      'GET',
+      '/maps/places/${Uri.encodeComponent(placeId)}$query',
+    );
+    return MapPlace.fromJson(data);
+  }
+
+  static Future<String?> reverseGeocode(double latitude, double longitude) async {
+    final data = await _request(
+      'GET',
+      '/maps/reverse-geocode?latitude=$latitude&longitude=$longitude',
+    );
+    return data['address'];
+  }
+
+  static Future<List<MapRoute>> computeRoutes(Map<String, dynamic> request) async {
+    final data = await _request('POST', '/maps/routes', body: request) as List<dynamic>;
+    return [for (final item in data) MapRoute.fromJson(item)];
+  }
+
+  static Map<String, double> _centerJson(
+    ({double latitude, double longitude}) center,
+  ) {
+    return {'latitude': center.latitude, 'longitude': center.longitude};
   }
 
   static Future<bool> _authenticate(

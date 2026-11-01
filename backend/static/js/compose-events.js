@@ -36,6 +36,61 @@ document.querySelectorAll("[data-mood]").forEach((button) => {
   });
 });
 
+function resetEntryEditor() {
+  editingEntryId = null;
+  form.reset();
+  form.elements.tags.value = "";
+  selectedMood.value = "開心";
+  document.querySelectorAll("[data-mood]").forEach((option) => {
+    option.setAttribute("aria-pressed", String(option.dataset.mood === "開心"));
+  });
+  document.querySelector("#dialog-title").textContent = "新增一筆記錄";
+  saveButton.textContent = "儲存記錄";
+  statusMessage.textContent = "";
+  clearPhotoPreview();
+}
+
+async function openEntryEditor(entryId = null) {
+  if (!currentUser) {
+    openLoginDialog();
+    return;
+  }
+  resetEntryEditor();
+  if (entryId !== null) {
+    try {
+      const entry = await apiRequest(`/entries/${entryId}`);
+      if (!entry.is_owner) {
+        window.alert("只能編輯自己的日記。");
+        return;
+      }
+      if (!entryCanBeEdited(entry.created_at)) {
+        window.alert("發布已超過 24 小時，無法變更內容");
+        return;
+      }
+      editingEntryId = Number(entry.id);
+      form.elements.title.value = entry.title || "";
+      form.elements.content.value = entry.content || "";
+      form.elements.location.value = entry.location || "";
+      form.elements.privacy.value = entry.privacy || "private";
+      form.elements.tags.value = entry.tags || "";
+      selectedMood.value = entry.mood || "開心";
+      document.querySelectorAll("[data-mood]").forEach((option) => {
+        option.setAttribute(
+          "aria-pressed",
+          String(option.dataset.mood === selectedMood.value),
+        );
+      });
+      document.querySelector("#dialog-title").textContent = "編輯日記";
+      saveButton.textContent = "儲存變更";
+    } catch (error) {
+      window.alert(`無法開啟日記編輯：${error.message}`);
+      return;
+    }
+  }
+  dialog.showModal();
+  form.elements.title.focus();
+}
+
 aiChatForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!currentUser) {

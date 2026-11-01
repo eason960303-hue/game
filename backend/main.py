@@ -13,6 +13,7 @@ import sqlite3
 import threading
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -28,7 +29,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 if __package__:
     from .database import get_connection, init_db
@@ -84,10 +85,17 @@ app.add_middleware(
 CONTENT_SECURITY_POLICY = "; ".join(
     [
         "default-src 'self'",
-        "script-src 'self'",
-        "style-src 'self'",
+        # The Google Maps JavaScript API needs these hosts, eval, blobs and inline styles.
+        "script-src 'self' 'unsafe-eval' https://*.googleapis.com "
+        "https://*.gstatic.com *.google.com https://*.ggpht.com "
+        "*.googleusercontent.com blob:",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "img-src 'self' data: blob: https: http:",
-        "connect-src 'self'",
+        "font-src 'self' https://fonts.gstatic.com",
+        "frame-src *.google.com",
+        "worker-src blob:",
+        "connect-src 'self' https://*.googleapis.com *.google.com "
+        "https://*.gstatic.com data: blob:",
         "base-uri 'self'",
         "form-action 'self'",
         "object-src 'none'",
@@ -103,6 +111,8 @@ async def add_security_headers(request: Request, call_next):
     # Verification links carry a token in the query string.
     response.headers["Referrer-Policy"] = "no-referrer"
     if not request.url.path.startswith("/api/"):
+        # Google Maps keys are restricted by referrer, so pages send their origin only.
+        response.headers["Referrer-Policy"] = "strict-origin"
         response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
         response.headers["Cache-Control"] = "no-cache"
     return response
@@ -110,7 +120,7 @@ async def add_security_headers(request: Request, call_next):
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 # The page uses relative asset paths so it also works from a plain static server.
-for asset_dir in ("css", "js", "vendor"):
+for asset_dir in ("css", "js"):
     app.mount(f"/{asset_dir}", StaticFiles(directory=STATIC_DIR / asset_dir))
 
 SESSION_COOKIE = "life_logger_session"
@@ -123,6 +133,7 @@ LOGIN_MAX_FAILURES = 10
 LOGIN_LOCKOUT_SECONDS = 60 * 15
 EMAIL_VERIFICATION_TTL_SECONDS = 60 * 60 * 24
 EMAIL_RESEND_INTERVAL_SECONDS = 60
+PASSWORD_RESET_TTL_SECONDS = 60 * 60
 APP_CALLBACK_URL = "lifelogger://auth"
 APP_AUTH_CODE_TTL_SECONDS = 60 * 2
 
@@ -147,6 +158,11 @@ class EmailAddress(BaseModel):
     email: str = Field(..., min_length=3, max_length=254)
 
 
+class PasswordReset(BaseModel):
+    token: str = Field(..., min_length=1, max_length=256)
+    password: str = Field(..., min_length=MIN_PASSWORD_LENGTH, max_length=256)
+
+
 class AppCodeExchange(BaseModel):
     code: str = Field(..., min_length=1, max_length=256)
     verifier: str = Field(..., min_length=43, max_length=128)
@@ -161,10 +177,20 @@ class CloseFriendUpdate(BaseModel):
     is_close_friend: bool
 
 
+class EntryUpdate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    content: str = Field(..., min_length=1, max_length=12000)
+    mood: Optional[str] = Field(default=None, max_length=80)
+    location: Optional[str] = Field(default=None, max_length=200)
+    privacy: Optional[Literal["private", "friends", "public"]] = None
+    tags: Optional[str] = Field(default=None, max_length=1000)
+
+
 class ProfileUpdate(BaseModel):
     display_name: Optional[str] = Field(default=None, min_length=1, max_length=80)
     bio: Optional[str] = Field(default=None, max_length=500)
     avatar_url: Optional[str] = Field(default=None, max_length=2048)
+    is_private: Optional[bool] = None
 
 
 class DiaryChatRequest(BaseModel):
@@ -181,10 +207,17 @@ class ParsedDiaryEntry(BaseModel):
 
 
 class FootprintRoutePoint(BaseModel):
-    lat: float = Field(..., ge=-90, le=90)
-    lng: float = Field(..., ge=-180, le=180)
+    # A stop without coordinates is located by its name or address.
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
     name: str = Field(..., min_length=1, max_length=160)
     order: int = Field(..., ge=1, le=50)
+
+    @model_validator(mode="after")
+    def require_complete_coordinates(self) -> "FootprintRoutePoint":
+        if (self.lat is None) != (self.lng is None):
+            raise ValueError("緯度和經度必須同時提供")
+        return self
 
 
 class MapPointCreate(BaseModel):
@@ -205,6 +238,65 @@ class TripCreate(BaseModel):
     description: str = Field(default="", max_length=2000)
     is_public: bool = False
     point_ids: list[int] = Field(default_factory=list, max_length=100)
+
+
+def allow_map_points_without_coordinates(conn: sqlite3.Connection) -> None:
+    columns = {
+        row["name"]: row["notnull"]
+        for row in conn.execute("PRAGMA table_info(map_points)")
+    }
+    if not columns["latitude"]:
+        return
+    # SQLite cannot drop NOT NULL in place, so the table is rebuilt in one transaction.
+    conn.commit()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        indexes = [
+            row["sql"]
+            for row in conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'index' "
+                "AND tbl_name = 'map_points' AND sql IS NOT NULL"
+            )
+        ]
+        sequence = conn.execute(
+            "SELECT seq FROM sqlite_sequence WHERE name = 'map_points'"
+        ).fetchone()
+        conn.execute(
+            """
+            CREATE TABLE map_points_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                latitude REAL,
+                longitude REAL,
+                note TEXT NOT NULL DEFAULT '',
+                privacy TEXT NOT NULL DEFAULT 'private'
+                    CHECK (privacy IN ('private', 'friends', 'public')),
+                points_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        copied = (
+            "id, owner_id, name, latitude, longitude, note, privacy, "
+            "points_json, created_at"
+        )
+        conn.execute(
+            f"INSERT INTO map_points_new ({copied}) SELECT {copied} FROM map_points"
+        )
+        conn.execute("DROP TABLE map_points")
+        conn.execute("ALTER TABLE map_points_new RENAME TO map_points")
+        if sequence is not None:
+            conn.execute(
+                "UPDATE sqlite_sequence SET seq = ? WHERE name = 'map_points'",
+                (sequence["seq"],),
+            )
+        for index in indexes:
+            conn.execute(index)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
 
 def init_feature_tables() -> None:
@@ -229,6 +321,16 @@ def init_feature_tables() -> None:
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 pending_password_hash TEXT,
                 pending_display_name TEXT,
+                created_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                token_hash TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 created_at INTEGER NOT NULL,
                 expires_at INTEGER NOT NULL
             )
@@ -306,8 +408,8 @@ def init_feature_tables() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                 name TEXT NOT NULL,
-                latitude REAL NOT NULL,
-                longitude REAL NOT NULL,
+                latitude REAL,
+                longitude REAL,
                 note TEXT NOT NULL DEFAULT '',
                 privacy TEXT NOT NULL DEFAULT 'private'
                     CHECK (privacy IN ('private', 'friends', 'public')),
@@ -354,6 +456,10 @@ def init_feature_tables() -> None:
             conn.execute("ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT ''")
         if "avatar_url" not in user_columns:
             conn.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
+        if "is_private" not in user_columns:
+            conn.execute(
+                "ALTER TABLE users ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0"
+            )
         if "email_verified_at" not in user_columns:
             conn.execute("ALTER TABLE users ADD COLUMN email_verified_at TEXT")
             # Accounts from before verification existed keep working as they did.
@@ -372,6 +478,7 @@ def init_feature_tables() -> None:
             conn.execute(
                 "ALTER TABLE map_points ADD COLUMN points_json TEXT NOT NULL DEFAULT '[]'"
             )
+        allow_map_points_without_coordinates(conn)
 
         settings_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(settings)")
@@ -516,6 +623,32 @@ def send_verification_email(email: str, token: str) -> None:
         f"{link}\n\n"
         f"連結會在 {EMAIL_VERIFICATION_TTL_SECONDS // 3600} 小時後失效。\n"
         "如果不是你本人申請，請不要開啟連結，直接忽略這封信即可。\n"
+    )
+    host = os.environ["SMTP_HOST"]
+    port = int(os.getenv("SMTP_PORT", "587"))
+    security = os.getenv("SMTP_SECURITY", "starttls").lower()
+    smtp_class = smtplib.SMTP_SSL if security == "ssl" else smtplib.SMTP
+    with smtp_class(host, port, timeout=15) as smtp:
+        if security == "starttls":
+            smtp.starttls()
+        username = os.getenv("SMTP_USERNAME")
+        if username:
+            smtp.login(username, os.getenv("SMTP_PASSWORD", ""))
+        smtp.send_message(message)
+
+
+def send_password_reset_email(email: str, token: str) -> None:
+    link = f"{PUBLIC_BASE_URL}/?reset_password={token}"
+    message = EmailMessage()
+    message["Subject"] = "重設你的生活記錄帳號密碼"
+    message["From"] = os.environ["SMTP_FROM"]
+    message["To"] = email
+    message.set_content(
+        "你好：\n\n"
+        "我們收到重設生活記錄帳號密碼的請求。請開啟下面的連結設定新密碼：\n\n"
+        f"{link}\n\n"
+        f"連結會在 {PASSWORD_RESET_TTL_SECONDS // 60} 分鐘後失效，且只能使用一次。\n"
+        "完成重設後，其他已登入的裝置也會登出。如果不是你本人提出請求，請忽略這封信。\n"
     )
     host = os.environ["SMTP_HOST"]
     port = int(os.getenv("SMTP_PORT", "587"))
@@ -800,6 +933,350 @@ def auth_providers() -> dict[str, bool]:
     }
 
 
+@app.get("/api/maps/config")
+def maps_config() -> dict[str, str]:
+    # This key reaches every browser, so restrict it by referrer in Google Cloud.
+    return {
+        "api_key": os.getenv("GOOGLE_MAPS_API_KEY", "").strip(),
+        "map_id": os.getenv("GOOGLE_MAPS_MAP_ID", "").strip() or "DEMO_MAP_ID",
+    }
+
+
+# The app's own Maps SDK keys only work inside the Maps SDKs, so its search and
+# routing go through these endpoints with a key that stays on the server.
+PLACES_API_URL = "https://places.googleapis.com/v1"
+ROUTES_API_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
+GEOCODING_API_URL = "https://maps.googleapis.com/maps/api/geocode/json"
+MAPS_LANGUAGE = "zh-TW"
+MAPS_REGION = "TW"
+MAPS_BIAS_RADIUS_METERS = 50000.0
+MAX_PLACE_PHOTOS = 3
+PLACE_SUMMARY_FIELDS = (
+    "id",
+    "displayName",
+    "formattedAddress",
+    "location",
+    "rating",
+    "userRatingCount",
+)
+PLACE_DETAIL_FIELDS = (
+    *PLACE_SUMMARY_FIELDS,
+    "nationalPhoneNumber",
+    "websiteUri",
+    "googleMapsUri",
+    "editorialSummary",
+    "currentOpeningHours",
+    "photos",
+    "reviews",
+)
+ROUTE_FIELDS = (
+    "routes.description",
+    "routes.distanceMeters",
+    "routes.duration",
+    "routes.polyline.encodedPolyline",
+    "routes.legs.steps.distanceMeters",
+    "routes.legs.steps.navigationInstruction.instructions",
+    "routes.legs.steps.transitDetails.transitLine.name",
+    "routes.legs.steps.transitDetails.transitLine.nameShort",
+    "routes.legs.steps.transitDetails.headsign",
+)
+PLACE_ID_PATTERN = r"^[A-Za-z0-9_-]+$"
+TRAVEL_MODES = {
+    "DRIVING": "DRIVE",
+    "TRANSIT": "TRANSIT",
+    "WALKING": "WALK",
+    "BICYCLING": "BICYCLE",
+}
+
+
+class MapsCenter(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class PlaceSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=200)
+    center: Optional[MapsCenter] = None
+    session_token: Optional[str] = Field(default=None, max_length=64)
+
+
+class RouteWaypoint(BaseModel):
+    address: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    location: Optional[MapsCenter] = None
+
+
+class RouteRequest(BaseModel):
+    origin: RouteWaypoint
+    destination: RouteWaypoint
+    intermediates: list[RouteWaypoint] = Field(default_factory=list, max_length=9)
+    travel_mode: Literal["DRIVING", "TRANSIT", "WALKING", "BICYCLING"] = "DRIVING"
+    avoid_tolls: bool = False
+    avoid_highways: bool = False
+    avoid_ferries: bool = False
+
+
+def maps_server_key() -> str:
+    key = os.getenv("GOOGLE_MAPS_SERVER_KEY", "").strip()
+    if not key:
+        raise HTTPException(
+            status_code=503, detail="地圖搜尋尚未設定，請在後端設定 GOOGLE_MAPS_SERVER_KEY"
+        )
+    return key
+
+
+def google_maps_json(
+    url: str,
+    *,
+    body: Optional[dict[str, Any]] = None,
+    field_mask: str = "",
+) -> dict[str, Any]:
+    headers = {"X-Goog-Api-Key": maps_server_key()}
+    if field_mask:
+        headers["X-Goog-FieldMask"] = field_mask
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    request = URLRequest(
+        url,
+        data=None if body is None else json.dumps(body).encode("utf-8"),
+        headers=headers,
+    )
+    try:
+        with urlopen(request, timeout=15) as result:
+            data = json.loads(result.read().decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as error:
+        logger.warning("Google Maps request failed: %s", error)
+        raise HTTPException(
+            status_code=502, detail="Google 地圖服務暫時無法使用"
+        ) from error
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=502, detail="Google 地圖服務回應格式不正確")
+    return data
+
+
+def maps_location_bias(center: Optional[MapsCenter]) -> dict[str, Any]:
+    if center is None:
+        return {}
+    return {
+        "locationBias": {
+            "circle": {
+                "center": {
+                    "latitude": center.latitude,
+                    "longitude": center.longitude,
+                },
+                "radius": MAPS_BIAS_RADIUS_METERS,
+            }
+        }
+    }
+
+
+def place_summary(place: dict[str, Any]) -> dict[str, Any]:
+    location = place.get("location") or {}
+    return {
+        "id": place.get("id"),
+        "name": (place.get("displayName") or {}).get("text", ""),
+        "address": place.get("formattedAddress"),
+        "latitude": location.get("latitude"),
+        "longitude": location.get("longitude"),
+        "rating": place.get("rating"),
+        "rating_count": place.get("userRatingCount"),
+    }
+
+
+def place_photo(photo: dict[str, Any]) -> Optional[dict[str, Any]]:
+    query = urlencode({"maxWidthPx": 800, "skipHttpRedirect": "true"})
+    # The photoUri this returns carries no key, so it is safe to hand to the app.
+    media = google_maps_json(f"{PLACES_API_URL}/{photo['name']}/media?{query}")
+    if not media.get("photoUri"):
+        return None
+    return {
+        "url": media["photoUri"],
+        "attributions": [
+            author.get("displayName", "")
+            for author in photo.get("authorAttributions", [])
+        ],
+    }
+
+
+def route_output(route: dict[str, Any]) -> dict[str, Any]:
+    steps = []
+    for leg in route.get("legs", []):
+        for step in leg.get("steps", []):
+            transit = step.get("transitDetails") or {}
+            line = transit.get("transitLine") or {}
+            steps.append(
+                {
+                    "instruction": (step.get("navigationInstruction") or {}).get(
+                        "instructions", ""
+                    ),
+                    "distance_meters": step.get("distanceMeters", 0),
+                    "transit_line": line.get("nameShort") or line.get("name"),
+                    "headsign": transit.get("headsign"),
+                }
+            )
+    return {
+        "description": route.get("description", ""),
+        "distance_meters": route.get("distanceMeters", 0),
+        # The API formats durations as seconds with a suffix, such as "1680s".
+        "duration_seconds": int(float(route.get("duration", "0s").rstrip("s") or 0)),
+        "polyline": (route.get("polyline") or {}).get("encodedPolyline", ""),
+        "steps": steps,
+    }
+
+
+def route_waypoint(waypoint: RouteWaypoint) -> dict[str, Any]:
+    if waypoint.location is not None:
+        return {
+            "location": {
+                "latLng": {
+                    "latitude": waypoint.location.latitude,
+                    "longitude": waypoint.location.longitude,
+                }
+            }
+        }
+    if waypoint.address:
+        return {"address": waypoint.address}
+    raise HTTPException(status_code=422, detail="路線的每一站都需要地址或座標")
+
+
+@app.post("/api/maps/autocomplete")
+def maps_autocomplete(
+    search: PlaceSearchRequest, _: dict[str, Any] = Depends(get_current_user)
+) -> list[dict[str, Any]]:
+    body: dict[str, Any] = {
+        "input": search.query,
+        "languageCode": MAPS_LANGUAGE,
+        "regionCode": MAPS_REGION,
+        **maps_location_bias(search.center),
+    }
+    if search.session_token:
+        body["sessionToken"] = search.session_token
+    data = google_maps_json(f"{PLACES_API_URL}/places:autocomplete", body=body)
+    suggestions = []
+    for suggestion in data.get("suggestions", []):
+        prediction = suggestion.get("placePrediction")
+        if not prediction:
+            continue
+        structured = prediction.get("structuredFormat") or {}
+        suggestions.append(
+            {
+                "place_id": prediction.get("placeId"),
+                "text": (structured.get("mainText") or {}).get("text")
+                or (prediction.get("text") or {}).get("text", ""),
+                "secondary_text": (structured.get("secondaryText") or {}).get(
+                    "text", ""
+                ),
+            }
+        )
+    return suggestions
+
+
+@app.post("/api/maps/search")
+def maps_search(
+    search: PlaceSearchRequest, _: dict[str, Any] = Depends(get_current_user)
+) -> list[dict[str, Any]]:
+    data = google_maps_json(
+        f"{PLACES_API_URL}/places:searchText",
+        body={
+            "textQuery": search.query,
+            "languageCode": MAPS_LANGUAGE,
+            "regionCode": MAPS_REGION,
+            **maps_location_bias(search.center),
+        },
+        field_mask=",".join(f"places.{field}" for field in PLACE_SUMMARY_FIELDS),
+    )
+    return [place_summary(place) for place in data.get("places", [])]
+
+
+@app.get("/api/maps/places/{place_id}")
+def maps_place_details(
+    place_id: str,
+    session_token: Optional[str] = None,
+    _: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    if not re.fullmatch(PLACE_ID_PATTERN, place_id):
+        raise HTTPException(status_code=422, detail="地點 ID 格式不正確")
+    params = {"languageCode": MAPS_LANGUAGE, "regionCode": MAPS_REGION}
+    if session_token:
+        params["sessionToken"] = session_token
+    place = google_maps_json(
+        f"{PLACES_API_URL}/places/{place_id}?{urlencode(params)}",
+        field_mask=",".join(PLACE_DETAIL_FIELDS),
+    )
+    hours = place.get("currentOpeningHours") or {}
+    photos = [
+        photo
+        for photo in map(place_photo, place.get("photos", [])[:MAX_PLACE_PHOTOS])
+        if photo
+    ]
+    return {
+        **place_summary(place),
+        "phone": place.get("nationalPhoneNumber"),
+        "website": place.get("websiteUri"),
+        "google_maps_url": place.get("googleMapsUri"),
+        "summary": (place.get("editorialSummary") or {}).get("text"),
+        "open_now": hours.get("openNow"),
+        "hours": hours.get("weekdayDescriptions", []),
+        "photos": photos,
+        "reviews": [
+            {
+                "author": (review.get("authorAttribution") or {}).get("displayName", ""),
+                "rating": review.get("rating"),
+                "text": (review.get("text") or {}).get("text", ""),
+                "time": review.get("relativePublishTimeDescription", ""),
+            }
+            for review in place.get("reviews", [])
+        ],
+    }
+
+
+@app.get("/api/maps/reverse-geocode")
+def maps_reverse_geocode(
+    latitude: float,
+    longitude: float,
+    _: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        raise HTTPException(status_code=422, detail="座標超出範圍")
+    query = urlencode(
+        {
+            "latlng": f"{latitude},{longitude}",
+            "language": MAPS_LANGUAGE,
+            "key": maps_server_key(),
+        }
+    )
+    data = google_maps_json(f"{GEOCODING_API_URL}?{query}")
+    results = data.get("results") or []
+    return {"address": results[0].get("formatted_address") if results else None}
+
+
+@app.post("/api/maps/routes")
+def maps_routes(
+    route: RouteRequest, _: dict[str, Any] = Depends(get_current_user)
+) -> list[dict[str, Any]]:
+    body: dict[str, Any] = {
+        "origin": route_waypoint(route.origin),
+        "destination": route_waypoint(route.destination),
+        "travelMode": TRAVEL_MODES[route.travel_mode],
+        "languageCode": MAPS_LANGUAGE,
+        "regionCode": MAPS_REGION,
+        "units": "METRIC",
+    }
+    if route.intermediates:
+        body["intermediates"] = [route_waypoint(stop) for stop in route.intermediates]
+    else:
+        # Google returns no alternatives for requests with intermediate stops.
+        body["computeAlternativeRoutes"] = True
+    if route.travel_mode == "DRIVING":
+        body["routingPreference"] = "TRAFFIC_AWARE"
+        body["routeModifiers"] = {
+            "avoidTolls": route.avoid_tolls,
+            "avoidHighways": route.avoid_highways,
+            "avoidFerries": route.avoid_ferries,
+        }
+    data = google_maps_json(ROUTES_API_URL, body=body, field_mask=",".join(ROUTE_FIELDS))
+    return [route_output(item) for item in data.get("routes", [])]
+
+
 @app.post("/api/auth/register", status_code=status.HTTP_201_CREATED)
 def register_account(
     credentials: AccountRegistration, response: Response
@@ -944,6 +1421,112 @@ def resend_verification(request: EmailAddress) -> dict[str, bool]:
     return {"sent": True}
 
 
+@app.post("/api/auth/forgot-password")
+def forgot_password(request: EmailAddress) -> dict[str, str]:
+    email = normalize_email(request.email)
+    if not smtp_configured():
+        return {
+            "message": "若帳號存在且郵件服務已設定，重設連結會寄到該信箱。"
+        }
+
+    now = int(time.time())
+    reset_token = None
+    user_id = None
+    with get_connection() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        account = conn.execute(
+            "SELECT id FROM users WHERE lower(email) = ?", (email,)
+        ).fetchone()
+        if account is not None:
+            user_id = account["id"]
+            recent = conn.execute(
+                """
+                SELECT 1 FROM password_reset_tokens
+                WHERE user_id = ? AND created_at > ?
+                """,
+                (user_id, now - EMAIL_RESEND_INTERVAL_SECONDS),
+            ).fetchone()
+            if recent is None:
+                conn.execute(
+                    "DELETE FROM password_reset_tokens WHERE user_id = ?", (user_id,)
+                )
+                reset_token = secrets.token_urlsafe(32)
+                conn.execute(
+                    """
+                    INSERT INTO password_reset_tokens
+                        (token_hash, user_id, created_at, expires_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        hashlib.sha256(reset_token.encode()).hexdigest(),
+                        user_id,
+                        now,
+                        now + PASSWORD_RESET_TTL_SECONDS,
+                    ),
+                )
+        conn.execute(
+            "DELETE FROM password_reset_tokens WHERE expires_at <= ?", (now,)
+        )
+        conn.commit()
+
+    if reset_token is not None:
+        try:
+            send_password_reset_email(email, reset_token)
+        except (smtplib.SMTPException, OSError, ValueError) as error:
+            logger.warning("Failed to send password reset email: %s", error)
+            with get_connection() as conn:
+                conn.execute(
+                    "DELETE FROM password_reset_tokens WHERE user_id = ?", (user_id,)
+                )
+                conn.commit()
+    return {
+        "message": "若帳號存在且郵件服務已設定，重設連結會寄到該信箱。"
+    }
+
+
+@app.post("/api/auth/reset-password")
+def reset_password(reset: PasswordReset) -> dict[str, bool]:
+    token_hash = hashlib.sha256(reset.token.encode()).hexdigest()
+    now = int(time.time())
+    with get_connection() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        token = conn.execute(
+            """
+            SELECT user_id
+            FROM password_reset_tokens
+            WHERE token_hash = ? AND expires_at > ?
+            """,
+            (token_hash, now),
+        ).fetchone()
+        if token is None:
+            raise HTTPException(
+                status_code=400, detail="重設連結無效或已過期，請重新申請"
+            )
+        password_hash = hash_password(reset.password)
+        conn.execute(
+            """
+            UPDATE users
+            SET password_hash = ?, email_verified_at = COALESCE(
+                email_verified_at, CURRENT_TIMESTAMP
+            )
+            WHERE id = ?
+            """,
+            (password_hash, token["user_id"]),
+        )
+        conn.execute(
+            "DELETE FROM password_reset_tokens WHERE user_id = ?", (token["user_id"],)
+        )
+        conn.execute(
+            "DELETE FROM email_verification_tokens WHERE user_id = ?",
+            (token["user_id"],),
+        )
+        conn.execute(
+            "DELETE FROM auth_sessions WHERE user_id = ?", (token["user_id"],)
+        )
+        conn.commit()
+    return {"reset": True}
+
+
 @app.post("/api/auth/login")
 def login_account(
     credentials: AccountCredentials, request: Request, response: Response
@@ -981,7 +1564,7 @@ def get_user_profile(
     with get_connection() as conn:
         profile = conn.execute(
             """
-            SELECT id, email, display_name, bio, avatar_url
+            SELECT id, email, display_name, bio, avatar_url, is_private
             FROM users
             WHERE id = ?
             """,
@@ -1012,9 +1595,213 @@ def get_user_profile(
         "display_name": profile["display_name"],
         "bio": profile["bio"] or "",
         "avatar_url": profile["avatar_url"],
+        "is_private": bool(profile["is_private"]),
         "posts_count": posts_count,
         "followers_count": followers_count,
         "following_count": following_count,
+    }
+
+
+@app.get("/api/user/relations/{kind}")
+def list_user_relations(
+    kind: Literal["followers", "following"],
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    if kind == "followers":
+        relation_filter = "follows.followed_id = ?"
+        relation_user = "follows.follower_id"
+    else:
+        relation_filter = "follows.follower_id = ?"
+        relation_user = "follows.followed_id"
+    with get_connection() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT users.id, users.display_name, users.email, users.avatar_url,
+                   EXISTS (
+                       SELECT 1 FROM user_close_friends close_friends
+                       WHERE close_friends.owner_id = ? AND close_friends.friend_id = users.id
+                   ) AS is_close_friend,
+                   EXISTS (
+                       SELECT 1 FROM user_follows follows_back
+                       WHERE follows_back.follower_id = users.id AND follows_back.followed_id = ?
+                   ) AS follows_you
+            FROM user_follows follows
+            JOIN users ON users.id = {relation_user}
+            WHERE {relation_filter}
+            ORDER BY users.display_name COLLATE NOCASE, users.id
+            """,
+            (user["id"], user["id"], user["id"]),
+        ).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "username": row["email"].split("@", 1)[0]
+            if row["email"]
+            else f"user{row['id']}",
+            "display_name": row["display_name"],
+            "avatar_url": row["avatar_url"],
+            "is_close_friend": bool(row["is_close_friend"]),
+            "follows_you": bool(row["follows_you"]),
+        }
+        for row in rows
+    ]
+
+
+@app.get("/api/users/search")
+def search_users(
+    q: str = "",
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    term = q.strip().lstrip("@").lower()
+    if len(term) < 2:
+        raise HTTPException(status_code=422, detail="請輸入至少 2 個字元搜尋帳號")
+    if len(term) > 80:
+        raise HTTPException(status_code=422, detail="搜尋內容不可超過 80 個字元")
+    escaped = term.replace("!", "!!").replace("%", "!%").replace("_", "!_")
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT users.id, users.email, users.display_name, users.avatar_url,
+                   users.is_private,
+                   EXISTS (
+                       SELECT 1 FROM user_follows follows
+                       WHERE follows.follower_id = ? AND follows.followed_id = users.id
+                   ) AS is_following,
+                   EXISTS (
+                       SELECT 1 FROM user_follows follows
+                       WHERE follows.follower_id = users.id AND follows.followed_id = ?
+                   ) AS follows_you
+            FROM users
+            WHERE users.id != ?
+                AND (
+                    lower(users.display_name) LIKE ? ESCAPE '!'
+                    OR lower(users.email) LIKE ? ESCAPE '!'
+                )
+            ORDER BY
+                CASE
+                    WHEN lower(users.display_name) LIKE ? ESCAPE '!' THEN 0
+                    WHEN lower(users.email) LIKE ? ESCAPE '!' THEN 1
+                    ELSE 2
+                END,
+                users.display_name COLLATE NOCASE,
+                users.id
+            LIMIT 20
+            """,
+            (
+                user["id"],
+                user["id"],
+                user["id"],
+                f"%{escaped}%",
+                f"%{escaped}%",
+                f"{escaped}%",
+                f"{escaped}%",
+            ),
+        ).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "username": row["email"].split("@", 1)[0]
+            if row["email"]
+            else f"user{row['id']}",
+            "display_name": row["display_name"],
+            "avatar_url": row["avatar_url"],
+            "is_private": bool(row["is_private"]),
+            "is_following": bool(row["is_following"]),
+            "follows_you": bool(row["follows_you"]),
+        }
+        for row in rows
+    ]
+
+
+@app.get("/api/users/{user_id}/profile")
+def get_public_user_profile(
+    user_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    entry_filter = visible_content_filter("entries")
+    point_filter = visible_content_filter("map_points")
+    with get_connection() as conn:
+        profile = conn.execute(
+            """
+            SELECT id, email, display_name, bio, avatar_url, is_private
+            FROM users WHERE id = ?
+            """,
+            (user_id,),
+        ).fetchone()
+        if profile is None:
+            raise HTTPException(status_code=404, detail="找不到使用者個人檔案")
+        entries = conn.execute(
+            f"""
+            SELECT entries.*, users.display_name AS owner_name,
+                   (entries.owner_id = ?) AS is_owner
+            FROM entries JOIN users ON users.id = entries.owner_id
+            WHERE entries.owner_id = ? AND ({entry_filter})
+            ORDER BY entries.created_at DESC, entries.id DESC
+            """,
+            (user["id"], user_id, user["id"], user["id"], user["id"]),
+        ).fetchall()
+        points = conn.execute(
+            f"""
+            SELECT map_points.*, users.display_name AS owner_name,
+                   (map_points.owner_id = ?) AS is_owner
+            FROM map_points JOIN users ON users.id = map_points.owner_id
+            WHERE map_points.owner_id = ? AND ({point_filter})
+            ORDER BY map_points.created_at DESC, map_points.id DESC
+            """,
+            (user["id"], user_id, user["id"], user["id"], user["id"]),
+        ).fetchall()
+        followers_count = conn.execute(
+            "SELECT COUNT(*) FROM user_follows WHERE followed_id = ?", (user_id,)
+        ).fetchone()[0]
+        following_count = conn.execute(
+            "SELECT COUNT(*) FROM user_follows WHERE follower_id = ?", (user_id,)
+        ).fetchone()[0]
+
+    posts = [
+        {
+            "id": row["id"],
+            "type": "entry",
+            "title": row["title"],
+            "content": row["content"],
+            "mood": row["mood"],
+            "location": row["location"],
+            "privacy": row["privacy"],
+            "tags": row["tags"],
+            "created_at": row["created_at"],
+            "is_owner": bool(row["is_owner"]),
+        }
+        for row in entries
+    ]
+    for row in points:
+        point = map_point_output(dict(row))
+        posts.append(
+            {
+                "id": point["id"],
+                "type": "footprint",
+                "title": point["name"],
+                "content": point["note"],
+                "privacy": point["privacy"],
+                "created_at": point["created_at"],
+                "points": point["points"],
+                "is_owner": bool(point["is_owner"]),
+            }
+        )
+    posts.sort(key=lambda post: (post["created_at"], post["id"]), reverse=True)
+    return {
+        "profile": {
+            "id": profile["id"],
+            "username": profile["email"].split("@", 1)[0]
+            if profile["email"]
+            else f"user{profile['id']}",
+            "display_name": profile["display_name"],
+            "bio": profile["bio"] or "",
+            "avatar_url": profile["avatar_url"],
+            "is_private": bool(profile["is_private"]),
+            "posts_count": len(posts),
+            "followers_count": followers_count,
+            "following_count": following_count,
+        },
+        "posts": posts,
     }
 
 
@@ -1043,6 +1830,10 @@ def update_user_profile(
                     status_code=422, detail="頭像網址必須是有效的 HTTP 或 HTTPS 網址"
                 )
         values["avatar_url"] = avatar_url or None
+    if "is_private" in fields:
+        if update.is_private is None:
+            raise HTTPException(status_code=422, detail="請指定帳號是公開或私人")
+        values["is_private"] = int(update.is_private)
 
     assignments = ", ".join(f"{column} = ?" for column in values)
     with get_connection() as conn:
@@ -1053,7 +1844,7 @@ def update_user_profile(
         conn.commit()
         profile = conn.execute(
             """
-            SELECT id, email, display_name, bio, avatar_url
+            SELECT id, email, display_name, bio, avatar_url, is_private
             FROM users
             WHERE id = ?
             """,
@@ -1068,6 +1859,7 @@ def update_user_profile(
         "display_name": profile["display_name"],
         "bio": profile["bio"] or "",
         "avatar_url": profile["avatar_url"],
+        "is_private": bool(profile["is_private"]),
     }
 
 
@@ -1104,6 +1896,7 @@ def list_user_posts(
             "privacy": row["privacy"],
             "tags": row["tags"],
             "created_at": row["created_at"],
+            "is_owner": True,
         }
         for row in entries
     ]
@@ -1415,10 +2208,13 @@ def visible_content_filter(table: Literal["entries", "map_points"]) -> str:
         {table}.owner_id = ?
         OR (
             {table}.privacy = 'public'
-            AND EXISTS (
-                SELECT 1 FROM user_follows follows
-                WHERE follows.follower_id = ?
-                    AND follows.followed_id = {table}.owner_id
+            AND (
+                NOT (SELECT is_private FROM users WHERE users.id = {table}.owner_id)
+                OR EXISTS (
+                    SELECT 1 FROM user_follows follows
+                    WHERE follows.follower_id = ?
+                        AND follows.followed_id = {table}.owner_id
+                )
             )
         )
         OR (
@@ -1463,6 +2259,79 @@ def update_entry_privacy(
     return dict(row)
 
 
+def entry_is_editable(created_at: str) -> bool:
+    try:
+        timestamp = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail="日記建立時間格式無效，無法編輯") from error
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    age = datetime.now(timezone.utc) - timestamp.astimezone(timezone.utc)
+    return age <= timedelta(hours=24)
+
+
+@app.put("/api/entries/{entry_id}", response_model=EntryOut)
+def update_entry(
+    entry_id: int,
+    update: EntryUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    fields = update.model_fields_set
+    if not fields:
+        raise HTTPException(status_code=422, detail="請提供要更新的日記欄位")
+    values = update.model_dump(exclude_unset=True)
+    for field in ("title", "content", "mood", "location", "tags"):
+        if field in values and isinstance(values[field], str):
+            values[field] = values[field].strip() or None
+    if values.get("title") is None or values.get("content") is None:
+        raise HTTPException(status_code=422, detail="標題與內容不可空白")
+    with get_connection() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT created_at FROM entries WHERE id = ? AND owner_id = ?",
+            (entry_id, user["id"]),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="找不到這篇日記")
+        if not entry_is_editable(row["created_at"]):
+            raise HTTPException(
+                status_code=403, detail="發布已超過 24 小時，無法變更內容"
+            )
+        assignments = ", ".join(f"{field} = ?" for field in values)
+        conn.execute(
+            f"UPDATE entries SET {assignments} WHERE id = ? AND owner_id = ?",
+            [*values.values(), entry_id, user["id"]],
+        )
+        updated = conn.execute(
+            """
+            SELECT entries.*, users.display_name AS owner_name, 1 AS is_owner
+            FROM entries JOIN users ON users.id = entries.owner_id
+            WHERE entries.id = ? AND entries.owner_id = ?
+            """,
+            (entry_id, user["id"]),
+        ).fetchone()
+        conn.commit()
+    if updated is None:
+        raise HTTPException(status_code=404, detail="找不到這篇日記")
+    return dict(updated)
+
+
+@app.delete("/api/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_entry(
+    entry_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> Response:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "DELETE FROM entries WHERE id = ? AND owner_id = ?",
+            (entry_id, user["id"]),
+        )
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="找不到這篇日記")
+        conn.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @app.get("/api/friends")
 def list_friends(
     user: dict[str, Any] = Depends(get_current_user),
@@ -1470,20 +2339,28 @@ def list_friends(
     with get_connection() as conn:
         rows = conn.execute(
             """
-            SELECT users.id, users.email, users.display_name,
+            SELECT users.id, users.email, users.display_name, users.avatar_url,
                    EXISTS (
                        SELECT 1 FROM user_close_friends close_friends
                        WHERE close_friends.owner_id = ? AND close_friends.friend_id = users.id
-                   ) AS is_close_friend
+                   ) AS is_close_friend,
+                   EXISTS (
+                       SELECT 1 FROM user_follows follows_back
+                       WHERE follows_back.follower_id = users.id AND follows_back.followed_id = ?
+                   ) AS follows_you
             FROM user_follows follows
             JOIN users ON users.id = follows.followed_id
             WHERE follows.follower_id = ?
             ORDER BY users.display_name COLLATE NOCASE, users.email COLLATE NOCASE
             """,
-            (user["id"], user["id"]),
+            (user["id"], user["id"], user["id"]),
         ).fetchall()
     return [
-        {**dict(row), "is_close_friend": bool(row["is_close_friend"])}
+        {
+            **dict(row),
+            "is_close_friend": bool(row["is_close_friend"]),
+            "follows_you": bool(row["follows_you"]),
+        }
         for row in rows
     ]
 
@@ -1512,17 +2389,46 @@ def follow_friend(
                 "INSERT OR IGNORE INTO user_close_friends (owner_id, friend_id) VALUES (?, ?)",
                 (user["id"], target["id"]),
             )
-        else:
-            conn.execute(
-                "DELETE FROM user_close_friends WHERE owner_id = ? AND friend_id = ?",
-                (user["id"], target["id"]),
-            )
         conn.commit()
     return {
         "id": target["id"],
         "email": target["email"],
         "display_name": target["display_name"],
         "is_close_friend": friend.is_close_friend,
+    }
+
+
+@app.post("/api/users/{user_id}/follow", status_code=status.HTTP_200_OK)
+def follow_user(
+    user_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    if user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="不能追蹤自己的帳號")
+    with get_connection() as conn:
+        target = conn.execute(
+            """
+            SELECT id, display_name
+            FROM users
+            WHERE id = ?
+            """,
+            (user_id,),
+        ).fetchone()
+        if target is None:
+            raise HTTPException(status_code=404, detail="找不到這個帳號")
+        conn.execute(
+            "INSERT OR IGNORE INTO user_follows (follower_id, followed_id) VALUES (?, ?)",
+            (user["id"], target["id"]),
+        )
+        conn.commit()
+        is_following = conn.execute(
+            "SELECT 1 FROM user_follows WHERE follower_id = ? AND followed_id = ?",
+            (user["id"], target["id"]),
+        ).fetchone() is not None
+    return {
+        "id": target["id"],
+        "display_name": target["display_name"],
+        "is_following": is_following,
     }
 
 
@@ -1533,17 +2439,17 @@ def update_close_friend(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     with get_connection() as conn:
-        followed = conn.execute(
+        follower = conn.execute(
             """
             SELECT users.id, users.email, users.display_name
             FROM user_follows
-            JOIN users ON users.id = user_follows.followed_id
-            WHERE user_follows.follower_id = ? AND users.id = ?
+            JOIN users ON users.id = user_follows.follower_id
+            WHERE user_follows.followed_id = ? AND users.id = ?
             """,
             (user["id"], friend_id),
         ).fetchone()
-        if followed is None:
-            raise HTTPException(status_code=404, detail="找不到追蹤中的好友")
+        if follower is None:
+            raise HTTPException(status_code=404, detail="找不到追蹤你的粉絲")
         if update.is_close_friend:
             conn.execute(
                 "INSERT OR IGNORE INTO user_close_friends (owner_id, friend_id) VALUES (?, ?)",
@@ -1556,7 +2462,7 @@ def update_close_friend(
             )
         conn.commit()
     return {
-        **dict(followed),
+        **dict(follower),
         "is_close_friend": update.is_close_friend,
     }
 
@@ -1571,9 +2477,10 @@ def unfollow_friend(
             "DELETE FROM user_follows WHERE follower_id = ? AND followed_id = ?",
             (user["id"], friend_id),
         )
+        # Following again must not silently restore the author's close-friend grant.
         conn.execute(
             "DELETE FROM user_close_friends WHERE owner_id = ? AND friend_id = ?",
-            (user["id"], friend_id),
+            (friend_id, user["id"]),
         )
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="找不到追蹤中的好友")
@@ -1890,6 +2797,25 @@ def replace_map_point(
     return updated
 
 
+@app.delete("/api/map-points/{point_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_map_point(
+    point_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> Response:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "DELETE FROM map_points WHERE id = ? AND owner_id = ?",
+            (point_id, user["id"]),
+        )
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="找不到這個足跡")
+        conn.execute(
+            "DELETE FROM trip_map_points WHERE map_point_id = ?", (point_id,)
+        )
+        conn.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @app.patch("/api/map-points/{point_id}/privacy")
 def update_map_point_privacy(
     point_id: int,
@@ -1974,7 +2900,16 @@ def get_trip(
 def get_shared_trip(trip_id: int) -> dict[str, Any]:
     with get_connection() as conn:
         trip = get_trip_with_points(conn, trip_id)
-    if not trip["is_public"]:
+        owner_is_private = conn.execute(
+            """
+            SELECT users.is_private FROM trips
+            JOIN users ON users.id = trips.owner_id
+            WHERE trips.id = ?
+            """,
+            (trip_id,),
+        ).fetchone()
+    # This link needs no login, so a private account's followers cannot be told apart.
+    if not trip["is_public"] or owner_is_private is None or owner_is_private[0]:
         raise HTTPException(status_code=404, detail="此行程包未公開")
     trip["points"] = [
         point for point in trip["points"] if point["privacy"] == "public"

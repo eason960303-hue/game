@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:life_logger/models/entry.dart';
 import 'package:life_logger/models/location_point.dart';
 import 'package:life_logger/models/user_profile.dart';
 import 'package:life_logger/screens/create_entry_screen.dart';
 import 'package:life_logger/screens/create_footprint_screen.dart';
+import 'package:life_logger/screens/footprint_map_screen.dart';
 import 'package:life_logger/services/api_service.dart';
 import 'package:life_logger/theme/app_theme.dart';
 import 'package:life_logger/utils/formatters.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -368,7 +371,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        _FootprintMap(points: _locations),
+        _FootprintMap(points: _locations, onFootprintsChanged: _loadData),
         const SizedBox(height: 16),
         Text('最近足跡', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
@@ -395,12 +398,33 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: const TextStyle(fontSize: 12, color: AppColors.textBody),
                     ),
                   ],
+                  if (point.googleMapsUri case final uri?)
+                    TextButton.icon(
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                      onPressed: () => _openInGoogleMaps(uri),
+                      icon: const Icon(Icons.map_outlined, size: 18),
+                      label: const Text('在 Google 地圖查看'),
+                    ),
                 ],
               ),
             ),
           ),
       ],
     );
+  }
+
+  Future<void> _openInGoogleMaps(Uri uri) async {
+    var opened = false;
+    try {
+      opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } on PlatformException catch (error) {
+      debugPrint('Failed to open Google Maps: $error');
+    }
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('無法開啟 Google 地圖')),
+      );
+    }
   }
 
   Widget _buildProfileTab() {
@@ -545,16 +569,24 @@ class _EmptyMessage extends StatelessWidget {
 }
 
 class _FootprintMap extends StatelessWidget {
-  const _FootprintMap({required this.points});
+  const _FootprintMap({required this.points, required this.onFootprintsChanged});
 
   static const _height = 240.0;
   static const _inset = 28.0;
   static const _markerSize = 12.0;
 
   final List<LocationPoint> points;
+  final VoidCallback onFootprintsChanged;
 
   @override
   Widget build(BuildContext context) {
+    if (googleMapsAvailable) {
+      return FootprintMapPreview(
+        points: points,
+        onFootprintsChanged: onFootprintsChanged,
+      );
+    }
+
     final located = points
         .where((point) => point.latitude != null && point.longitude != null)
         .toList();

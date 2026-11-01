@@ -1,4 +1,7 @@
-document.querySelectorAll("[data-view]").forEach((button) => {
+const navigationButtons = document.querySelectorAll(".navigation [data-view]");
+const viewButtons = document.querySelectorAll("[data-view]");
+
+viewButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const view = button.dataset.view;
     if (view !== "map" && pickingMapPoint) {
@@ -6,15 +9,18 @@ document.querySelectorAll("[data-view]").forEach((button) => {
       pendingMapPickRow = null;
       mapPickBanner.hidden = true;
     }
-    document.querySelectorAll("[data-view]").forEach((item) => {
+    navigationButtons.forEach((item) => {
       item.removeAttribute("aria-current");
     });
-    button.setAttribute("aria-current", "page");
+    navigationButtons.forEach((item) => {
+      if (item.dataset.view === view) item.setAttribute("aria-current", "page");
+    });
 
     homeView.hidden = view !== "home";
     profileView.hidden = view !== "profile";
     aiDiaryView.hidden = view !== "ai-diary";
     mapView.hidden = view !== "map";
+    document.body.classList.toggle("map-mode", view === "map");
     tripsView.hidden = view !== "trips";
     if (view === "ai-diary") {
       if (currentUser) loadAiDiaryStatus();
@@ -26,9 +32,9 @@ document.querySelectorAll("[data-view]").forEach((button) => {
       initMap();
       if (currentUser) {
         loadMapPoints();
-        loadFriends();
+      } else {
+        openLoginDialog();
       }
-      else openLoginDialog();
     } else if (view === "trips") {
       if (currentUser) loadTravelData();
       else openLoginDialog();
@@ -51,6 +57,9 @@ document.querySelector("#profile-edit-open").addEventListener("click", () => {
   profileEditForm.elements.bio.value = currentProfile?.bio || "";
   profileEditForm.elements.avatar_url.value =
     currentProfile?.avatar_url || "";
+  profileEditForm.elements.is_private.checked = Boolean(
+    currentProfile?.is_private,
+  );
   profileEditDialog.showModal();
   profileEditForm.elements.display_name.focus();
 });
@@ -74,6 +83,7 @@ profileEditForm.addEventListener("submit", async (event) => {
         display_name: getFormText(values, "display_name"),
         bio: getFormText(values, "bio"),
         avatar_url: getFormText(values, "avatar_url"),
+        is_private: values.get("is_private") === "on",
       }),
     );
     await loadProfile();
