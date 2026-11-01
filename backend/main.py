@@ -4,20 +4,26 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 import secrets
+import smtplib
 import sqlite3
+import threading
 import time
+from contextlib import asynccontextmanager
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Literal, Optional
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 from urllib.request import Request as URLRequest
 from urllib.request import urlopen
 
 import jwt
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.responses import RedirectResponse
@@ -45,7 +51,16 @@ else:
         SettingsOut,
     )
 
-app = FastAPI(title="Life Logger API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    init_db()
+    init_feature_tables()
+    yield
+
+
+logger = logging.getLogger("life_logger")
+app = FastAPI(title="Life Logger API", version="1.0.0", lifespan=lifespan)
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 CORS_ORIGINS = [
@@ -66,13 +81,53 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+CONTENT_SECURITY_POLICY = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self'",
+        "img-src 'self' data: blob: https: http:",
+        "connect-src 'self'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "object-src 'none'",
+        "frame-ancestors 'none'",
+    ]
+)
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    # Verification links carry a token in the query string.
+    response.headers["Referrer-Policy"] = "no-referrer"
+    if not request.url.path.startswith("/api/"):
+        response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+# The page uses relative asset paths so it also works from a plain static server.
+for asset_dir in ("css", "js", "vendor"):
+    app.mount(f"/{asset_dir}", StaticFiles(directory=STATIC_DIR / asset_dir))
 
 SESSION_COOKIE = "life_logger_session"
 OAUTH_STATE_COOKIE = "life_logger_oauth_state"
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 30
 OAUTH_STATE_TTL_SECONDS = 60 * 10
 PASSWORD_ITERATIONS = 310_000
+MIN_PASSWORD_LENGTH = 8
+LOGIN_MAX_FAILURES = 10
+LOGIN_LOCKOUT_SECONDS = 60 * 15
+EMAIL_VERIFICATION_TTL_SECONDS = 60 * 60 * 24
+EMAIL_RESEND_INTERVAL_SECONDS = 60
+APP_CALLBACK_URL = "lifelogger://auth"
+APP_AUTH_CODE_TTL_SECONDS = 60 * 2
+
+_login_failures: dict[str, tuple[int, float]] = {}
+_login_failures_lock = threading.Lock()
 
 
 class AccountCredentials(BaseModel):
@@ -82,6 +137,19 @@ class AccountCredentials(BaseModel):
 
 class AccountRegistration(AccountCredentials):
     display_name: str = Field(..., min_length=1, max_length=80)
+
+
+class EmailVerification(BaseModel):
+    token: str = Field(..., min_length=1, max_length=256)
+
+
+class EmailAddress(BaseModel):
+    email: str = Field(..., min_length=3, max_length=254)
+
+
+class AppCodeExchange(BaseModel):
+    code: str = Field(..., min_length=1, max_length=256)
+    verifier: str = Field(..., min_length=43, max_length=128)
 
 
 class FriendCreate(BaseModel):
@@ -156,6 +224,28 @@ def init_feature_tables() -> None:
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS email_verification_tokens (
+                token_hash TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                pending_password_hash TEXT,
+                pending_display_name TEXT,
+                created_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_auth_codes (
+                code_hash TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                code_challenge TEXT NOT NULL,
+                expires_at INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS oauth_accounts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -183,6 +273,7 @@ def init_feature_tables() -> None:
                 provider TEXT NOT NULL,
                 nonce TEXT NOT NULL,
                 code_verifier TEXT NOT NULL,
+                app_challenge TEXT,
                 expires_at INTEGER NOT NULL
             )
             """
@@ -263,6 +354,16 @@ def init_feature_tables() -> None:
             conn.execute("ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT ''")
         if "avatar_url" not in user_columns:
             conn.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
+        if "email_verified_at" not in user_columns:
+            conn.execute("ALTER TABLE users ADD COLUMN email_verified_at TEXT")
+            # Accounts from before verification existed keep working as they did.
+            conn.execute("UPDATE users SET email_verified_at = CURRENT_TIMESTAMP")
+
+        oauth_state_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(oauth_states)")
+        }
+        if "app_challenge" not in oauth_state_columns:
+            conn.execute("ALTER TABLE oauth_states ADD COLUMN app_challenge TEXT")
 
         map_point_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(map_points)")
@@ -315,12 +416,6 @@ def init_feature_tables() -> None:
             "CREATE INDEX IF NOT EXISTS idx_user_close_friends_friend ON user_close_friends(friend_id, owner_id)"
         )
         conn.commit()
-
-
-@app.on_event("startup")
-def startup_event() -> None:
-    init_db()
-    init_feature_tables()
 
 
 @app.get("/", include_in_schema=False)
@@ -403,6 +498,98 @@ def issue_session(response: Response, user_id: int) -> None:
         samesite="lax",
         path="/",
     )
+
+
+def smtp_configured() -> bool:
+    return bool(os.getenv("SMTP_HOST") and os.getenv("SMTP_FROM"))
+
+
+def send_verification_email(email: str, token: str) -> None:
+    link = f"{PUBLIC_BASE_URL}/?{urlencode({'verify_email': token})}"
+    message = EmailMessage()
+    message["Subject"] = "請驗證你的生活記錄帳號"
+    message["From"] = os.environ["SMTP_FROM"]
+    message["To"] = email
+    message.set_content(
+        "你好：\n\n"
+        "有人用這個電子郵件註冊了生活記錄帳號。如果是你本人，請開啟下面的連結完成驗證：\n\n"
+        f"{link}\n\n"
+        f"連結會在 {EMAIL_VERIFICATION_TTL_SECONDS // 3600} 小時後失效。\n"
+        "如果不是你本人申請，請不要開啟連結，直接忽略這封信即可。\n"
+    )
+    host = os.environ["SMTP_HOST"]
+    port = int(os.getenv("SMTP_PORT", "587"))
+    security = os.getenv("SMTP_SECURITY", "starttls").lower()
+    smtp_class = smtplib.SMTP_SSL if security == "ssl" else smtplib.SMTP
+    with smtp_class(host, port, timeout=15) as smtp:
+        if security == "starttls":
+            smtp.starttls()
+        username = os.getenv("SMTP_USERNAME")
+        if username:
+            smtp.login(username, os.getenv("SMTP_PASSWORD", ""))
+        smtp.send_message(message)
+
+
+def create_email_verification(
+    conn: sqlite3.Connection,
+    user_id: int,
+    pending_password_hash: str | None = None,
+    pending_display_name: str | None = None,
+) -> str:
+    token = secrets.token_urlsafe(32)
+    now = int(time.time())
+    conn.execute("DELETE FROM email_verification_tokens WHERE expires_at <= ?", (now,))
+    conn.execute(
+        """
+        INSERT INTO email_verification_tokens
+            (token_hash, user_id, pending_password_hash, pending_display_name,
+             created_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            hashlib.sha256(token.encode()).hexdigest(),
+            user_id,
+            pending_password_hash,
+            pending_display_name,
+            now,
+            now + EMAIL_VERIFICATION_TTL_SECONDS,
+        ),
+    )
+    return token
+
+
+def ensure_login_allowed(key: str) -> None:
+    with _login_failures_lock:
+        failure = _login_failures.get(key)
+        if failure is None:
+            return
+        count, expires_at = failure
+        if expires_at <= time.time():
+            del _login_failures[key]
+        elif count >= LOGIN_MAX_FAILURES:
+            raise HTTPException(
+                status_code=429, detail="登入失敗次數過多，請稍後再試"
+            )
+
+
+def record_login_failure(key: str) -> None:
+    now = time.time()
+    with _login_failures_lock:
+        for stale_key in [
+            stale_key
+            for stale_key, (_, expires_at) in _login_failures.items()
+            if expires_at <= now
+        ]:
+            del _login_failures[stale_key]
+        count, expires_at = _login_failures.get(
+            key, (0, now + LOGIN_LOCKOUT_SECONDS)
+        )
+        _login_failures[key] = (count + 1, expires_at)
+
+
+def clear_login_failures(key: str) -> None:
+    with _login_failures_lock:
+        _login_failures.pop(key, None)
 
 
 def get_current_user(request: Request) -> dict[str, Any]:
@@ -557,12 +744,33 @@ def login_with_provider(provider: str, claims: dict[str, Any]) -> dict[str, Any]
             return public_user(linked)
 
         user = conn.execute(
-            "SELECT id, email, display_name FROM users WHERE lower(email) = ?",
+            """
+            SELECT id, email, display_name, email_verified_at
+            FROM users WHERE lower(email) = ?
+            """,
             (email,),
         ).fetchone()
+        if user is not None and not user["email_verified_at"]:
+            # Nobody proved owning this address, so whoever set the password may
+            # not be the person the provider just vouched for.
+            conn.execute(
+                """
+                UPDATE users
+                SET password_hash = NULL, email_verified_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (user["id"],),
+            )
+            conn.execute("DELETE FROM auth_sessions WHERE user_id = ?", (user["id"],))
+            conn.execute(
+                "DELETE FROM email_verification_tokens WHERE user_id = ?", (user["id"],)
+            )
         if user is None:
             cursor = conn.execute(
-                "INSERT INTO users (email, password_hash, display_name) VALUES (?, NULL, ?)",
+                """
+                INSERT INTO users (email, password_hash, display_name, email_verified_at)
+                VALUES (?, NULL, ?, CURRENT_TIMESTAMP)
+                """,
                 (email, display_name),
             )
             user_id = cursor.lastrowid
@@ -588,6 +796,7 @@ def auth_providers() -> dict[str, bool]:
         "email": True,
         "google": oauth_provider_configured("google"),
         "apple": oauth_provider_configured("apple"),
+        "email_verification": smtp_configured(),
     }
 
 
@@ -596,27 +805,38 @@ def register_account(
     credentials: AccountRegistration, response: Response
 ) -> dict[str, Any]:
     email = normalize_email(credentials.email)
-    if len(credentials.password) < 6:
+    if len(credentials.password) < MIN_PASSWORD_LENGTH:
         raise HTTPException(
-            status_code=422, detail="密碼至少需要 6 個字元"
+            status_code=422, detail=f"密碼至少需要 {MIN_PASSWORD_LENGTH} 個字元"
         )
     display_name = credentials.display_name.strip()
     if not display_name:
         raise HTTPException(status_code=422, detail="請輸入顯示名稱")
+    password_hash = hash_password(credentials.password)
+    verification_required = smtp_configured()
+    verification_token = None
     with get_connection() as conn:
         conn.execute("BEGIN IMMEDIATE")
         had_users = conn.execute("SELECT 1 FROM users LIMIT 1").fetchone() is not None
         existing_email = conn.execute(
-            "SELECT id, password_hash FROM users WHERE lower(email) = ?",
+            """
+            SELECT id, password_hash, email_verified_at
+            FROM users WHERE lower(email) = ?
+            """,
             (email,),
         ).fetchone()
         if existing_email is not None:
-            if existing_email["password_hash"]:
+            if not existing_email["password_hash"]:
+                raise HTTPException(
+                    status_code=409, detail="此電子郵件已使用第三方登入，請改用 Google 或 Apple 登入"
+                )
+            if existing_email["email_verified_at"] or not verification_required:
                 raise HTTPException(status_code=409, detail="此電子郵件已註冊，請直接登入")
+            # The address is unproven: the new password only applies if the
+            # mailbox owner follows this link, so nobody can lock the owner out.
             user_id = existing_email["id"]
-            conn.execute(
-                "UPDATE users SET password_hash = ?, display_name = ? WHERE id = ?",
-                (hash_password(credentials.password), display_name, user_id),
+            verification_token = create_email_verification(
+                conn, user_id, password_hash, display_name
             )
         else:
             cursor = conn.execute(
@@ -624,26 +844,127 @@ def register_account(
                 INSERT INTO users (email, password_hash, display_name)
                 VALUES (?, ?, ?)
                 """,
-                (email, hash_password(credentials.password), display_name),
+                (email, password_hash, display_name),
             )
             user_id = cursor.lastrowid
             if not had_users:
                 assign_legacy_data_to_first_user(conn, user_id)
+            if verification_required:
+                verification_token = create_email_verification(conn, user_id)
         conn.commit()
+    if verification_token is not None:
+        try:
+            send_verification_email(email, verification_token)
+        except (smtplib.SMTPException, OSError) as error:
+            logger.warning("Failed to send verification email: %s", error)
+            raise HTTPException(
+                status_code=503, detail="驗證信寄送失敗，請稍後再試"
+            ) from error
+        response.status_code = status.HTTP_202_ACCEPTED
+        return {"authenticated": False, "verification_required": True, "email": email}
     issue_session(response, user_id)
     return {"authenticated": True, "user": {"id": user_id, "email": email, "display_name": display_name}}
 
 
+@app.post("/api/auth/verify-email")
+def verify_email(verification: EmailVerification) -> dict[str, bool]:
+    token_hash = hashlib.sha256(verification.token.encode()).hexdigest()
+    with get_connection() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        token = conn.execute(
+            """
+            SELECT user_id, pending_password_hash, pending_display_name
+            FROM email_verification_tokens
+            WHERE token_hash = ? AND expires_at > ?
+            """,
+            (token_hash, int(time.time())),
+        ).fetchone()
+        if token is None:
+            raise HTTPException(status_code=400, detail="驗證連結無效或已過期，請重新寄送")
+        conn.execute(
+            """
+            UPDATE users
+            SET email_verified_at = CURRENT_TIMESTAMP,
+                password_hash = COALESCE(?, password_hash),
+                display_name = COALESCE(?, display_name)
+            WHERE id = ?
+            """,
+            (
+                token["pending_password_hash"],
+                token["pending_display_name"],
+                token["user_id"],
+            ),
+        )
+        if token["pending_password_hash"]:
+            conn.execute(
+                "DELETE FROM auth_sessions WHERE user_id = ?", (token["user_id"],)
+            )
+        conn.execute(
+            "DELETE FROM email_verification_tokens WHERE user_id = ?",
+            (token["user_id"],),
+        )
+        conn.commit()
+    return {"verified": True}
+
+
+@app.post("/api/auth/resend-verification")
+def resend_verification(request: EmailAddress) -> dict[str, bool]:
+    # The answer never changes, so this cannot reveal whether an account exists.
+    email = normalize_email(request.email)
+    if not smtp_configured():
+        return {"sent": True}
+    now = int(time.time())
+    token = None
+    with get_connection() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        user = conn.execute(
+            """
+            SELECT id FROM users
+            WHERE lower(email) = ? AND email_verified_at IS NULL
+                AND password_hash IS NOT NULL
+            """,
+            (email,),
+        ).fetchone()
+        if user is not None:
+            recent = conn.execute(
+                """
+                SELECT 1 FROM email_verification_tokens
+                WHERE user_id = ? AND created_at > ?
+                """,
+                (user["id"], now - EMAIL_RESEND_INTERVAL_SECONDS),
+            ).fetchone()
+            if recent is None:
+                token = create_email_verification(conn, user["id"])
+        conn.commit()
+    if token is not None:
+        try:
+            send_verification_email(email, token)
+        except (smtplib.SMTPException, OSError) as error:
+            logger.warning("Failed to resend verification email: %s", error)
+    return {"sent": True}
+
+
 @app.post("/api/auth/login")
-def login_account(credentials: AccountCredentials, response: Response) -> dict[str, Any]:
+def login_account(
+    credentials: AccountCredentials, request: Request, response: Response
+) -> dict[str, Any]:
     email = normalize_email(credentials.email)
+    throttle_key = f"{request.client.host if request.client else ''}|{email}"
+    ensure_login_allowed(throttle_key)
     with get_connection() as conn:
         user = conn.execute(
-            "SELECT id, email, display_name, password_hash FROM users WHERE lower(email) = ?",
+            """
+            SELECT id, email, display_name, password_hash, email_verified_at
+            FROM users WHERE lower(email) = ?
+            """,
             (email,),
         ).fetchone()
     if user is None or not verify_password(credentials.password, user["password_hash"]):
+        record_login_failure(throttle_key)
         raise HTTPException(status_code=401, detail="電子郵件或密碼不正確")
+    clear_login_failures(throttle_key)
+    if smtp_configured() and not user["email_verified_at"]:
+        raise HTTPException(status_code=403, detail="請先到信箱完成電子郵件驗證")
     issue_session(response, user["id"])
     return {"authenticated": True, "user": public_user(user)}
 
@@ -823,7 +1144,15 @@ def logout(request: Request, response: Response) -> dict[str, bool]:
     return {"authenticated": False}
 
 
-def begin_oauth(provider: str) -> RedirectResponse:
+def app_callback_redirect(**parameters: str) -> RedirectResponse:
+    return RedirectResponse(
+        f"{APP_CALLBACK_URL}?{urlencode(parameters)}", status_code=303
+    )
+
+
+def begin_oauth(provider: str, app_challenge: str = "") -> RedirectResponse:
+    if app_challenge and not re.fullmatch(r"[A-Za-z0-9_-]{43}", app_challenge):
+        raise HTTPException(status_code=422, detail="登入請求格式不正確")
     if not oauth_provider_configured(provider):
         raise HTTPException(
             status_code=503,
@@ -841,14 +1170,16 @@ def begin_oauth(provider: str) -> RedirectResponse:
         )
         conn.execute(
             """
-            INSERT INTO oauth_states (state_hash, provider, nonce, code_verifier, expires_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO oauth_states
+                (state_hash, provider, nonce, code_verifier, app_challenge, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 hashlib.sha256(state.encode()).hexdigest(),
                 provider,
                 nonce,
                 verifier,
+                app_challenge or None,
                 int(time.time()) + OAUTH_STATE_TTL_SECONDS,
             ),
         )
@@ -877,16 +1208,19 @@ def begin_oauth(provider: str) -> RedirectResponse:
             }
         )
     else:
-        parameters["response_mode"] = "query"
+        # Apple requires form_post whenever scopes are requested.
+        parameters["response_mode"] = "form_post"
     query = urlencode(parameters)
     redirect = RedirectResponse(f"{authorization_url}?{query}", status_code=302)
+    secure_cookie = oauth_redirect_uri(provider).startswith("https://")
     redirect.set_cookie(
         OAUTH_STATE_COOKIE,
         state,
         max_age=OAUTH_STATE_TTL_SECONDS,
         httponly=True,
-        secure=oauth_redirect_uri(provider).startswith("https://"),
-        samesite="lax",
+        secure=secure_cookie,
+        # Apple posts back cross-site, and browsers drop Lax cookies on that request.
+        samesite="none" if provider == "apple" and secure_cookie else "lax",
         path="/api/auth",
     )
     return redirect
@@ -902,7 +1236,7 @@ def complete_oauth(
     with get_connection() as conn:
         oauth_state = conn.execute(
             """
-            SELECT nonce, code_verifier FROM oauth_states
+            SELECT nonce, code_verifier, app_challenge FROM oauth_states
             WHERE state_hash = ? AND provider = ? AND expires_at > ?
             """,
             (state_hash, provider, int(time.time())),
@@ -912,20 +1246,89 @@ def complete_oauth(
     if oauth_state is None:
         raise HTTPException(status_code=400, detail="登入驗證已逾期，請重新開始")
 
-    token_data = exchange_oauth_code(provider, code, oauth_state["code_verifier"])
-    claims = verify_provider_id_token(
-        provider, token_data["id_token"], oauth_state["nonce"]
-    )
-    user = login_with_provider(provider, claims)
-    response = RedirectResponse("/", status_code=303)
+    app_challenge = oauth_state["app_challenge"]
+    try:
+        token_data = exchange_oauth_code(provider, code, oauth_state["code_verifier"])
+        claims = verify_provider_id_token(
+            provider, token_data["id_token"], oauth_state["nonce"]
+        )
+        user = login_with_provider(provider, claims)
+    except HTTPException as error:
+        if app_challenge:
+            return app_callback_redirect(error=str(error.detail))
+        raise
+    if app_challenge:
+        # The session never travels through the custom-scheme redirect; only the
+        # app holding the PKCE verifier can redeem this code.
+        app_code = secrets.token_urlsafe(32)
+        now = int(time.time())
+        with get_connection() as conn:
+            conn.execute("DELETE FROM app_auth_codes WHERE expires_at <= ?", (now,))
+            conn.execute(
+                """
+                INSERT INTO app_auth_codes (code_hash, user_id, code_challenge, expires_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    hashlib.sha256(app_code.encode()).hexdigest(),
+                    user["id"],
+                    app_challenge,
+                    now + APP_AUTH_CODE_TTL_SECONDS,
+                ),
+            )
+            conn.commit()
+        response = app_callback_redirect(code=app_code)
+    else:
+        response = RedirectResponse("/", status_code=303)
+        issue_session(response, user["id"])
     response.delete_cookie(OAUTH_STATE_COOKIE, path="/api/auth", samesite="lax")
-    issue_session(response, user["id"])
     return response
 
 
+def fail_oauth(provider: str, state: str, message: str) -> RedirectResponse:
+    with get_connection() as conn:
+        oauth_state = conn.execute(
+            "SELECT app_challenge FROM oauth_states WHERE state_hash = ? AND provider = ?",
+            (hashlib.sha256(state.encode()).hexdigest(), provider),
+        ).fetchone()
+    if oauth_state is not None and oauth_state["app_challenge"]:
+        return app_callback_redirect(error=message)
+    raise HTTPException(status_code=400, detail=message)
+
+
+@app.post("/api/auth/app-exchange")
+def exchange_app_code(request: AppCodeExchange, response: Response) -> dict[str, Any]:
+    code_hash = hashlib.sha256(request.code.encode()).hexdigest()
+    challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(request.verifier.encode()).digest()
+    ).decode("ascii").rstrip("=")
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT app_auth_codes.code_challenge, app_auth_codes.expires_at,
+                   users.id, users.email, users.display_name
+            FROM app_auth_codes
+            JOIN users ON users.id = app_auth_codes.user_id
+            WHERE app_auth_codes.code_hash = ?
+            """,
+            (code_hash,),
+        ).fetchone()
+        # Single use, even when the attempt below fails.
+        conn.execute("DELETE FROM app_auth_codes WHERE code_hash = ?", (code_hash,))
+        conn.commit()
+    if (
+        row is None
+        or row["expires_at"] <= int(time.time())
+        or not hmac.compare_digest(row["code_challenge"], challenge)
+    ):
+        raise HTTPException(status_code=400, detail="登入驗證已失效，請重新開始")
+    issue_session(response, row["id"])
+    return {"authenticated": True, "user": public_user(row)}
+
+
 @app.get("/api/auth/google")
-def google_login() -> RedirectResponse:
-    return begin_oauth("google")
+def google_login(app_challenge: str = "") -> RedirectResponse:
+    return begin_oauth("google", app_challenge)
 
 
 @app.get("/api/auth/google/callback")
@@ -933,22 +1336,25 @@ def google_callback(
     request: Request, code: str = "", state: str = "", error: str = ""
 ) -> RedirectResponse:
     if error or not code or not state:
-        raise HTTPException(status_code=400, detail="Google 登入已取消或未完成")
+        return fail_oauth("google", state, "Google 登入已取消或未完成")
     return complete_oauth("google", request, code, state)
 
 
 @app.get("/api/auth/apple")
-def apple_login() -> RedirectResponse:
-    return begin_oauth("apple")
+def apple_login(app_challenge: str = "") -> RedirectResponse:
+    return begin_oauth("apple", app_challenge)
 
 
-@app.get("/api/auth/apple/callback")
-def apple_callback(
-    request: Request, code: str = "", state: str = "", error: str = ""
-) -> RedirectResponse:
-    if error or not code or not state:
-        raise HTTPException(status_code=400, detail="Apple 登入已取消或未完成")
-    return complete_oauth("apple", request, code, state)
+@app.post("/api/auth/apple/callback")
+async def apple_callback(request: Request) -> RedirectResponse:
+    form = parse_qs((await request.body()).decode("utf-8", "replace"))
+    code = form.get("code", [""])[0]
+    state = form.get("state", [""])[0]
+    if form.get("error") or not code or not state:
+        return await run_in_threadpool(
+            fail_oauth, "apple", state, "Apple 登入已取消或未完成"
+        )
+    return await run_in_threadpool(complete_oauth, "apple", request, code, state)
 
 
 @app.get("/api/entries", response_model=list[EntryOut])
@@ -1274,7 +1680,7 @@ def chat_diary(
         tag.strip().lstrip("#")
         for tag in structured.tags
         if tag.strip().lstrip("#")
-    )
+    )[:1000]
     entry = create_entry(
         EntryCreate(
             title=title,
@@ -1706,4 +2112,9 @@ if __name__ == "__main__":
     import uvicorn
 
     app_module = f"{__package__}.main:app" if __package__ else "main:app"
-    uvicorn.run(app_module, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        app_module,
+        host=os.getenv("HOST", "127.0.0.1"),
+        port=int(os.getenv("PORT", "8000")),
+        reload=os.getenv("RELOAD", "true").lower() == "true",
+    )

@@ -7,6 +7,8 @@ class Entry {
   final String privacy;
   final String? tags;
   final String createdAt;
+  final String? ownerName;
+  final bool isOwner;
 
   Entry({
     required this.id,
@@ -17,7 +19,17 @@ class Entry {
     required this.privacy,
     this.tags,
     required this.createdAt,
+    this.ownerName,
+    this.isOwner = true,
   });
+
+  List<String> get tagList {
+    return (tags ?? '')
+        .split(',')
+        .map((tag) => tag.trim().replaceFirst('#', ''))
+        .where((tag) => tag.isNotEmpty)
+        .toList();
+  }
 
   factory Entry.fromJson(Map<String, dynamic> json) {
     return Entry(
@@ -29,6 +41,8 @@ class Entry {
       privacy: json['privacy'] ?? 'private',
       tags: json['tags'],
       createdAt: json['created_at'] ?? '',
+      ownerName: json['owner_name'],
+      isOwner: json['is_owner'] ?? true,
     );
   }
 }

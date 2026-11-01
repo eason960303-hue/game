@@ -1,0 +1,3 @@
+handleEmailVerificationLink();
+initializeSession();
+refreshServerStatus();

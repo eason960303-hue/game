@@ -1,0 +1,237 @@
+.ai-diary-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.62fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.ai-chat-card {
+  display: grid;
+  min-height: 560px;
+  grid-template-rows: auto minmax(190px, 1fr) auto;
+  gap: 14px;
+}
+
+.ai-chat-heading h2 {
+  margin: 0;
+  color: #263b53;
+  font-size: 17px;
+}
+
+.ai-chat-heading p,
+.ai-provider-status {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.ai-chat-messages {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid #e8edf4;
+  border-radius: 16px;
+  background: #f7faff;
+}
+
+.ai-chat-message {
+  max-width: 88%;
+  padding: 11px 13px;
+  border-radius: 15px;
+  color: #445a71;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.ai-chat-message.is-assistant {
+  align-self: flex-start;
+  border: 1px solid #e3ebf5;
+  border-bottom-left-radius: 5px;
+  background: #fff;
+}
+
+.ai-chat-message.is-user {
+  align-self: flex-end;
+  border-bottom-right-radius: 5px;
+  background: #e5f1ff;
+  color: #315d8a;
+}
+
+.ai-chat-message.is-error {
+  border-color: #f0caca;
+  background: #fffafa;
+  color: #875454;
+}
+
+.ai-chat-form {
+  display: grid;
+  gap: 11px;
+}
+
+.ai-chat-composer {
+  width: 100%;
+  min-height: 94px;
+  padding: 11px 12px;
+  border: 1px solid #dfe7f0;
+  border-radius: 12px;
+  outline: none;
+  background: #fff;
+  color: #263b53;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.ai-chat-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ai-chat-controls .compact-field {
+  min-width: 140px;
+  flex: 1;
+}
+
+.privacy-note-card {
+  padding: 18px;
+}
+
+.privacy-note-card h2 {
+  margin: 0 0 10px;
+  color: #263b53;
+  font-size: 16px;
+}
+
+.privacy-note-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.friend-management {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.friend-form {
+  display: grid;
+  align-content: start;
+  gap: 11px;
+}
+
+.friend-form h2,
+.friend-list-heading {
+  margin: 0;
+  color: #263b53;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.friend-list {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+}
+
+.friend-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e6edf5;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.friend-card-info {
+  min-width: 0;
+}
+
+.friend-card-info strong,
+.friend-card-info span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-card-info strong {
+  color: #344a62;
+  font-size: 13px;
+}
+
+.friend-card-info span {
+  margin-top: 3px;
+  color: #8392a5;
+  font-size: 11px;
+}
+
+.friend-card-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.friend-close-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #64778d;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.friend-remove {
+  padding: 6px 8px;
+  border: 1px solid #e6edf5;
+  border-radius: 8px;
+  background: #fff;
+  color: #7a8a9d;
+  font-size: 11px;
+}
+
+.entry-owner {
+  color: #8795a6;
+  font-size: 11px;
+}
+
+.entry-card-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.entry-privacy-field {
+  display: grid;
+  min-width: 100px;
+  gap: 5px;
+  color: #7a8a9d;
+  font-size: 10px;
+}
+
+.entry-privacy-field .privacy-select {
+  min-height: 32px;
+}
+
+.points-section {
+  margin-top: 22px;
+}
+
+.points-heading {
+  margin-bottom: 12px;
+}

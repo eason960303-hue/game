@@ -1,5 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:life_logger/services/api_service.dart';
+import 'package:life_logger/theme/app_theme.dart';
+import 'package:life_logger/widgets/form_section.dart';
+import 'package:life_logger/widgets/privacy_selector.dart';
+
+const _moods = [
+  (label: '開心', icon: Icons.sentiment_very_satisfied_rounded),
+  (label: '平靜', icon: Icons.spa_outlined),
+  (label: '感動', icon: Icons.favorite_border_rounded),
+  (label: '疲憊', icon: Icons.bedtime_outlined),
+  (label: '難過', icon: Icons.sentiment_dissatisfied_rounded),
+];
 
 class CreateEntryScreen extends StatefulWidget {
   const CreateEntryScreen({super.key});
@@ -15,8 +26,8 @@ class _CreateEntryScreenState extends State<CreateEntryScreen> {
   final _locationController = TextEditingController();
   final _tagsController = TextEditingController();
 
-  String _mood = '開心';
-  String _privacy = 'private';
+  String _mood = _moods.first.label;
+  String _privacy = defaultPrivacy;
   bool _isSaving = false;
 
   @override
@@ -33,13 +44,12 @@ class _CreateEntryScreenState extends State<CreateEntryScreen> {
 
     setState(() => _isSaving = true);
     try {
+      final location = _locationController.text.trim();
       await ApiService.createEntry({
         'title': _titleController.text.trim(),
         'content': _contentController.text.trim(),
         'mood': _mood,
-        'location': _locationController.text.trim().isEmpty
-            ? null
-            : _locationController.text.trim(),
+        'location': location.isEmpty ? null : location,
         'privacy': _privacy,
         'tags': _tagsController.text
             .split(',')
@@ -55,7 +65,7 @@ class _CreateEntryScreenState extends State<CreateEntryScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('日記儲存失敗：$error'),
-          backgroundColor: const Color(0xFF9D3D52),
+          backgroundColor: AppColors.errorSurface,
         ),
       );
     } finally {
@@ -66,198 +76,162 @@ class _CreateEntryScreenState extends State<CreateEntryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF071B2E),
-      appBar: AppBar(
-        title: const Text('寫一篇日記'),
-        actions: [
-          TextButton(
-            onPressed: _isSaving ? null : _saveEntry,
-            child: _isSaving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Color(0xFF7FC7FF),
-                    ),
-                  )
-                : const Text(
-                    '儲存',
-                    style: TextStyle(
-                      color: Color(0xFF9AD0FF),
-                      fontWeight: FontWeight.w600,
+      appBar: AppBar(title: const Text('寫一篇日記')),
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: ListView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                      children: [
+                        _buildStorySection(),
+                        const SizedBox(height: 16),
+                        _buildMoodSection(),
+                        const SizedBox(height: 16),
+                        _buildDetailsSection(),
+                        const SizedBox(height: 16),
+                        PrivacySelector(
+                          value: _privacy,
+                          onChanged: (value) =>
+                              setState(() => _privacy = value),
+                        ),
+                      ],
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                    child: FilledButton.icon(
+                      onPressed: _isSaving ? null : _saveEntry,
+                      icon: _isSaving
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.textSecondary,
+                              ),
+                            )
+                          : const Icon(Icons.bookmark_add_outlined),
+                      label: Text(_isSaving ? '儲存中…' : '儲存日記'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-          children: [
-            _sectionLabel('今天的標題'),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _titleController,
-              maxLength: 200,
-              textCapitalization: TextCapitalization.sentences,
-              style: const TextStyle(color: Colors.white, fontSize: 18),
-              decoration: _inputDecoration('為今天留下一個名字'),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return '請輸入日記標題';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            _sectionLabel('記錄此刻'),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _contentController,
-              minLines: 7,
-              maxLines: 12,
-              textCapitalization: TextCapitalization.sentences,
-              style: const TextStyle(color: Colors.white, height: 1.6),
-              decoration: _inputDecoration('今天發生了什麼？寫下你的心情與故事…'),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return '寫幾句今天的故事吧';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 20),
-            _sectionLabel('今天的心情'),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: ['開心', '平靜', '感動', '疲憊', '難過'].map((mood) {
-                final selected = _mood == mood;
-                return ChoiceChip(
-                  label: Text(mood),
-                  selected: selected,
-                  onSelected: (_) => setState(() => _mood = mood),
-                  selectedColor: const Color(0xFF28618B),
-                  backgroundColor: const Color(0xFF11263F),
-                  labelStyle: TextStyle(
-                    color: selected ? Colors.white : const Color(0xFFB8D5F2),
-                  ),
-                  side: BorderSide(
-                    color: selected
-                        ? const Color(0xFF7FC7FF)
-                        : Colors.white.withOpacity(0.08),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 20),
-            _sectionLabel('地點（選填）'),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _locationController,
-              textInputAction: TextInputAction.next,
-              style: const TextStyle(color: Colors.white),
-              decoration: _inputDecoration('例如：高雄港邊').copyWith(
-                prefixIcon: const Icon(
-                  Icons.location_on_outlined,
-                  color: Color(0xFF8FD9FF),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            _sectionLabel('標籤（選填，以逗號分隔）'),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _tagsController,
-              textInputAction: TextInputAction.done,
-              style: const TextStyle(color: Colors.white),
-              decoration: _inputDecoration('例如：星空,散步,朋友'),
-            ),
-            const SizedBox(height: 20),
-            _sectionLabel('日記隱私'),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _privacy,
-              dropdownColor: const Color(0xFF11263F),
-              style: const TextStyle(color: Colors.white),
-              decoration: _inputDecoration(''),
-              items: const [
-                DropdownMenuItem(
-                  value: 'private',
-                  child: Text('僅自己可見'),
-                ),
-                DropdownMenuItem(
-                  value: 'shared',
-                  child: Text('分享'),
-                ),
-              ],
-              onChanged: (value) {
-                if (value != null) setState(() => _privacy = value);
-              },
-            ),
-            const SizedBox(height: 28),
-            SizedBox(
-              height: 54,
-              child: FilledButton.icon(
-                onPressed: _isSaving ? null : _saveEntry,
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF3B91D0),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                ),
-                icon: const Icon(Icons.bookmark_add_outlined),
-                label: Text(_isSaving ? '儲存中…' : '儲存日記'),
-              ),
-            ),
-          ],
         ),
       ),
     );
   }
 
-  Widget _sectionLabel(String label) {
-    return Text(
-      label,
-      style: const TextStyle(
-        color: Color(0xFFB8D5F2),
-        fontWeight: FontWeight.w600,
+  Widget _buildStorySection() {
+    return SectionCard(
+      children: [
+        LabeledField(
+          label: '今天的標題',
+          child: TextFormField(
+            controller: _titleController,
+            maxLength: 200,
+            textCapitalization: TextCapitalization.sentences,
+            textInputAction: TextInputAction.next,
+            style: const TextStyle(fontSize: 18),
+            decoration: const InputDecoration(hintText: '為今天留下一個名字'),
+            validator: (value) => _requireText(value, '請輸入日記標題'),
+          ),
+        ),
+        const SizedBox(height: 8),
+        LabeledField(
+          label: '記錄此刻',
+          child: TextFormField(
+            controller: _contentController,
+            minLines: 7,
+            maxLines: 12,
+            textCapitalization: TextCapitalization.sentences,
+            style: const TextStyle(height: 1.6),
+            decoration: const InputDecoration(
+              hintText: '今天發生了什麼？寫下你的心情與故事…',
+            ),
+            validator: (value) => _requireText(value, '寫幾句今天的故事吧'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMoodSection() {
+    return SectionCard(
+      children: [
+        LabeledField(
+          label: '今天的心情',
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final mood in _moods)
+                _buildMoodChip(mood.label, mood.icon),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMoodChip(String label, IconData icon) {
+    final selected = _mood == label;
+    final color = selected ? Colors.white : AppColors.textSecondary;
+    return ChoiceChip(
+      avatar: Icon(icon, size: 18, color: color),
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => setState(() => _mood = label),
+      labelStyle: TextStyle(color: color),
+      side: BorderSide(
+        color: selected ? AppColors.accent : AppColors.outline,
       ),
     );
   }
 
-  InputDecoration _inputDecoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: Colors.white38),
-      filled: true,
-      fillColor: const Color(0xFF11263F),
-      counterStyle: const TextStyle(color: Colors.white38),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.06)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(color: Color(0xFF7FC7FF)),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(color: Color(0xFFE57373)),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(color: Color(0xFFE57373)),
-      ),
+  Widget _buildDetailsSection() {
+    return SectionCard(
+      children: [
+        LabeledField(
+          label: '地點（選填）',
+          child: TextFormField(
+            controller: _locationController,
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(
+              hintText: '例如：高雄港邊',
+              prefixIcon: Icon(Icons.location_on_outlined),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        LabeledField(
+          label: '標籤（選填）',
+          child: TextFormField(
+            controller: _tagsController,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(
+              hintText: '例如：星空,散步,朋友',
+              helperText: '以逗號分隔',
+              prefixIcon: Icon(Icons.sell_outlined),
+            ),
+          ),
+        ),
+      ],
     );
+  }
+
+  String? _requireText(String? value, String message) {
+    if (value == null || value.trim().isEmpty) return message;
+    return null;
   }
 }

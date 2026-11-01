@@ -1,0 +1,184 @@
+@media (max-width: 760px) {
+  .ai-diary-layout,
+  .friend-management {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .profile-header {
+    gap: 18px;
+    padding-right: 4px;
+    padding-left: 4px;
+  }
+
+  .profile-stats {
+    gap: 12px 20px;
+    font-size: 12px;
+  }
+
+  .profile-stat {
+    gap: 4px;
+  }
+
+  .profile-stat strong {
+    font-size: 14px;
+  }
+
+  .map-workspace {
+    height: auto;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .map-panel {
+    height: min(58vh, 520px);
+    min-height: 340px;
+  }
+
+  .map-points {
+    max-height: 60vh;
+  }
+}
+
+@media (max-width: 650px) {
+  .page {
+    width: min(100% - 28px, 520px);
+    padding-top: 20px;
+  }
+
+  .profile-header {
+    grid-template-columns: 90px minmax(0, 1fr);
+    gap: 18px;
+    padding-top: 4px;
+  }
+
+  .profile-avatar-wrap {
+    width: 82px;
+    border-width: 3px;
+    font-size: 30px;
+  }
+
+  .profile-username-row {
+    gap: 8px;
+  }
+
+  .profile-username {
+    font-size: 20px;
+  }
+
+  .profile-edit-button {
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .profile-stats {
+    grid-column: 1 / -1;
+    justify-content: space-between;
+    gap: 7px;
+    margin: 14px 0;
+    font-size: 11px;
+  }
+
+  .profile-bio-name,
+  .profile-bio {
+    font-size: 12px;
+  }
+
+  .top-note {
+    max-width: 120px;
+    text-align: right;
+  }
+
+  .topbar-tools {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .navigation {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .server-menu summary {
+    max-width: calc(100vw - 42px);
+  }
+
+  .server-popover {
+    right: 0;
+    width: min(260px, calc(100vw - 42px));
+  }
+
+  .hero {
+    min-height: 290px;
+    margin-top: 26px;
+    align-items: flex-start;
+    border-radius: 24px;
+  }
+
+  .hero-art {
+    top: auto;
+    right: 4%;
+    bottom: -34px;
+    width: 128px;
+    height: 128px;
+    transform: none;
+    opacity: 0.72;
+  }
+
+  .hero-art::before {
+    inset: 27px -19px;
+  }
+
+  .hero-art::after {
+    inset: 47px -34px;
+  }
+
+  .sun {
+    width: 39px;
+    height: 39px;
+  }
+
+  .hero-copy {
+    max-width: 100%;
+  }
+
+  .hero-description {
+    max-width: 290px;
+  }
+
+  .entries {
+    grid-template-columns: 1fr;
+  }
+
+  .module-layout,
+  .trip-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .map-points,
+  .trip-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .route-point-row {
+    grid-template-columns: 1fr;
+  }
+
+  .route-point-row-heading,
+  .route-point-row-actions,
+  .route-point-row .compact-field:first-of-type {
+    grid-column: 1;
+  }
+
+  .friend-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .friend-card-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

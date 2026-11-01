@@ -1,0 +1,248 @@
+dialog {
+  width: min(100% - 32px, 480px);
+  max-height: min(88vh, 760px);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid #e6edf5;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 24px 80px #10243d40;
+}
+
+dialog[open] {
+  animation: modal-in 220ms cubic-bezier(0.2, 0.75, 0.3, 1) both;
+}
+
+dialog::backdrop {
+  background: #14283f88;
+  backdrop-filter: blur(3px);
+  animation: backdrop-in 180ms ease-out both;
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    background: #14283f00;
+    backdrop-filter: blur(0);
+  }
+  to {
+    background: #14283f88;
+    backdrop-filter: blur(3px);
+  }
+}
+
+.dialog-content {
+  padding: 25px;
+}
+
+.dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.dialog-heading h2 {
+  margin-bottom: 6px;
+}
+
+.dialog-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.icon-button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #e6edf5;
+  border-radius: 12px;
+  background: #fff;
+  color: #6b7d93;
+  font-size: 20px;
+}
+
+.dialog-content h2 {
+  margin-bottom: 20px;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 15px;
+  color: #53667c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  padding: 12px 13px;
+  border: 1px solid #dfe7f0;
+  border-radius: 12px;
+  outline: none;
+  color: #263b53;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.field textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.mood-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mood-option {
+  display: inline-flex;
+  min-height: 39px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 1px solid #e2e9f1;
+  border-radius: 12px;
+  background: #fff;
+  color: #687b91;
+  font-size: 13px;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.mood-option[aria-pressed="true"] {
+  border-color: #9dc3ed;
+  background: #edf6ff;
+  color: #2868b4;
+  box-shadow: 0 0 0 2px #4386d512;
+}
+
+.photo-picker {
+  display: grid;
+  min-height: 100px;
+  place-items: center;
+  padding: 14px;
+  border: 1px dashed #cbd9e8;
+  border-radius: 15px;
+  background: #f8fbff;
+  color: #6c8097;
+  cursor: pointer;
+  text-align: center;
+}
+
+.photo-picker:hover {
+  border-color: #8bb6e5;
+  background: #f2f8ff;
+}
+
+.photo-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.photo-picker strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #48627e;
+  font-size: 13px;
+}
+
+.photo-picker small,
+.photo-note {
+  color: #8797a9;
+  font-size: 11px;
+}
+
+.photo-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 9px;
+  padding: 8px;
+  border: 1px solid #e6edf5;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.photo-preview img {
+  width: 54px;
+  height: 54px;
+  border-radius: 9px;
+  object-fit: cover;
+}
+
+.photo-preview span {
+  flex: 1;
+  overflow: hidden;
+  color: #63768c;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-remove {
+  padding: 7px;
+  border: 0;
+  background: transparent;
+  color: #a64e58;
+  font-size: 12px;
+}
+
+.field input:focus,
+.field textarea:focus {
+  border-color: #7eafe5;
+  box-shadow: 0 0 0 3px #4386d51a;
+}
+
+.modal-actions {
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.secondary-button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid #dfe7f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #617389;
+}
+
+.status-message {
+  min-height: 18px;
+  margin: 10px 0 0;
+  color: #b04444;
+  font-size: 13px;
+}
+
+.field.field-plain {
+  border: 0;
+  padding: 0;
+}

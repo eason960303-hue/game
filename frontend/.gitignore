@@ -8,3 +8,4 @@ build/
 .vscode/
 # Widget Preview related
 .widget_preview/
+.flutter-plugins-dependencies

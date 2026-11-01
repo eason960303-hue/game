@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent / "data" / "life_app.db"
+DB_PATH = Path(
+    os.getenv("LIFE_LOGGER_DB")
+    or Path(__file__).resolve().parent / "data" / "life_app.db"
+)
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 

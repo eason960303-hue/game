@@ -2,16 +2,18 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class EntryCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     title: str = Field(..., min_length=1, max_length=200)
-    content: str = Field(..., min_length=1)
-    mood: str = Field(default="happy")
-    location: Optional[str] = None
+    content: str = Field(..., min_length=1, max_length=12000)
+    mood: str = Field(default="happy", max_length=80)
+    location: Optional[str] = Field(default=None, max_length=200)
     privacy: Literal["private", "friends", "public"] = "private"
-    tags: Optional[str] = None
+    tags: Optional[str] = Field(default=None, max_length=1000)
 
 
 class EntryOut(BaseModel):
@@ -29,9 +31,9 @@ class EntryOut(BaseModel):
 
 class LocationLogCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    note: Optional[str] = None
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+    note: Optional[str] = Field(default=None, max_length=1000)
 
 
 class LocationLogOut(BaseModel):
@@ -44,8 +46,8 @@ class LocationLogOut(BaseModel):
 
 
 class SettingUpdate(BaseModel):
-    key: str
-    value: str
+    key: str = Field(..., min_length=1, max_length=80)
+    value: str = Field(..., max_length=2000)
 
 
 class SettingsOut(BaseModel):

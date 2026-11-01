@@ -1,0 +1,84 @@
+const localHosts = new Set(["localhost", "127.0.0.1"]);
+const isFilePreview = window.location.protocol === "file:";
+const isAlternateLocalServer =
+  localHosts.has(window.location.hostname) &&
+  window.location.port !== "8000";
+const apiBaseUrl =
+  isFilePreview || isAlternateLocalServer
+    ? "http://127.0.0.1:8000/api"
+    : "/api";
+
+function apiUrl(path) {
+  return `${apiBaseUrl}${path}`;
+}
+
+function getFormText(formData, name) {
+  const value = formData.get(name);
+  return typeof value === "string" ? value.trim() : "";
+}
+
+async function apiRequest(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+  if (options.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const response = await fetch(apiUrl(path), {
+    ...options,
+    headers,
+    credentials: "include",
+  });
+  if (response.status === 204) return null;
+  const contentType = response.headers.get("content-type") || "";
+  const result = contentType.includes("application/json")
+    ? await response.json()
+    : await response.text();
+  if (!response.ok) {
+    let message =
+      typeof result?.detail === "string"
+        ? result.detail
+        : `伺服器回應 HTTP ${response.status}`;
+    if (Array.isArray(result?.detail)) {
+      message = result.detail
+        .map((issue) => {
+          const field = Array.isArray(issue.loc)
+            ? issue.loc.slice(1).join(".")
+            : "";
+          return `${field ? `${field}：` : ""}${issue.msg}`;
+        })
+        .join("；");
+    }
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
+  }
+  return result;
+}
+
+function jsonOptions(method, payload) {
+  return { method, body: JSON.stringify(payload) };
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => {
+    const entities = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return entities[character];
+  });
+}
+
+function formatDate(value) {
+  if (!value) return "剛剛";
+  const date = new Date(`${value.replace(" ", "T")}Z`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("zh-TW", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(date);
+}

@@ -5,6 +5,7 @@ class LocationPoint {
   final double? longitude;
   final String? note;
   final String createdAt;
+  final bool isOwner;
 
   LocationPoint({
     required this.id,
@@ -13,6 +14,7 @@ class LocationPoint {
     this.longitude,
     this.note,
     required this.createdAt,
+    this.isOwner = true,
   });
 
   factory LocationPoint.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class LocationPoint {
       longitude: json['longitude'] != null ? (json['longitude'] as num).toDouble() : null,
       note: json['note'],
       createdAt: json['created_at'] ?? '',
+      isOwner: json['is_owner'] ?? true,
     );
   }
 }
