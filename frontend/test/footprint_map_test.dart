@@ -110,7 +110,7 @@ void main() {
       });
       expect(legacy.googleMapsUri!.queryParameters['query'], '22.6,120.2');
       expect(
-        LocationPoint(id: 2, name: '空', createdAt: '').googleMapsUri,
+        LocationPoint(id: 2, name: '空').googleMapsUri,
         isNull,
       );
     });

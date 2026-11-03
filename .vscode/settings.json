@@ -1,4 +1,12 @@
 {
     "liveServer.settings.port": 5501,
+    "liveServer.settings.ignoreFiles": [
+        ".vscode/**",
+        "**/*.scss",
+        "**/*.sass",
+        "**/*.ts",
+        "backend/data/**"
+    ],
+    "fiveServer.ignore": ["**/backend/data/**"],
     "java.configuration.updateBuildConfiguration": "interactive"
 }

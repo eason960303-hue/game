@@ -20,6 +20,7 @@
     <link rel="stylesheet" href="css/reset.css" />
     <link rel="stylesheet" href="css/apple-theme.css" />
     <link rel="stylesheet" href="css/map-tools.css" />
+    <script src="js/theme.js"></script>
   </head>
   <body>
     <main class="page app-shell">
@@ -43,7 +44,7 @@
             <button class="nav-link" type="button" data-view="ai-diary">AI 聊天日記</button>
             <button class="nav-link" type="button" data-view="map">地圖足跡</button>
             <button class="nav-link" type="button" data-view="trips">行程包</button>
-            <button class="nav-link" type="button" data-view="profile">個人檔案</button>
+            <button class="nav-link" type="button" data-view="profile">個人檔案<span class="nav-badge" id="nav-requests-badge" hidden></span></button>
           </nav>
           <details class="server-menu" id="server-menu">
             <summary aria-label="伺服器連線狀態與設定">
@@ -82,7 +83,23 @@
           <div class="hero-art" aria-hidden="true"><span class="sun"></span></div>
         </section>
 
-        <section class="entries-section" aria-labelledby="entries-title">
+        <section class="entries-section meetup-section" aria-labelledby="meetups-title">
+          <div class="meetup-launcher">
+            <div>
+              <p class="eyebrow">MAKE PLANS, GO TOGETHER</p>
+              <h2 id="meetups-title">現正揪團</h2>
+              <span class="entry-count" id="meetup-count">載入中…</span>
+            </div>
+            <button class="primary-button" id="meetup-open" type="button">發起邀請</button>
+          </div>
+          <div class="meetup-list" id="meetup-list" aria-live="polite"></div>
+          <div class="error-state" id="meetup-load-error" role="alert" hidden>
+            <p id="meetup-load-error-message">目前無法載入公開邀請。</p>
+            <button class="retry-button" id="meetup-retry" type="button">重新整理</button>
+          </div>
+        </section>
+
+        <section class="entries-section" id="recent-entries-section" aria-labelledby="entries-title" hidden>
           <div class="section-heading">
             <h2 id="entries-title">最近的日子</h2>
             <span class="entry-count" id="entry-count">載入中…</span>
@@ -113,14 +130,16 @@
       <section class="app-view module-view" id="profile-view" hidden aria-labelledby="profile-page-title">
         <div class="profile-shell">
           <div class="profile-header">
-            <div class="profile-avatar-wrap" id="profile-avatar-fallback" aria-label="個人檔案頭像">
+            <button class="profile-avatar-wrap profile-avatar-button" id="profile-avatar-open" type="button" aria-label="放大頭貼" disabled>
               <img id="profile-avatar" alt="個人頭像" hidden />
               <span id="profile-avatar-initial">✦</span>
-            </div>
+            </button>
             <div class="profile-identity">
               <div class="profile-username-row">
                 <h1 class="profile-username" id="profile-page-title">個人檔案</h1>
                 <button class="profile-edit-button" id="profile-edit-open" type="button">編輯個人檔案</button>
+                <button class="profile-edit-button" id="theme-toggle" type="button">深色模式</button>
+                <button class="profile-edit-button" id="profile-follow" type="button" hidden>追蹤</button>
               </div>
               <div class="profile-stats" aria-label="個人檔案統計">
                 <span class="profile-stat"><strong id="profile-posts-count">—</strong> 貼文</span>
@@ -130,6 +149,9 @@
                 <button class="profile-stat profile-stat-button" id="profile-following-open" type="button" data-profile-relations="following" aria-label="查看追蹤中">
                   <strong id="profile-following-count">—</strong> 追蹤中
                 </button>
+                <button class="profile-stat profile-stat-button profile-requests-button" id="profile-requests-open" type="button" data-profile-relations="requests" hidden>
+                  <strong id="profile-requests-count">0</strong> 追蹤請求
+                </button>
               </div>
               <div class="profile-bio-block">
                 <p class="profile-bio-name" id="profile-display-name"></p>
@@ -138,7 +160,7 @@
             </div>
           </div>
           <div class="profile-posts-heading">
-            <span aria-hidden="true">▦</span> 我的生活
+            <span aria-hidden="true">▦</span> <span id="profile-posts-title">我的生活</span>
           </div>
           <section class="profile-post-section" aria-labelledby="profile-diaries-title">
             <h2 class="profile-post-section-heading" id="profile-diaries-title">
@@ -193,10 +215,29 @@
               </div>
             </form>
           </section>
-          <aside class="module-card privacy-note-card">
-            <h2>日記隱私說明</h2>
-            <p>AI 會收到你提交的這段文字，用來整理標題、內容、心情與標籤。日記會依你選擇的隱私層級儲存；AI 服務尚未設定時，不會儲存未完成解析的訊息。</p>
-          </aside>
+          <div class="ai-diary-side">
+            <aside class="module-card privacy-note-card">
+              <h2>日記隱私說明</h2>
+              <p>AI 會收到你提交的這段文字，用來整理標題、內容、心情與標籤。日記會依你選擇的隱私層級儲存；AI 服務尚未設定時，不會儲存未完成解析的訊息。</p>
+            </aside>
+            <section class="module-card diary-month-card" aria-labelledby="diary-month-title">
+              <div class="diary-month-heading">
+                <h2 id="diary-month-title">每月日記</h2>
+                <span class="entry-count" id="diary-month-count"></span>
+              </div>
+              <div class="diary-month-controls">
+                <button class="small-action" id="diary-month-prev" type="button" aria-label="上個月">‹</button>
+                <label class="compact-field">年份
+                  <select id="diary-year"></select>
+                </label>
+                <label class="compact-field">月份
+                  <select id="diary-month"></select>
+                </label>
+                <button class="small-action" id="diary-month-next" type="button" aria-label="下個月">›</button>
+              </div>
+              <div class="diary-month-list" id="diary-month-list" aria-live="polite"></div>
+            </section>
+          </div>
         </div>
       </section>
 
@@ -208,7 +249,6 @@
         <div class="map-workspace">
           <div class="map-panel">
             <div id="map-canvas" aria-label="互動式足跡地圖"></div>
-            <p class="map-embed-note" id="map-embed-note" role="status" hidden></p>
             <div class="map-pick-banner" id="map-pick-banner" role="status" hidden>
               <span>請點選地圖，加入目前選擇的途經點</span>
               <button class="map-pick-cancel" id="cancel-map-pick" type="button">取消</button>
@@ -292,7 +332,6 @@
               <span id="map-measure-text">點選地圖開始測量</span>
               <button class="map-text-button" id="map-measure-close" type="button">結束</button>
             </div>
-            <button class="map-add-button" id="map-add-open" type="button" aria-label="新增足跡" title="新增足跡">＋</button>
           </div>
           <aside class="map-sidebar" aria-labelledby="map-points-title">
             <div class="map-sidebar-heading">
@@ -302,6 +341,7 @@
             <div class="map-points" id="map-points" aria-live="polite">
               <div class="module-empty">登入後載入你的足跡。</div>
             </div>
+            <button class="map-add-button" id="map-add-open" type="button" aria-label="新增足跡" title="新增足跡">＋</button>
           </aside>
         </div>
       </section>
@@ -313,7 +353,7 @@
         </div>
         <div class="trip-layout">
           <form class="module-card trip-form" id="trip-form">
-            <h2>建立行程包</h2>
+            <h2 id="trip-form-title">建立行程包</h2>
             <label class="compact-field">行程名稱
               <input name="title" maxlength="160" required placeholder="例如：2026 東京之旅" />
             </label>
@@ -322,6 +362,7 @@
             </label>
             <div>
               <span class="compact-field">選擇加入的足跡</span>
+              <button class="small-action" id="trip-add-footprint" type="button">＋ 新增足跡</button>
               <div class="trip-point-list" id="trip-point-options">
                 <span class="privacy-note">登入後載入足跡。</span>
               </div>
@@ -331,7 +372,10 @@
               建立公開分享清單
             </label>
             <p class="privacy-note">公開行程分享 API 只會列出公開足跡，請勿在公開清單加入敏感地點。</p>
-            <button class="primary-button" type="submit">建立行程包</button>
+            <div class="trip-form-actions">
+              <button class="primary-button" id="trip-submit" type="submit">建立行程包</button>
+              <button class="secondary-button" id="trip-cancel-edit" type="button" hidden>取消編輯</button>
+            </div>
             <p class="status-message" id="trip-form-status" role="status"></p>
           </form>
           <div>
@@ -384,30 +428,105 @@
       </dialog>
     </main>
 
+    <dialog id="meetup-dialog" aria-labelledby="meetup-form-title">
+      <form class="dialog-content meetup-form" id="meetup-form">
+        <div class="dialog-heading">
+          <div>
+            <h2 id="meetup-form-title">發起公開邀請</h2>
+            <p>公開邀請，最多 10 人（含揪團者）。</p>
+          </div>
+          <button class="icon-button" id="meetup-dismiss" type="button" aria-label="關閉視窗">×</button>
+        </div>
+        <div class="meetup-form-fields">
+          <label class="compact-field">揪團名稱
+            <input name="title" maxlength="160" required placeholder="例如：週末去九份走走" />
+          </label>
+          <div class="compact-field meetup-start-field">
+            <span>出發日期與時間</span>
+            <div class="meetup-time-modes" role="group" aria-label="選擇出發日期時間的方式">
+              <button class="meetup-time-mode" type="button" data-meetup-time-mode="picker" aria-pressed="true">選擇器</button>
+              <button class="meetup-time-mode" type="button" data-meetup-time-mode="manual" aria-pressed="false">手動輸入</button>
+            </div>
+            <div class="meetup-date-time-fields" id="meetup-picker-fields">
+              <label>日期
+                <input class="meetup-start-date" name="starts_date" type="date" required />
+              </label>
+              <label>時間
+                <input class="meetup-start-time" name="starts_time" type="time" required />
+              </label>
+            </div>
+            <div class="meetup-date-time-fields" id="meetup-manual-fields" hidden>
+              <label>日期（年-月-日）
+                <input class="meetup-start-date" name="starts_date" type="text" inputmode="text" placeholder="2026-12-31" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}" title="請依 YYYY-MM-DD 格式輸入" required disabled />
+              </label>
+              <label>時間（時:分）
+                <input class="meetup-start-time" name="starts_time" type="text" inputmode="text" placeholder="18:30" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" title="請依 24 小時制 HH:MM 格式輸入" required disabled />
+              </label>
+            </div>
+            <span class="privacy-note">可使用手機時間選擇器，或手動輸入日期（YYYY-MM-DD）與時間（24 小時制）。</span>
+          </div>
+          <label class="compact-field">出發縣市
+            <input name="departure_city" maxlength="40" required placeholder="例如：新北市" />
+          </label>
+          <label class="compact-field">出發區
+            <input name="departure_district" maxlength="50" required placeholder="例如：板橋區" />
+          </label>
+          <label class="compact-field meetup-destinations">目的地與途經點
+            <textarea name="destinations" rows="3" maxlength="2000" required placeholder="每行輸入一個地點，依序顯示路線，例如：&#10;板橋車站&#10;十分老街&#10;九份老街"></textarea>
+            <span class="privacy-note">每行一個地點，其他人可查看順序並開啟 Google 地圖預覽路線。</span>
+          </label>
+        </div>
+        <p class="status-message" id="meetup-form-status" role="status"></p>
+        <div class="meetup-form-actions">
+          <button class="secondary-button" id="meetup-cancel" type="button">取消</button>
+          <button class="primary-button" id="meetup-submit" type="submit">發起邀請</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="avatar-viewer" aria-label="放大的頭貼">
+      <img id="avatar-viewer-image" alt="" />
+      <button class="icon-button" id="avatar-viewer-close" type="button" aria-label="關閉放大的頭貼">×</button>
+    </dialog>
+
     <dialog id="profile-edit-dialog" aria-labelledby="profile-edit-title">
       <form class="dialog-content" id="profile-edit-form">
         <div class="dialog-heading">
           <div>
             <h2 id="profile-edit-title">編輯個人檔案</h2>
-            <p>更新你的顯示名稱、個人簡介與大頭貼。</p>
+            <p>更新你的頭貼、帳號 ID、顯示名稱與個人簡介。</p>
           </div>
           <button class="icon-button" id="profile-edit-dismiss" type="button" aria-label="關閉編輯個人檔案">×</button>
         </div>
+        <div class="profile-edit-avatar">
+          <div class="profile-avatar-wrap" aria-hidden="true">
+            <img id="profile-edit-avatar-preview" alt="" hidden />
+            <span id="profile-edit-avatar-initial">✦</span>
+          </div>
+          <div class="profile-edit-avatar-actions">
+            <label class="secondary-button" for="profile-edit-avatar-input">上傳頭貼</label>
+            <input class="visually-hidden" id="profile-edit-avatar-input" type="file" accept="image/jpeg,image/png,image/webp" />
+            <button class="route-point-remove" id="profile-edit-avatar-remove" type="button" hidden>移除頭貼</button>
+          </div>
+        </div>
+        <label class="field">帳號 ID
+          <span class="profile-edit-username">
+            <span aria-hidden="true">@</span>
+            <input name="username" maxlength="30" required autocomplete="off" autocapitalize="none" spellcheck="false" />
+          </span>
+        </label>
+        <p class="privacy-note">可使用英文字母、數字、底線和句點，最多 30 個字元，不可與別人重複。</p>
         <label class="field">顯示名稱
           <input name="display_name" maxlength="80" required />
         </label>
         <label class="field">個人簡介
           <textarea name="bio" maxlength="500" rows="4" placeholder="寫幾句話介紹自己…"></textarea>
         </label>
-        <label class="field">頭像圖片網址
-          <input name="avatar_url" type="url" maxlength="2048" placeholder="https://example.com/avatar.jpg" />
-        </label>
-        <p class="privacy-note">留空頭像網址即可使用預設頭像。請使用公開可存取的 HTTPS 圖片網址。</p>
         <label class="checkbox-field">
           <input name="is_private" type="checkbox" />
           私人帳號
         </label>
-        <p class="privacy-note">公開帳號的公開貼文所有人都能看見；私人帳號的公開貼文只有粉絲能看見。摯友與私密貼文的規則不變。</p>
+        <p class="privacy-note">公開帳號的公開貼文所有人都能看見；私人帳號的公開貼文只有粉絲能看見，新的追蹤者要經你同意；現有粉絲不受影響，改回公開帳號會自動通過等待中的請求。摯友與私密貼文的規則不變。</p>
         <p class="status-message" id="profile-edit-status" role="status"></p>
         <div class="modal-actions">
           <button class="secondary-button" id="profile-edit-cancel" type="button">取消</button>
@@ -420,7 +539,6 @@
       <section class="dialog-content profile-social-content">
         <div class="dialog-heading">
           <div>
-            <button class="profile-social-back" id="profile-social-back" type="button" hidden>‹ 返回名單</button>
             <h2 id="profile-social-title">社群名單</h2>
             <p id="profile-social-description">查看粉絲與追蹤中的帳號。</p>
           </div>
@@ -586,12 +704,15 @@
     <script src="js/map.js"></script>
     <script src="js/map-tools.js"></script>
     <script src="js/trips.js"></script>
+    <script src="js/meetups.js"></script>
+    <script src="js/diary-month.js"></script>
     <script src="js/session.js"></script>
     <script src="js/compose-events.js"></script>
     <script src="js/nav-events.js"></script>
     <script src="js/auth-events.js"></script>
     <script src="js/map-events.js"></script>
     <script src="js/social-events.js"></script>
+    <script src="js/meetup-events.js"></script>
     <script src="js/entry-events.js"></script>
     <script src="js/main.js"></script>
   </body>

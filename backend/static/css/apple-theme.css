@@ -167,13 +167,11 @@ h2 {
 }
 
 .page > #home-view > .hero,
-.feature-view,
 .module-card,
 .privacy-note-card,
 .entry-card,
 .map-point-card,
 .trip-card,
-.friend-card,
 .profile-post-tile,
 .map-panel,
 dialog {
@@ -205,7 +203,6 @@ dialog {
 .timeline-footprint-card,
 .map-point-card,
 .trip-card,
-.friend-card,
 .profile-post-tile {
   transition:
     transform 200ms cubic-bezier(0.2, 0.75, 0.25, 1),
@@ -217,7 +214,6 @@ dialog {
 .timeline-footprint-card:hover,
 .map-point-card:hover,
 .trip-card:hover,
-.friend-card:hover,
 .profile-post-tile:hover {
   transform: translateY(-3px);
   box-shadow: 0 16px 36px rgba(27, 38, 58, 0.11);
@@ -322,7 +318,6 @@ h2,
 
 .hero-description,
 .module-heading p,
-.map-help,
 .entry-card p,
 .profile-bio,
 .ai-chat-heading p,
@@ -330,13 +325,11 @@ h2,
   color: #686b75;
 }
 
-.feature-view,
 .module-card,
 .privacy-note-card,
 .entry-card,
 .map-point-card,
 .trip-card,
-.friend-card,
 .profile-post-tile {
   background: var(--surface-fill);
 }
@@ -390,8 +383,7 @@ button:not(:disabled):active {
 .account-logout,
 .profile-edit-button,
 .map-pick-cancel,
-.route-point-remove,
-.friend-remove {
+.route-point-remove {
   border: 1px solid rgba(118, 127, 145, 0.16);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.68);
@@ -406,8 +398,7 @@ button:not(:disabled):active {
 .retry-button:hover,
 .small-action:hover,
 .profile-edit-button:hover,
-.map-pick-cancel:hover,
-.friend-remove:hover {
+.map-pick-cancel:hover {
   transform: translateY(-1px);
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 6px 16px rgba(27, 38, 58, 0.08);
@@ -542,8 +533,7 @@ dialog::backdrop {
 .photo-picker,
 .photo-preview,
 .route-point-row,
-.map-point-photo-placeholder,
-.friend-card {
+.map-point-photo-placeholder {
   border-radius: 18px;
 }
 
@@ -591,38 +581,36 @@ dialog::backdrop {
   }
 
   .brand,
-  h1,
-  h2,
-  .entry-card h3,
-  .map-point-card h3,
-  .trip-card h3,
-  .profile-username,
-  .profile-stat strong,
-  .map-form h2,
-  .trip-form h2,
-  .points-heading,
-  .ai-chat-heading h2,
-  .privacy-note-card h2,
-  .friend-form h2,
-  .friend-list-heading,
-  .profile-post-tile-title {
+h1,
+h2,
+.entry-card h3,
+.map-point-card h3,
+.trip-card h3,
+.profile-username,
+.profile-stat strong,
+.map-form h2,
+.trip-form h2,
+.points-heading,
+.ai-chat-heading h2,
+.privacy-note-card h2,
+.diary-month-heading h2,
+.profile-post-tile-title {
     color: #f5f5f7;
   }
 
   .brand-mark,
-  .navigation,
-  .server-menu summary,
-  .account-button,
-  .account-logout,
-  .server-refresh,
-  .server-popover,
-  .icon-button,
-  .secondary-button,
-  .retry-button,
-  .small-action,
-  .profile-edit-button,
-  .map-pick-cancel,
-  .friend-remove {
+.navigation,
+.server-menu summary,
+.account-button,
+.account-logout,
+.server-refresh,
+.server-popover,
+.icon-button,
+.secondary-button,
+.retry-button,
+.small-action,
+.profile-edit-button,
+.map-pick-cancel {
     border-color: rgba(255, 255, 255, 0.12);
     background: rgba(55, 56, 62, 0.68);
     color: #d5e7ff;
@@ -634,6 +622,48 @@ dialog::backdrop {
 
   .navigation {
     background: rgba(28, 29, 33, 0.68);
+  }
+
+  .meetup-launcher,
+  .meetup-card {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: var(--surface-fill);
+  }
+
+  .meetup-time-modes {
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(20, 21, 25, 0.55);
+  }
+
+  .meetup-time-mode {
+    color: #c0c1c8;
+  }
+
+  .meetup-time-mode[aria-pressed="true"] {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+  }
+
+  .meetup-date-time-fields label {
+    color: #c0c1c8;
+  }
+
+  .meetup-card-heading h3 {
+    color: #f5f5f7;
+  }
+
+  .meetup-starts-at,
+  .meetup-inviter {
+    color: #b7c1ce;
+  }
+
+  .meetup-route {
+    background: rgba(20, 21, 25, 0.48);
+    color: #e4e9f1;
+  }
+
+  .meetup-route li {
+    color: #c0c1c8;
   }
 
   .nav-link {
@@ -667,19 +697,18 @@ dialog::backdrop {
   }
 
   .hero-description,
-  .module-heading p,
-  .map-help,
-  .entry-card p,
-  .profile-bio,
-  .ai-chat-heading p,
-  .ai-provider-status,
-  .profile-stats,
-  .profile-bio-name,
-  .profile-post-section-heading,
-  .profile-post-details-content,
-  .map-point-summary h3,
-  .map-point-details p,
-  .friend-card-info strong {
+.module-heading p,
+.entry-card p,
+.profile-bio,
+.ai-chat-heading p,
+.ai-provider-status,
+.profile-stats,
+.profile-bio-name,
+.profile-post-section-heading,
+.profile-post-details-content,
+.map-point-summary h3,
+.map-point-details p,
+.friend-card-info strong {
     color: #c0c1c8;
   }
 
@@ -689,6 +718,29 @@ dialog::backdrop {
       radial-gradient(circle at 68% 28%, rgba(255, 255, 255, 0.7) 0 5px, transparent 6px),
       radial-gradient(circle at 35% 64%, rgba(255, 255, 255, 0.68) 0 4px, transparent 5px),
       linear-gradient(145deg, #34465d, #27384e 66%, #212a39);
+    box-shadow:
+      0 0 0 22px rgba(141, 174, 218, 0.08),
+      0 22px 50px rgba(0, 0, 0, 0.28);
+  }
+
+  .page > #home-view > .hero,
+  .module-card,
+  .privacy-note-card,
+  .entry-card,
+  .map-point-card,
+  .trip-card,
+  .profile-post-tile,
+  .map-panel,
+  dialog {
+    border-color: var(--glass-border);
+  }
+
+  .profile-posts-heading {
+    border-top-color: var(--line);
+  }
+
+  .checkbox-field {
+    color: #d1d5db;
   }
 
   .sun {
@@ -696,22 +748,21 @@ dialog::backdrop {
   }
 
   .entry-count,
-  .login-status,
-  .account-name,
-  .profile-post-date,
-  .profile-post-section-count,
-  .server-menu summary,
-  .server-popover p,
-  .compact-field,
-  .field,
-  .route-point-heading,
-  .route-point-row-heading,
-  .map-point-summary p,
-  .map-point-summary time,
-  .map-point-details .map-point-coordinates,
-  .profile-route-coordinates,
-  .profile-stat,
-  .profile-post-date {
+.login-status,
+.account-name,
+.profile-post-date,
+.profile-post-section-count,
+.server-menu summary,
+.server-popover p,
+.compact-field,
+.field,
+.route-point-heading,
+.route-point-row-heading,
+.map-point-summary p,
+.map-point-summary time,
+.profile-route-coordinates,
+.profile-stat,
+.profile-post-date {
     color: #a7a8b1;
   }
 
@@ -744,8 +795,7 @@ dialog::backdrop {
     background: rgba(20, 21, 25, 0.42);
   }
 
-  .map-point-selected,
-  .map-point-card.is-selected {
+    .map-point-card.is-selected {
     border-color: rgba(75, 157, 255, 0.4);
   }
 
@@ -1042,46 +1092,6 @@ dialog::backdrop {
   background: rgba(0, 122, 255, 0.06);
 }
 
-.map-layer-tools {
-  width: 82px;
-  padding: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.74);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.68);
-  box-shadow: 0 10px 28px rgba(27, 38, 58, 0.14);
-  -webkit-backdrop-filter: blur(20px) saturate(170%);
-  backdrop-filter: blur(20px) saturate(170%);
-}
-
-.map-layer-tools button {
-  border: 1px solid transparent;
-  border-radius: 12px;
-  background: transparent;
-  box-shadow: none;
-  color: #50535c;
-  transition:
-    background-color 180ms ease,
-    border-color 180ms ease,
-    color 180ms ease,
-    transform 180ms ease;
-}
-
-.map-layer-tools button:hover {
-  transform: translateY(-1px);
-  background: rgba(0, 122, 255, 0.08);
-  color: #005fc5;
-}
-
-.map-layer-tools button[aria-pressed="true"] {
-  border-color: rgba(0, 122, 255, 0.18);
-  background: rgba(0, 122, 255, 0.14);
-  color: #005fc5;
-}
-
-.map-layer-tools button:disabled {
-  opacity: 0.52;
-}
-
 .map-add-button {
   right: 68px;
   bottom: 18px;
@@ -1231,22 +1241,6 @@ dialog::backdrop {
     background: rgba(0, 122, 255, 0.12);
   }
 
-  .map-layer-tools {
-    border-color: rgba(255, 255, 255, 0.14);
-    background: rgba(36, 37, 43, 0.82);
-  }
-
-  .map-layer-tools button {
-    color: #d5d6dc;
-  }
-
-  .map-layer-tools button:hover,
-  .map-layer-tools button[aria-pressed="true"] {
-    border-color: rgba(83, 164, 255, 0.3);
-    background: rgba(0, 122, 255, 0.22);
-    color: #9acaff;
-  }
-
   .map-point-details .map-point-directions {
     border-color: rgba(83, 164, 255, 0.26);
     background: rgba(0, 122, 255, 0.16);
@@ -1313,7 +1307,8 @@ dialog::backdrop {
   cursor: help;
 }
 
-.entry-actions .small-action.is-destructive {
+.entry-actions .small-action.is-destructive,
+.trip-actions .small-action.is-destructive {
   color: #c33b43;
 }
 
@@ -1360,13 +1355,6 @@ dialog::backdrop {
   object-fit: cover;
 }
 
-.friend-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
 .friend-close-toggle {
   display: inline-flex;
   align-items: center;
@@ -1392,17 +1380,6 @@ dialog::backdrop {
   min-height: 220px;
 }
 
-.profile-social-back {
-  margin: 0 0 8px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--blue);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-}
-
 .profile-social-list {
   display: grid;
   max-height: min(60vh, 520px);
@@ -1424,105 +1401,21 @@ dialog::backdrop {
   backdrop-filter: blur(20px);
 }
 
-.social-profile-summary {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px;
-  border: 1px solid var(--glass-border);
-  border-radius: 18px;
-  background: var(--glass-fill);
-}
-
-.social-avatar-large {
-  width: 64px;
-  height: 64px;
-  font-size: 24px;
-}
-
-.social-profile-summary > div {
-  display: grid;
-  min-width: 0;
-  gap: 5px;
-}
-
-.social-profile-summary strong {
-  color: var(--surface-text);
-  font-size: 17px;
-}
-
-.social-profile-summary span,
-.social-profile-summary small {
-  color: var(--muted);
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.public-profile-posts {
-  display: grid;
-  gap: 9px;
-  margin-top: 12px;
-}
-
-.public-profile-post {
-  padding: 13px 15px;
-  border: 1px solid rgba(127, 145, 169, 0.16);
-  border-radius: 16px;
-  background: var(--surface-fill);
-}
-
-.public-profile-post-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.public-profile-post h3 {
-  margin: 7px 0 4px;
-  color: var(--surface-text);
-  font-size: 15px;
-}
-
-.public-profile-post p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-.public-profile-post .public-profile-stops {
-  margin-top: 6px;
-  color: var(--blue-dark);
-}
-
 @media (prefers-color-scheme: dark) {
   .entry-actions .small-action,
-  .social-user-row,
-  .social-profile-summary,
-  .public-profile-post {
+.social-user-row {
     border-color: rgba(255, 255, 255, 0.12);
     background: rgba(36, 37, 43, 0.76);
   }
 
-  .entry-actions .small-action.is-destructive {
+  .entry-actions .small-action.is-destructive,
+  .trip-actions .small-action.is-destructive {
     color: #ff8b91;
   }
 
   .social-avatar {
     border-color: rgba(255, 255, 255, 0.14);
     background: linear-gradient(145deg, #26394f, #313043);
-    color: #91c5ff;
-  }
-
-  .public-profile-post h3,
-  .social-profile-summary strong {
-    color: #f5f5f7;
-  }
-
-  .public-profile-post .public-profile-stops {
     color: #91c5ff;
   }
 
@@ -1534,9 +1427,6 @@ dialog::backdrop {
 }
 
 @media (max-width: 560px) {
-  .friend-card {
-    align-items: flex-start;
-  }
 
   .profile-social-content {
     padding: 20px;
@@ -1548,10 +1438,6 @@ dialog::backdrop {
     width: 52px;
     height: 52px;
     border-radius: 18px;
-  }
-
-  .map-layer-tools {
-    width: 70px;
   }
 }
 

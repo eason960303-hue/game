@@ -10,11 +10,7 @@ function renderEntries(entries) {
             const privacyControl = entry.is_owner
               ? `
                 <label class="entry-privacy-field">日記隱私
-                  <select class="privacy-select" data-entry-privacy="${entry.id}" aria-label="設定「${escapeHtml(entry.title)}」的隱私層級">
-                    <option value="private" ${entry.privacy === "private" ? "selected" : ""}>私密</option>
-                    <option value="friends" ${entry.privacy === "friends" ? "selected" : ""}>摯友</option>
-                    <option value="public" ${entry.privacy === "public" ? "selected" : ""}>公開</option>
-                  </select>
+                  ${privacySelectHtml("data-entry-privacy", entry.id, entry.title, entry.privacy)}
                 </label>
               `
               : `<span class="mood">${privacyLabel(entry.privacy)}</span>`;
@@ -36,7 +32,7 @@ function renderEntries(entries) {
             <span class="entry-location">${escapeHtml(entry.location || "未記錄地點")}</span>
           </div>
           <div class="entry-card-footer">
-            <span class="entry-owner">${escapeHtml(entry.owner_name || "我的日記")}</span>
+            ${ownerLink(entry, "我的日記")}
             ${privacyControl}
             ${entryActions}
           </div>
@@ -81,10 +77,14 @@ function renderTimelineFootprints(points) {
           <div class="timeline-footprint-content">
             <div class="timeline-footprint-meta">
               <time datetime="${escapeHtml(point.created_at || "")}">${escapeHtml(formatDate(point.created_at))}</time>
-              <span class="mood">${privacyLabel(point.privacy)}</span>
+              ${
+                point.is_owner
+                  ? `<label class="entry-privacy-field">足跡隱私${privacySelectHtml("data-privacy-point", point.id, point.name, point.privacy)}</label>`
+                  : `<span class="mood">${privacyLabel(point.privacy)}</span>`
+              }
             </div>
             <h3>${escapeHtml(point.name)}</h3>
-            <p>${escapeHtml(point.owner_name || "我的足跡")} · ${stops.length} 個途經點</p>
+            <p>${ownerLink(point, "我的足跡")} · ${stops.length} 個途經點</p>
             <p class="timeline-footprint-stops">${stopSummary || "尚未新增途經點"}${remainingStops}</p>
             ${point.note ? `<p class="timeline-footprint-note">${escapeHtml(point.note)}</p>` : ""}
           </div>
@@ -95,8 +95,59 @@ function renderTimelineFootprints(points) {
     .join("");
 }
 
+function profileHref(username) {
+  return `#user/${encodeURIComponent(username)}`;
+}
+
+function avatarInitial(name) {
+  return Array.from(name || "")[0] || "✦";
+}
+
+function avatarHtml(url, name, extraClass = "") {
+  const classes = `social-avatar ${extraClass}`.trim();
+  return url
+    ? `<img class="${classes}" src="${escapeHtml(mediaUrl(url))}" alt="" loading="lazy" decoding="async" />`
+    : `<span class="${classes} social-avatar-fallback">${escapeHtml(avatarInitial(name))}</span>`;
+}
+
+function ownerLink(item, fallback) {
+  const name = item.owner_name || fallback;
+  if (!item.owner_username) {
+    return `<span class="entry-owner">${escapeHtml(name)}</span>`;
+  }
+  return `<a class="entry-owner owner-link" href="${escapeHtml(profileHref(item.owner_username))}">${avatarHtml(item.owner_avatar_url, name, "social-avatar-small")}<span>${escapeHtml(name)}</span></a>`;
+}
+
+function privacySelectHtml(attribute, id, title, privacy) {
+  return `
+    <select class="privacy-select" ${attribute}="${Number(id)}" data-saved="${escapeHtml(privacy)}" aria-label="設定「${escapeHtml(title)}」的隱私層級">
+      ${Object.entries(PRIVACY_LABELS)
+        .map(
+          ([value, label]) =>
+            `<option value="${value}" ${privacy === value ? "selected" : ""}>${label}</option>`,
+        )
+        .join("")}
+    </select>
+  `;
+}
+
+function setFollowRequestCount(count) {
+  navRequestsBadge.textContent = String(count);
+  navRequestsBadge.hidden = !count;
+  profileRequestsCount.textContent = String(count);
+  profileRequestsOpen.hidden = !count || Boolean(viewedProfile);
+}
+
+async function refreshFollowRequestCount() {
+  try {
+    const requests = await apiRequest("/user/follow-requests");
+    setFollowRequestCount(requests.length);
+  } catch (error) {
+    console.warn("Follow request count failed", error);
+  }
+}
+
 function renderProfile(profile) {
-  currentProfile = profile;
   profilePageTitle.textContent = `@${profile.username}`;
   profileDisplayName.textContent = profile.display_name;
   profileBio.textContent = profile.bio || "分享一段關於自己的小故事。";
@@ -107,26 +158,34 @@ function renderProfile(profile) {
   profileFollowingCount.textContent = Number(
     profile.following_count,
   ).toLocaleString("zh-TW");
-  profileAvatarInitial.textContent =
-    Array.from(profile.display_name || profile.username || "✦")[0] || "✦";
+  profileAvatarInitial.textContent = avatarInitial(
+    profile.display_name || profile.username,
+  );
+  profileAvatar.alt = `${profile.display_name} 的頭貼`;
+  const avatarUrl = profile.avatar_url ? mediaUrl(profile.avatar_url) : null;
+  // A refresh of the same photo must not flicker back to the initial.
+  if (avatarUrl && !profileAvatar.hidden && profileAvatar.getAttribute("src") === avatarUrl) {
+    return;
+  }
   profileAvatar.hidden = true;
   profileAvatar.removeAttribute("src");
-  if (profile.avatar_url) {
+  profileAvatarOpen.disabled = true;
+  if (avatarUrl) {
     profileAvatar.onload = () => {
       profileAvatar.hidden = false;
       profileAvatarInitial.hidden = true;
+      profileAvatarOpen.disabled = false;
     };
     profileAvatar.onerror = () => {
       profileAvatar.hidden = true;
       profileAvatarInitial.hidden = false;
       profileAvatar.removeAttribute("src");
     };
-    profileAvatar.src = profile.avatar_url;
+    profileAvatar.src = avatarUrl;
   } else {
     profileAvatarInitial.hidden = false;
   }
 }
-
 function renderProfilePostCard(post, type, expandedId) {
   const isFootprint = type === "footprint";
   const icon = isFootprint ? "⌖" : "✦";
@@ -160,6 +219,9 @@ function renderProfilePostCard(post, type, expandedId) {
         ${post.location ? `<p>地點：${escapeHtml(post.location)}</p>` : ""}
         ${post.tags ? `<p>標籤：${escapeHtml(post.tags)}</p>` : ""}
       `;
+  const privacyControl = post.is_owner
+    ? `<label class="entry-privacy-field">${isFootprint ? "足跡" : "日記"}隱私${privacySelectHtml(isFootprint ? "data-privacy-point" : "data-entry-privacy", post.id, post.title, post.privacy)}</label>`
+    : "";
   const entryActions =
     !isFootprint && post.is_owner
       ? `
@@ -169,10 +231,28 @@ function renderProfilePostCard(post, type, expandedId) {
         </div>
       `
       : "";
+  const coverUrl = isFootprint ? mediaUrl(post.cover_url) : null;
+  const coverActions =
+    isFootprint && post.is_owner
+      ? `
+        <div class="profile-footprint-cover-actions">
+          <label class="small-action profile-cover-upload">
+            ${post.cover_url ? "更換背景照片" : "新增背景照片"}
+            <input class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" data-footprint-cover-upload="${Number(post.id)}" />
+          </label>
+          ${
+            post.cover_url
+              ? `<button class="small-action is-destructive" type="button" data-remove-footprint-cover="${Number(post.id)}">移除照片</button>`
+              : ""
+          }
+          <span class="privacy-note" data-footprint-cover-status="${Number(post.id)}" role="status">照片會顯示在足跡卡片背景，最大 25 MB。</span>
+        </div>
+      `
+      : "";
   return `
     <article class="profile-post-tile${isExpanded ? " is-expanded" : ""}">
       <button
-        class="profile-post-toggle"
+        class="profile-post-toggle${coverUrl ? " has-cover" : ""}"
         type="button"
         data-profile-post-type="${type}"
         data-profile-post-id="${post.id}"
@@ -181,9 +261,14 @@ function renderProfilePostCard(post, type, expandedId) {
         aria-controls="profile-post-details-${type}-${post.id}"
         aria-label="${isExpanded ? "收合" : "展開"}${isFootprint ? "足跡" : "日記"}：${escapeHtml(post.title)}"
       >
+        ${
+          coverUrl
+            ? `<span class="profile-post-cover" aria-hidden="true"><img src="${escapeHtml(coverUrl)}" alt="" loading="lazy" decoding="async" /></span>`
+            : ""
+        }
         <span class="profile-post-tile-top">
           <span class="profile-post-type">${icon} ${isFootprint ? "足跡" : "日記"}</span>
-          <span class="profile-post-privacy">${privacyLabel(post.privacy)}</span>
+          <span class="profile-post-privacy" data-privacy-badge="${isFootprint ? "point" : "entry"}:${Number(post.id)}">${privacyLabel(post.privacy)}</span>
         </span>
         <span class="profile-post-art" aria-hidden="true">${icon}</span>
         <span class="profile-post-tile-bottom">
@@ -200,14 +285,18 @@ function renderProfilePostCard(post, type, expandedId) {
         aria-hidden="${!isExpanded}"${isExpanded ? "" : " inert"}
       >
         <div class="profile-post-details-inner">
-          <div class="profile-post-details-content">${details}${entryActions}</div>
+          <div class="profile-post-details-content">${details}${coverActions}${privacyControl}${entryActions}</div>
         </div>
       </div>
     </article>
   `;
 }
 
-function renderProfilePosts(posts) {
+function renderProfilePosts(
+  posts,
+  emptyDiaries = "還沒有日記，前往「AI 聊天日記」記下生活片段吧。",
+  emptyFootprints = "還沒有足跡，前往「地圖足跡」新增一趟旅程吧。",
+) {
   const diaries = posts.filter((post) => post.type === "entry");
   const footprints = posts.filter((post) => post.type === "footprint");
   profileDiariesCount.textContent = `${diaries.length} 篇`;
@@ -219,7 +308,7 @@ function renderProfilePosts(posts) {
           renderProfilePostCard(post, "diary", expandedProfileDiaryId),
         )
         .join("")
-    : '<div class="profile-empty">還沒有日記，前往「AI 聊天日記」記下生活片段吧。</div>';
+    : `<div class="profile-empty">${escapeHtml(emptyDiaries)}</div>`;
   profileFootprintsGrid.innerHTML = footprints.length
     ? footprints
         .map((post) =>
@@ -230,44 +319,149 @@ function renderProfilePosts(posts) {
           ),
         )
         .join("")
-    : '<div class="profile-empty">還沒有足跡，前往「地圖足跡」新增一趟旅程吧。</div>';
+    : `<div class="profile-empty">${escapeHtml(emptyFootprints)}</div>`;
+}
+
+function setProfileOwner(person) {
+  const isOwnProfile = person === null;
+  viewedProfile = person;
+  profileEditOpen.hidden = !isOwnProfile;
+  themeToggle.hidden = !isOwnProfile;
+  profilePostsTitle.textContent = isOwnProfile ? "我的生活" : "貼文";
+  document.querySelectorAll("[data-profile-relations]").forEach((button) => {
+    button.disabled = !isOwnProfile;
+  });
+  if (!isOwnProfile) profileRequestsOpen.hidden = true;
+  profileFollowButton.hidden = isOwnProfile;
+  if (person) {
+    profileFollowButton.textContent = followLabel(person);
+    profileFollowButton.classList.toggle(
+      "is-following",
+      person.is_following || person.is_requested,
+    );
+    profileFollowButton.disabled = false;
+  }
+}
+
+function clearProfileHeader() {
+  profilePageTitle.textContent = "個人檔案";
+  profileDisplayName.textContent = "";
+  profileBio.textContent = "";
+  profileAvatar.hidden = true;
+  profileAvatar.removeAttribute("src");
+  profileAvatarInitial.textContent = "✦";
+  profileAvatarInitial.hidden = false;
+  profileAvatarOpen.disabled = true;
+  profilePostsCount.textContent = "—";
+  profileFollowersCount.textContent = "—";
+  profileFollowingCount.textContent = "—";
+  profileEditOpen.hidden = true;
+  themeToggle.hidden = true;
+  profileFollowButton.hidden = true;
+}
+
+function beginProfileLoad(owner) {
+  const load = beginListLoad(
+    profileDiariesGrid,
+    owner,
+    '<div class="profile-empty">正在載入日記…</div>',
+  );
+  beginListLoad(
+    profileFootprintsGrid,
+    owner,
+    '<div class="profile-empty">正在載入足跡…</div>',
+  );
+  profileLoadError.hidden = true;
+  if (load.isNewOwner) {
+    clearProfileHeader();
+    expandedProfileDiaryId = null;
+    expandedProfileFootprintId = null;
+  }
+  return load;
+}
+
+function showProfileError(message) {
+  forgetListLoad(profileDiariesGrid, profileFootprintsGrid);
+  profileDiariesGrid.innerHTML = "";
+  profileFootprintsGrid.innerHTML = "";
+  profileLoadErrorMessage.textContent = message;
+  profileLoadError.hidden = false;
+}
+
+async function loadMemberProfile(username) {
+  if (username === currentProfile?.username) {
+    showOwnProfile();
+    return;
+  }
+  const load = beginProfileLoad(`member:${username}`);
+  try {
+    const { profile, posts } = await apiRequest(
+      `/profiles/${encodeURIComponent(username)}`,
+    );
+    if (!load.isCurrent()) return;
+    if (profile.is_self) {
+      showOwnProfile();
+      return;
+    }
+    setProfileOwner(profile);
+    profilePosts = posts;
+    renderProfile(profile);
+    const locked = profile.is_private && !profile.is_following;
+    const lockedMessage = profile.is_requested
+      ? "已送出追蹤請求，對方同意後就能看見公開貼文。"
+      : "這是私人帳號，對方同意你的追蹤請求後才能看見公開貼文。";
+    renderProfilePosts(
+      posts,
+      locked ? lockedMessage : "沒有你可以查看的日記。",
+      locked ? lockedMessage : "沒有你可以查看的足跡。",
+    );
+  } catch (error) {
+    if (!load.isCurrent()) return;
+    profilePageTitle.textContent = `@${username}`;
+    showProfileError(error.message);
+  }
+}
+
+function showOwnProfile() {
+  window.history.replaceState(null, "", "#profile");
+  applyView("profile");
+  loadProfile();
 }
 
 async function loadProfile() {
   if (!currentUser) {
+    setProfileOwner(null);
     profileDiariesGrid.innerHTML =
       '<div class="profile-empty">請先登入以查看個人日記。</div>';
     profileFootprintsGrid.innerHTML =
       '<div class="profile-empty">請先登入以查看個人足跡。</div>';
     return;
   }
-  profileLoadError.hidden = true;
-  profileDiariesGrid.innerHTML =
-    '<div class="profile-empty">正在載入日記…</div>';
-  profileFootprintsGrid.innerHTML =
-    '<div class="profile-empty">正在載入足跡…</div>';
+  const load = beginProfileLoad(`self:${currentUser.id}`);
   try {
+    await privacySavesFinished();
     const [profile, posts] = await Promise.all([
       apiRequest("/user/profile"),
       apiRequest("/user/posts"),
     ]);
+    if (!load.isCurrent()) return;
     if (!Array.isArray(posts)) {
       throw new Error("伺服器回傳的貼文資料格式不正確。");
     }
-    profilePosts = posts;
-    expandedProfileDiaryId = null;
-    expandedProfileFootprintId = null;
+    setProfileOwner(null);
+    currentProfile = profile;
+    setFollowRequestCount(profile.follow_requests_count);
+    profilePosts = withPrivacyDrafts(posts);
     renderProfile(profile);
-    renderProfilePosts(posts);
+    renderProfilePosts(profilePosts);
   } catch (error) {
+    if (!load.isCurrent()) return;
     currentProfile = null;
-    profileDiariesGrid.innerHTML = "";
-    profileFootprintsGrid.innerHTML = "";
-    profileLoadErrorMessage.textContent =
+    showProfileError(
       error.status === 401
         ? "登入已失效，請重新登入後查看個人檔案。"
-        : error.message || "目前無法載入個人檔案。";
-    profileLoadError.hidden = false;
+        : error.message || "目前無法載入個人檔案。",
+    );
   }
 }
 
@@ -284,6 +478,7 @@ function toggleProfilePost(event, type) {
   } else {
     expandedProfileFootprintId = expandedId === postId ? null : postId;
   }
+  if (type === "footprint") flushPrivacyDrafts();
   const nextExpandedId =
     type === "diary"
       ? expandedProfileDiaryId
@@ -314,20 +509,146 @@ profileFootprintsGrid.addEventListener("click", (event) =>
   toggleProfilePost(event, "footprint"),
 );
 
+const MAX_IMAGE_SOURCE_BYTES = 25 * 1024 * 1024;
+const FOOTPRINT_COVER_WIDTH = 1600;
+const FOOTPRINT_COVER_HEIGHT = 900;
+
+// Redrawing crops to the target shape, shrinks the upload, and drops metadata such as GPS.
+async function cropImageToJpeg(file, width, height, quality) {
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const scale = Math.min(
+      image.naturalWidth / width,
+      image.naturalHeight / height,
+    );
+    const sourceWidth = width * scale;
+    const sourceHeight = height * scale;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, width, height);
+    context.drawImage(
+      image,
+      (image.naturalWidth - sourceWidth) / 2,
+      (image.naturalHeight - sourceHeight) / 2,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      width,
+      height,
+    );
+    return await new Promise((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", quality);
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function landscapeFootprintCoverBlob(file) {
+  if (file.size > MAX_IMAGE_SOURCE_BYTES) {
+    throw new Error("圖片太大，請選擇 25 MB 以下的檔案。");
+  }
+  const blob = await cropImageToJpeg(
+    file,
+    FOOTPRINT_COVER_WIDTH,
+    FOOTPRINT_COVER_HEIGHT,
+    0.88,
+  );
+  if (!blob) throw new Error("無法處理這張圖片，請換一張再試。");
+  return blob;
+}
+
+// Redraws only this card, so the other cards and their photos stay as they are.
+function applyFootprintCover(pointId, coverUrl, message) {
+  const post = profilePosts.find(
+    (item) => item.type === "footprint" && item.id === pointId,
+  );
+  const tile = profileFootprintsGrid
+    .querySelector(`[data-profile-post-id="${pointId}"]`)
+    ?.closest(".profile-post-tile");
+  if (!post || !tile) return;
+  post.cover_url = coverUrl;
+  tile.outerHTML = renderProfilePostCard(
+    post,
+    "footprint",
+    expandedProfileFootprintId,
+  );
+  profileFootprintsGrid.querySelector(
+    `[data-footprint-cover-status="${pointId}"]`,
+  ).textContent = message;
+}
+
+profileFootprintsGrid.addEventListener("change", async (event) => {
+  const input = event.target.closest("[data-footprint-cover-upload]");
+  const [file] = input?.files || [];
+  if (!input || !file) return;
+  const pointId = Number(input.dataset.footprintCoverUpload);
+  const status = profileFootprintsGrid.querySelector(
+    `[data-footprint-cover-status="${pointId}"]`,
+  );
+  input.disabled = true;
+  status.textContent = "正在處理照片…";
+  try {
+    const blob = await landscapeFootprintCoverBlob(file);
+    const updatedPoint = await apiRequest(`/map-points/${pointId}/cover`, {
+      method: "POST",
+      headers: { "Content-Type": blob.type },
+      body: blob,
+    });
+    applyFootprintCover(pointId, updatedPoint.cover_url, "背景照片已更新。");
+  } catch (error) {
+    status.textContent = error.message || "照片上傳失敗，請稍後再試。";
+    input.disabled = false;
+  }
+});
+
+profileFootprintsGrid.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-remove-footprint-cover]");
+  if (!button) return;
+  const pointId = Number(button.dataset.removeFootprintCover);
+  const status = profileFootprintsGrid.querySelector(
+    `[data-footprint-cover-status="${pointId}"]`,
+  );
+  button.disabled = true;
+  status.textContent = "正在移除照片…";
+  try {
+    await apiRequest(`/map-points/${pointId}/cover`, { method: "DELETE" });
+    applyFootprintCover(pointId, null, "背景照片已移除。");
+  } catch (error) {
+    status.textContent = error.message || "移除照片失敗，請稍後再試。";
+    button.disabled = false;
+  }
+});
+
 async function loadEntries() {
   entriesContainer.hidden = false;
   loadError.hidden = true;
-  entryCount.textContent = "載入中…";
-  entriesContainer.innerHTML =
-    '<div class="empty-state">正在整理你的生活片段…</div>';
+  const load = beginListLoad(
+    entriesContainer,
+    sessionOwner(),
+    '<div class="empty-state">正在整理你的生活片段…</div>',
+  );
+  if (load.isNewOwner) entryCount.textContent = "載入中…";
 
   try {
     const entries = await apiRequest("/entries");
+    if (!load.isCurrent()) return;
     if (!Array.isArray(entries)) {
       throw new Error("伺服器回傳的資料格式不正確，請稍後重試。");
     }
     renderEntries(entries);
+    setDiaryEntries(entries);
   } catch (error) {
+    if (!load.isCurrent()) return;
+    forgetListLoad(entriesContainer);
     entriesContainer.hidden = true;
     entryCount.textContent = "載入失敗";
     const errorMessage =

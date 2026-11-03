@@ -144,7 +144,7 @@ class _CreateEntryScreenState extends State<CreateEntryScreen> {
             textInputAction: TextInputAction.next,
             style: const TextStyle(fontSize: 18),
             decoration: const InputDecoration(hintText: '為今天留下一個名字'),
-            validator: (value) => _requireText(value, '請輸入日記標題'),
+            validator: (value) => requireText(value, '請輸入日記標題'),
           ),
         ),
         const SizedBox(height: 8),
@@ -159,7 +159,7 @@ class _CreateEntryScreenState extends State<CreateEntryScreen> {
             decoration: const InputDecoration(
               hintText: '今天發生了什麼？寫下你的心情與故事…',
             ),
-            validator: (value) => _requireText(value, '寫幾句今天的故事吧'),
+            validator: (value) => requireText(value, '寫幾句今天的故事吧'),
           ),
         ),
       ],
@@ -228,10 +228,5 @@ class _CreateEntryScreenState extends State<CreateEntryScreen> {
         ),
       ],
     );
-  }
-
-  String? _requireText(String? value, String message) {
-    if (value == null || value.trim().isEmpty) return message;
-    return null;
   }
 }

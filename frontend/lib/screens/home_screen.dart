@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:life_logger/models/entry.dart';
@@ -618,10 +620,10 @@ class _FootprintMap extends StatelessWidget {
 
     final latitudes = located.map((point) => point.latitude!);
     final longitudes = located.map((point) => point.longitude!);
-    final minLatitude = latitudes.reduce((a, b) => a < b ? a : b);
-    final maxLatitude = latitudes.reduce((a, b) => a > b ? a : b);
-    final minLongitude = longitudes.reduce((a, b) => a < b ? a : b);
-    final maxLongitude = longitudes.reduce((a, b) => a > b ? a : b);
+    final minLatitude = latitudes.reduce(math.min);
+    final maxLatitude = latitudes.reduce(math.max);
+    final minLongitude = longitudes.reduce(math.min);
+    final maxLongitude = longitudes.reduce(math.max);
 
     double project(double value, double min, double max, double extent) {
       final range = max - min;

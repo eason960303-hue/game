@@ -159,12 +159,7 @@ loginForm.addEventListener("submit", async (event) => {
     updateAccountUi();
     loginDialog.close();
     loginForm.reset();
-    await Promise.all([loadEntries(), loadTravelData()]);
-    const activeView = document.querySelector(
-      '[data-view][aria-current="page"]',
-    )?.dataset.view;
-    if (activeView === "profile") await loadProfile();
-    if (activeView === "ai-diary") await loadAiDiaryStatus();
+    await loadSessionData();
   } catch (error) {
     loginStatus.textContent = error.message;
     if (error.status === 403) showVerificationPrompt(payload.email);
@@ -175,6 +170,7 @@ loginForm.addEventListener("submit", async (event) => {
 });
 
 logoutButton.addEventListener("click", async () => {
+  await flushPrivacyDrafts();
   try {
     await apiRequest("/auth/logout", { method: "POST" });
   } catch (error) {
@@ -183,34 +179,31 @@ logoutButton.addEventListener("click", async () => {
   }
   currentUser = null;
   currentProfile = null;
+  resetListLoads();
+  mapPoints = [];
+  trips = [];
+  profilePosts = [];
+  renderMeetups();
+  setDiaryEntries([]);
+  expandedProfileDiaryId = null;
+  expandedProfileFootprintId = null;
+  renderTimelineFootprints(mapPoints);
+  setProfileOwner(null);
+  clearProfileHeader();
+  setFollowRequestCount(0);
   updateAccountUi();
   form.reset();
   mapPointForm.reset();
   aiChatForm.reset();
   if (dialog.open) dialog.close();
   if (mapPointDialog.open) mapPointDialog.close();
-  pickingMapPoint = false;
-  mapPickBanner.hidden = true;
-  await loadEntries();
-  mapPoints = [];
-  trips = [];
+  if (meetupDialog.open) meetupDialog.close();
+  resetMeetupForm();
+  stopMapPick();
   aiChatMessages.innerHTML =
     '<div class="ai-chat-message is-assistant">嗨！告訴我今天發生了什麼，我會幫你整理成一篇日記。</div>';
   aiProviderStatus.textContent = "登入後檢查 AI 服務設定。";
-  profilePageTitle.textContent = "個人檔案";
-  profileDisplayName.textContent = "";
   profileBio.textContent = "請登入以查看個人簡介。";
-  profileAvatar.hidden = true;
-  profileAvatar.removeAttribute("src");
-  profileAvatarInitial.textContent = "✦";
-  profileAvatarInitial.hidden = false;
-  profilePostsCount.textContent = "—";
-  profileFollowersCount.textContent = "—";
-  profileFollowingCount.textContent = "—";
-  profilePosts = [];
-  currentProfile = null;
-  expandedProfileDiaryId = null;
-  expandedProfileFootprintId = null;
   profileDiariesCount.textContent = "0 篇";
   profileFootprintsCount.textContent = "0 趟";
   profileDiariesGrid.innerHTML =
@@ -219,4 +212,5 @@ logoutButton.addEventListener("click", async () => {
     '<div class="profile-empty">請先登入以查看個人足跡。</div>';
   renderMapPoints();
   renderTrips();
+  await loadEntries();
 });

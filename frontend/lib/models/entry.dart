@@ -4,7 +4,6 @@ class Entry {
   final String content;
   final String mood;
   final String? location;
-  final String privacy;
   final String? tags;
   final String createdAt;
   final String? ownerName;
@@ -16,7 +15,6 @@ class Entry {
     required this.content,
     required this.mood,
     this.location,
-    required this.privacy,
     this.tags,
     required this.createdAt,
     this.ownerName,
@@ -38,7 +36,6 @@ class Entry {
       content: json['content'] ?? '',
       mood: json['mood'] ?? 'happy',
       location: json['location'],
-      privacy: json['privacy'] ?? 'private',
       tags: json['tags'],
       createdAt: json['created_at'] ?? '',
       ownerName: json['owner_name'],

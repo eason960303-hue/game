@@ -1,3 +1,4 @@
+applyViewFromUrl();
 handleEmailVerificationLink();
 initializeSession();
 refreshServerStatus();

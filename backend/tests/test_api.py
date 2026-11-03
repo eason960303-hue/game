@@ -9,6 +9,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest import mock
 from urllib.parse import parse_qs, urlsplit
@@ -286,7 +287,7 @@ class SocialProfileTests(ApiTestCase):
         results = response.json()
         self.assertEqual(
             {person["username"] for person in results},
-            {"zzlife-friend", "zzlife-private"},
+            {"zzlife_friend", "zzlife_private"},
         )
         self.assertTrue(results[0]["username"].startswith("zzlife"))
         self.assertTrue(any(person["is_private"] for person in results))
@@ -295,6 +296,195 @@ class SocialProfileTests(ApiTestCase):
             viewer.get("/api/auth/me").json()["user"]["id"],
             {person["id"] for person in results},
         )
+
+    def private_account(self, email: str) -> tuple[TestClient, int]:
+        client = new_user(email, "私人作者")
+        client.patch("/api/user/profile", json={"is_private": True})
+        client.post(
+            "/api/entries",
+            json={"title": f"私帳貼文 {email}", "content": "內容", "privacy": "public"},
+        )
+        return client, client.get("/api/auth/me").json()["user"]["id"]
+
+    def test_following_a_private_account_waits_for_approval(self) -> None:
+        author, author_id = self.private_account("request-author@example.com")
+        fan = new_user("request-fan@example.com", "想追蹤的人")
+        fan_id = fan.get("/api/auth/me").json()["user"]["id"]
+
+        def sees() -> bool:
+            title = "私帳貼文 request-author@example.com"
+            return title in {e["title"] for e in fan.get("/api/entries").json()}
+
+        requested = fan.post(f"/api/users/{author_id}/follow").json()
+        self.assertFalse(requested["is_following"])
+        self.assertTrue(requested["is_requested"])
+        self.assertFalse(sees())
+        self.assertEqual(author.get("/api/user/relations/followers").json(), [])
+        profile = fan.get(f"/api/users/{author_id}/profile").json()
+        self.assertTrue(profile["profile"]["is_requested"])
+        self.assertEqual(profile["posts"], [])
+        self.assertEqual(author.get("/api/user/profile").json()["follow_requests_count"], 1)
+        pending = author.get("/api/user/follow-requests").json()
+        self.assertEqual([person["id"] for person in pending], [fan_id])
+        self.assertNotIn("email", pending[0])
+
+        # Asking again changes nothing, and neither does the follow-by-email route.
+        fan.post(f"/api/users/{author_id}/follow")
+        by_email = fan.post("/api/friends", json={"email": "request-author@example.com"})
+        self.assertTrue(by_email.json()["is_requested"])
+        self.assertEqual(len(author.get("/api/user/follow-requests").json()), 1)
+        self.assertFalse(sees())
+
+        self.assertEqual(
+            author.post(f"/api/user/follow-requests/{fan_id}/accept").status_code, 204
+        )
+        self.assertTrue(sees())
+        self.assertEqual(author.get("/api/user/follow-requests").json(), [])
+        self.assertEqual(author.get("/api/user/profile").json()["followers_count"], 1)
+        self.assertTrue(fan.post(f"/api/users/{author_id}/follow").json()["is_following"])
+
+    def test_only_the_target_can_answer_a_request_and_requests_can_be_withdrawn(self) -> None:
+        author, author_id = self.private_account("answer-author@example.com")
+        fan = new_user("answer-fan@example.com")
+        other = new_user("answer-other@example.com")
+        fan_id = fan.get("/api/auth/me").json()["user"]["id"]
+        fan.post(f"/api/users/{author_id}/follow")
+
+        # A requester cannot approve themselves, and a stranger has nothing to answer.
+        self.assertEqual(fan.post(f"/api/user/follow-requests/{fan_id}/accept").status_code, 404)
+        self.assertEqual(other.post(f"/api/user/follow-requests/{fan_id}/accept").status_code, 404)
+        self.assertEqual(fan.delete(f"/api/user/follow-requests/{fan_id}").status_code, 404)
+
+        self.assertEqual(author.delete(f"/api/user/follow-requests/{fan_id}").status_code, 204)
+        self.assertEqual(author.get("/api/user/follow-requests").json(), [])
+        self.assertEqual(author.get("/api/user/relations/followers").json(), [])
+
+        fan.post(f"/api/users/{author_id}/follow")
+        self.assertEqual(fan.delete(f"/api/users/{author_id}/follow-request").status_code, 204)
+        self.assertEqual(fan.delete(f"/api/users/{author_id}/follow-request").status_code, 404)
+        self.assertEqual(author.get("/api/user/follow-requests").json(), [])
+
+    def test_going_public_approves_waiting_requests(self) -> None:
+        author, author_id = self.private_account("open-author@example.com")
+        fan = new_user("open-fan@example.com")
+        fan.post(f"/api/users/{author_id}/follow")
+
+        author.patch("/api/user/profile", json={"bio": "仍是私人"})
+        self.assertEqual(len(author.get("/api/user/follow-requests").json()), 1)
+
+        author.patch("/api/user/profile", json={"is_private": False})
+
+        self.assertEqual(author.get("/api/user/follow-requests").json(), [])
+        self.assertEqual(author.get("/api/user/profile").json()["followers_count"], 1)
+
+    def test_going_private_keeps_followers_and_public_accounts_follow_at_once(self) -> None:
+        author = new_user("keep-author@example.com")
+        author_id = author.get("/api/auth/me").json()["user"]["id"]
+        fan = new_user("keep-fan@example.com")
+        later = new_user("keep-later@example.com")
+        self.assertTrue(fan.post(f"/api/users/{author_id}/follow").json()["is_following"])
+
+        author.patch("/api/user/profile", json={"is_private": True})
+
+        self.assertEqual(author.get("/api/user/profile").json()["followers_count"], 1)
+        self.assertTrue(later.post(f"/api/users/{author_id}/follow").json()["is_requested"])
+
+    def test_removing_a_follower_takes_their_access_away(self) -> None:
+        author, author_id = self.private_account("kick-author@example.com")
+        fan = new_user("kick-fan@example.com")
+        fan_id = fan.get("/api/auth/me").json()["user"]["id"]
+        fan.post(f"/api/users/{author_id}/follow")
+        author.post(f"/api/user/follow-requests/{fan_id}/accept")
+        author.patch(f"/api/friends/{fan_id}", json={"is_close_friend": True})
+        author.post(
+            "/api/entries",
+            json={"title": "摯友貼文", "content": "內容", "privacy": "friends"},
+        )
+        self.assertIn("摯友貼文", {e["title"] for e in fan.get("/api/entries").json()})
+
+        self.assertEqual(author.delete(f"/api/user/followers/{fan_id}").status_code, 204)
+        self.assertEqual(author.delete(f"/api/user/followers/{fan_id}").status_code, 404)
+
+        titles = {e["title"] for e in fan.get("/api/entries").json()}
+        self.assertFalse(titles & {"摯友貼文", "私帳貼文 kick-author@example.com"})
+        # Coming back goes through approval and does not restore the star.
+        self.assertTrue(fan.post(f"/api/users/{author_id}/follow").json()["is_requested"])
+        author.post(f"/api/user/follow-requests/{fan_id}/accept")
+        self.assertNotIn("摯友貼文", {e["title"] for e in fan.get("/api/entries").json()})
+
+    def test_search_finds_an_exact_email_but_not_part_of_one(self) -> None:
+        viewer = new_user("qqsearch-viewer@example.com")
+        target = new_user("qqsearch-hidden@example.com", "顯示名稱")
+        target.patch("/api/user/profile", json={"username": "renamed_id"})
+
+        by_part = viewer.get("/api/users/search", params={"q": "qqsearch-hidden"})
+        by_email = viewer.get(
+            "/api/users/search", params={"q": "qqsearch-hidden@example.com"}
+        )
+
+        self.assertEqual(by_part.json(), [])
+        self.assertEqual(by_email.json()[0]["username"], "renamed_id")
+
+    def test_profile_page_is_reached_by_current_username_only(self) -> None:
+        viewer = new_user("page-viewer@example.com")
+        target = new_user("page-target@example.com", "主頁")
+        target.post(
+            "/api/entries",
+            json={"title": "看得到", "content": "內容", "privacy": "public"},
+        )
+        target.post(
+            "/api/entries",
+            json={"title": "看不到", "content": "內容", "privacy": "private"},
+        )
+
+        self.assertEqual(TestClient(main.app).get("/api/profiles/page_target").status_code, 401)
+        page = viewer.get("/api/profiles/PAGE_TARGET").json()
+        self.assertEqual(page["profile"]["display_name"], "主頁")
+        self.assertFalse(page["profile"]["is_self"])
+        self.assertFalse(page["profile"]["is_following"])
+        self.assertEqual([post["title"] for post in page["posts"]], ["看得到"])
+        self.assertTrue(target.get("/api/profiles/page_target").json()["profile"]["is_self"])
+
+        viewer.post("/api/users/%d/follow" % page["profile"]["id"])
+        self.assertTrue(viewer.get("/api/profiles/page_target").json()["profile"]["is_following"])
+
+        target.patch("/api/user/profile", json={"username": "new_page"})
+        self.assertEqual(viewer.get("/api/profiles/page_target").status_code, 404)
+        self.assertEqual(viewer.get("/api/profiles/new_page").status_code, 200)
+
+    def test_own_posts_are_all_marked_as_owned(self) -> None:
+        client = new_user("own-posts@example.com")
+        client.post(
+            "/api/entries",
+            json={"title": "我的日記", "content": "內容", "privacy": "public"},
+        )
+        client.post(
+            "/api/map-points",
+            json={"name": "我的足跡", "points": [{"name": "駁二", "order": 1}]},
+        )
+        posts = client.get("/api/user/posts").json()
+        self.assertEqual({post["type"] for post in posts}, {"entry", "footprint"})
+        self.assertTrue(all(post["is_owner"] for post in posts))
+
+    def test_feeds_say_who_owns_each_post(self) -> None:
+        owner = new_user("owner-link@example.com", "作者")
+        owner.post(
+            "/api/entries",
+            json={"title": "日記", "content": "內容", "privacy": "public"},
+        )
+        owner.post(
+            "/api/map-points",
+            json={"name": "足跡", "points": [{"name": "駁二", "order": 1}], "privacy": "public"},
+        )
+        entry = next(
+            item for item in owner.get("/api/entries").json() if item["title"] == "日記"
+        )
+        point = next(
+            item for item in owner.get("/api/map-points").json() if item["name"] == "足跡"
+        )
+        self.assertEqual(entry["owner_username"], "owner_link")
+        self.assertEqual(point["owner_username"], "owner_link")
+        self.assertIn("owner_avatar_url", point)
 
     def test_account_search_requires_login_and_valid_query(self) -> None:
         client = TestClient(main.app)
@@ -348,7 +538,7 @@ class SocialProfileTests(ApiTestCase):
 
         self.assertEqual(author_followers.status_code, 200)
         self.assertEqual(author_followers.json()[0]["display_name"], "粉絲")
-        self.assertEqual(author_followers.json()[0]["username"], "relation-follower")
+        self.assertEqual(author_followers.json()[0]["username"], "relation_follower")
         self.assertFalse(author_followers.json()[0]["is_close_friend"])
         author_id = author.get("/api/auth/me").json()["user"]["id"]
         self.assertEqual(follower_following.json()[0]["id"], author_id)
@@ -606,7 +796,215 @@ class SocialProfileTests(ApiTestCase):
         )
 
 
+class UsernameTests(ApiTestCase):
+    def test_new_accounts_get_a_unique_default_username(self) -> None:
+        first = new_user("same.name@example.com")
+        second = new_user("same.name@example.org")
+        third = new_user("Dash-Name..x.@example.com")
+        numeric = new_user("12345678@example.com")
+
+        names = [
+            client.get("/api/user/profile").json()["username"]
+            for client in (first, second, third, numeric)
+        ]
+
+        self.assertEqual(names[:3], ["same.name", "same.name2", "dash_name.x"])
+        self.assertRegex(names[3], r"^user\d+$")
+
+    def test_username_can_be_changed_and_is_shown_to_others(self) -> None:
+        owner = new_user("rename-owner@example.com")
+        viewer = new_user("rename-viewer@example.com")
+        owner_id = owner.get("/api/auth/me").json()["user"]["id"]
+
+        changed = owner.patch("/api/user/profile", json={"username": " @My.New_ID1 "})
+
+        self.assertEqual(changed.status_code, 200, changed.text)
+        self.assertEqual(changed.json()["username"], "my.new_id1")
+        self.assertEqual(
+            owner.get("/api/user/profile").json()["username"], "my.new_id1"
+        )
+        self.assertEqual(
+            viewer.get(f"/api/users/{owner_id}/profile").json()["profile"]["username"],
+            "my.new_id1",
+        )
+        found = viewer.get("/api/users/search", params={"q": "@my.new"}).json()
+        self.assertEqual([person["id"] for person in found], [owner_id])
+        viewer.post("/api/friends", json={"email": "rename-owner@example.com"})
+        self.assertEqual(
+            owner.get("/api/user/relations/followers").json()[0]["username"],
+            "rename_viewer",
+        )
+        self.assertEqual(
+            viewer.get("/api/user/relations/following").json()[0]["username"],
+            "my.new_id1",
+        )
+
+    def test_invalid_usernames_are_rejected(self) -> None:
+        client = new_user("rename-invalid@example.com")
+        for username in ("", "有中文", "has space", "a-b", ".start", "end.", "a..b", "123456", "x" * 31):
+            response = client.patch("/api/user/profile", json={"username": username})
+            self.assertEqual(response.status_code, 422, username)
+        self.assertEqual(
+            client.patch("/api/user/profile", json={"username": None}).status_code, 422
+        )
+        self.assertEqual(
+            client.get("/api/user/profile").json()["username"], "rename_invalid"
+        )
+
+    def test_a_taken_username_is_refused_ignoring_case(self) -> None:
+        owner = new_user("taken-owner@example.com")
+        other = new_user("taken-other@example.com")
+        owner.patch("/api/user/profile", json={"username": "taken_name"})
+
+        response = other.patch(
+            "/api/user/profile", json={"username": "TAKEN_NAME", "bio": "不該存入"}
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(other.get("/api/user/profile").json()["bio"], "")
+        self.assertEqual(
+            owner.patch("/api/user/profile", json={"username": "taken_name"}).status_code,
+            200,
+        )
+
+
+class AvatarTests(ApiTestCase):
+    JPEG = b"\xff\xd8\xff\xe0" + b"0" * 64
+
+    def upload(self, client: TestClient, data: bytes):
+        return client.post(
+            "/api/user/avatar", content=data, headers={"Content-Type": "image/jpeg"}
+        )
+
+    def test_upload_is_served_and_replaced_without_leaving_files(self) -> None:
+        client = new_user("avatar-owner@example.com")
+        viewer = new_user("avatar-viewer@example.com")
+        owner_id = client.get("/api/auth/me").json()["user"]["id"]
+
+        first = self.upload(client, self.JPEG)
+        self.assertEqual(first.status_code, 200, first.text)
+        url = first.json()["avatar_url"]
+        self.assertEqual(client.get("/api/user/profile").json()["avatar_url"], url)
+        self.assertEqual(
+            viewer.get(f"/api/users/{owner_id}/profile").json()["profile"]["avatar_url"],
+            url,
+        )
+        served = TestClient(main.app).get(url)
+        self.assertEqual(served.status_code, 200)
+        self.assertEqual(served.content, self.JPEG)
+        self.assertEqual(served.headers["content-type"], "image/jpeg")
+        self.assertEqual(served.headers["x-content-type-options"], "nosniff")
+
+        second = self.upload(client, b"\x89PNG\r\n\x1a\n" + b"1" * 32).json()["avatar_url"]
+        self.assertTrue(second.endswith(".png"))
+        self.assertEqual(TestClient(main.app).get(url).status_code, 404)
+
+        self.assertEqual(client.delete("/api/user/avatar").status_code, 204)
+        self.assertIsNone(client.get("/api/user/profile").json()["avatar_url"])
+        self.assertEqual(TestClient(main.app).get(second).status_code, 404)
+
+    def test_only_real_images_within_the_limit_are_accepted(self) -> None:
+        client = new_user("avatar-reject@example.com")
+        for data in (b"", b"<svg xmlns='http://www.w3.org/2000/svg'/>", b"<html>", b"GIF89a"):
+            self.assertEqual(self.upload(client, data).status_code, 415, data)
+        too_big = self.JPEG + b"0" * main.MAX_IMAGE_BYTES
+        self.assertEqual(self.upload(client, too_big).status_code, 413)
+        self.assertIsNone(client.get("/api/user/profile").json()["avatar_url"])
+
+    def test_upload_requires_login_and_paths_cannot_escape(self) -> None:
+        anonymous = TestClient(main.app)
+        self.assertEqual(self.upload(anonymous, self.JPEG).status_code, 401)
+        self.assertEqual(anonymous.delete("/api/user/avatar").status_code, 401)
+        for name in ("..%2Flife_app.db", "life_app.db", "x.svg"):
+            self.assertEqual(anonymous.get(f"/api/avatars/{name}").status_code, 404)
+
+    def test_avatar_url_cannot_be_set_directly(self) -> None:
+        client = new_user("avatar-direct@example.com")
+        self.assertEqual(
+            client.patch(
+                "/api/user/profile", json={"avatar_url": "https://evil.example/x.png"}
+            ).status_code,
+            422,
+        )
+        self.assertIsNone(client.get("/api/user/profile").json()["avatar_url"])
+
+
 class MapPointTests(ApiTestCase):
+    def test_footprint_cover_upload_is_private_and_can_be_removed(self) -> None:
+        owner = new_user("footprint-cover@example.com")
+        point = owner.post(
+            "/api/map-points",
+            json={
+                "name": "海邊散步",
+                "points": [{"name": "海岸", "order": 1}],
+            },
+        ).json()
+        image = b"\xff\xd8\xfftest-footprint-cover"
+
+        uploaded = owner.post(
+            f"/api/map-points/{point['id']}/cover",
+            content=image,
+            headers={"Content-Type": "image/jpeg"},
+        )
+        self.assertEqual(uploaded.status_code, 200)
+        cover_url = uploaded.json()["cover_url"]
+        self.assertTrue(cover_url.startswith("/api/footprint-covers/"))
+        own_posts = owner.get("/api/user/posts").json()
+        self.assertEqual(
+            next(post for post in own_posts if post["id"] == point["id"])[
+                "cover_url"
+            ],
+            cover_url,
+        )
+        image_path = cover_url.removeprefix("/api/footprint-covers/")
+        self.assertEqual(
+            owner.get(f"/api/footprint-covers/{image_path}").content,
+            image,
+        )
+
+        another_user = new_user("footprint-cover-viewer@example.com")
+        self.assertEqual(
+            another_user.get(f"/api/footprint-covers/{image_path}").status_code,
+            404,
+        )
+        self.assertEqual(
+            owner.patch(
+                f"/api/map-points/{point['id']}/privacy",
+                json={"privacy": "public"},
+            ).status_code,
+            200,
+        )
+        self.assertEqual(
+            another_user.get(f"/api/footprint-covers/{image_path}").status_code,
+            200,
+        )
+        self.assertEqual(
+            TestClient(main.app).get(
+                f"/api/footprint-covers/{image_path}"
+            ).status_code,
+            401,
+        )
+        self.assertEqual(
+            another_user.delete(f"/api/map-points/{point['id']}/cover").status_code,
+            404,
+        )
+
+        self.assertEqual(
+            owner.delete(f"/api/map-points/{point['id']}/cover").status_code,
+            204,
+        )
+        self.assertIsNone(
+            next(
+                post
+                for post in owner.get("/api/user/posts").json()
+                if post["id"] == point["id"]
+            )["cover_url"]
+        )
+        self.assertEqual(
+            owner.get(f"/api/footprint-covers/{image_path}").status_code,
+            404,
+        )
+
     def test_created_map_point_is_listed_with_coordinates(self) -> None:
         client = new_user("map@example.com")
         created = client.post(
@@ -849,6 +1247,161 @@ class MapPointTests(ApiTestCase):
 
 
 class TripTests(ApiTestCase):
+    def test_trip_list_matches_each_trip_detail(self) -> None:
+        owner = new_user("trip-list@example.com")
+        first, second = (
+            owner.post(
+                "/api/map-points",
+                json={"name": name, "points": [{"name": name, "order": 1}]},
+            ).json()["id"]
+            for name in ("第一站", "第二站")
+        )
+        older = owner.post(
+            "/api/trips", json={"title": "舊", "point_ids": [second, first]}
+        ).json()["id"]
+        newer = owner.post("/api/trips", json={"title": "新"}).json()["id"]
+
+        self.assertEqual(
+            owner.get("/api/trips").json(),
+            [owner.get(f"/api/trips/{trip_id}").json() for trip_id in (newer, older)],
+        )
+        self.assertEqual(
+            [
+                point["id"]
+                for point in owner.get(f"/api/trips/{older}").json()["points"]
+            ],
+            [second, first],
+        )
+        self.assertEqual(
+            new_user("trip-list-other@example.com").get("/api/trips").json(), []
+        )
+
+    def test_deleting_a_trip_keeps_its_footprints_and_only_owner_can(self) -> None:
+        owner = new_user("trip-delete@example.com")
+        point = owner.post(
+            "/api/map-points",
+            json={"name": "保留的足跡", "points": [{"name": "車站", "order": 1}]},
+        ).json()
+        trip = owner.post(
+            "/api/trips",
+            json={"title": "要刪的行程", "is_public": True, "point_ids": [point["id"]]},
+        ).json()
+        path = f"/api/trips/{trip['id']}"
+
+        other = new_user("trip-delete-other@example.com")
+        self.assertEqual(other.delete(path).status_code, 404)
+        self.assertEqual(owner.get(path).status_code, 200)
+        self.assertEqual(TestClient(main.app).delete(path).status_code, 401)
+
+        self.assertEqual(owner.delete(path).status_code, 204)
+        self.assertEqual(owner.get(path).status_code, 404)
+        self.assertEqual(owner.get(f"{path}/share").status_code, 404)
+        self.assertEqual(owner.delete(path).status_code, 404)
+        self.assertEqual(owner.get("/api/trips").json(), [])
+        self.assertIn(
+            point["id"],
+            [item["id"] for item in owner.get("/api/map-points").json()],
+        )
+        with main.get_connection() as conn:
+            links = conn.execute(
+                "SELECT COUNT(*) FROM trip_map_points WHERE trip_id = ?",
+                (trip["id"],),
+            ).fetchone()[0]
+        self.assertEqual(links, 0)
+
+    def test_trip_can_be_edited_and_replace_its_footprints(self) -> None:
+        owner = new_user("trip-edit@example.com")
+        first = owner.post(
+            "/api/map-points",
+            json={"name": "第一站", "points": [{"name": "第一站", "order": 1}]},
+        ).json()
+        second = owner.post(
+            "/api/map-points",
+            json={"name": "第二站", "points": [{"name": "第二站", "order": 1}]},
+        ).json()
+        trip = owner.post(
+            "/api/trips",
+            json={"title": "原行程", "point_ids": [first["id"]]},
+        ).json()
+
+        updated = owner.put(
+            f"/api/trips/{trip['id']}",
+            json={
+                "title": "更新後的行程",
+                "description": "先規劃，之後出發",
+                "is_public": True,
+                "point_ids": [second["id"], second["id"], first["id"]],
+            },
+        )
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.json()["title"], "更新後的行程")
+        self.assertEqual(updated.json()["description"], "先規劃，之後出發")
+        self.assertTrue(updated.json()["is_public"])
+        self.assertEqual(
+            [point["id"] for point in updated.json()["points"]],
+            [second["id"], first["id"]],
+        )
+
+        empty = owner.put(
+            f"/api/trips/{trip['id']}",
+            json={"title": "尚未決定行程", "point_ids": []},
+        )
+        self.assertEqual(empty.status_code, 200)
+        self.assertEqual(empty.json()["points"], [])
+
+        another_user = new_user("trip-edit-other@example.com")
+        self.assertEqual(
+            another_user.put(
+                f"/api/trips/{trip['id']}",
+                json={"title": "不應更新"},
+            ).status_code,
+            404,
+        )
+
+    def test_trip_can_create_and_add_a_planned_footprint(self) -> None:
+        client = new_user("trip-planning@example.com")
+        trip = client.post(
+            "/api/trips",
+            json={"title": "下個月東京行"},
+        ).json()
+
+        created_point = client.post(
+            f"/api/trips/{trip['id']}/points",
+            json={
+                "name": "淺草一日遊",
+                "note": "預計出發前再確認營業時間",
+                "points": [
+                    {"name": "淺草寺", "lat": 35.7148, "lng": 139.7967, "order": 1},
+                    {"name": "晴空塔", "lat": 35.7101, "lng": 139.8107, "order": 2},
+                ],
+            },
+        )
+        self.assertEqual(created_point.status_code, 201)
+        self.assertEqual(created_point.json()["name"], "淺草一日遊")
+        self.assertEqual(
+            [stop["name"] for stop in created_point.json()["points"]],
+            ["淺草寺", "晴空塔"],
+        )
+
+        listed_trip = client.get(f"/api/trips/{trip['id']}").json()
+        self.assertEqual(
+            [point["name"] for point in listed_trip["points"]],
+            ["淺草一日遊"],
+        )
+        self.assertIn(
+            created_point.json()["id"],
+            [point["id"] for point in client.get("/api/map-points").json()],
+        )
+
+        another_user = new_user("another-trip-planning@example.com")
+        self.assertEqual(
+            another_user.post(
+                f"/api/trips/{trip['id']}/points",
+                json={"name": "無權限地點", "points": [{"name": "無權限地點", "order": 1}]},
+            ).status_code,
+            404,
+        )
+
     def test_trip_routes_create_and_list_with_selected_map_points(self) -> None:
         client = new_user("trip@example.com")
         map_point = client.post(
@@ -899,7 +1452,135 @@ class TripTests(ApiTestCase):
     def test_entries_map_points_and_trips_routes_require_login(self) -> None:
         client = TestClient(main.app)
         for path in ("/api/entries", "/api/map-points", "/api/trips"):
-            self.assertEqual(client.get(path).status_code, 401, path)
+            self.assertEqual(client.get(path).status_code, 401, path            )
+
+
+class MeetupTests(ApiTestCase):
+    def meetup_payload(self, **overrides):
+            payload = {
+                "title": "週末九份散步",
+                "starts_at": (datetime.now() + timedelta(days=2))
+                .replace(microsecond=0)
+                .isoformat(),
+                "departure_city": "新北市",
+                "departure_district": "板橋區",
+                "destinations": ["十分老街", "九份老街"],
+            }
+            return {**payload, **overrides}
+
+    def test_public_meetup_can_be_created_joined_and_left(self) -> None:
+            host = new_user("meetup-host@example.com", "揪團者")
+            attendee = new_user("meetup-attendee@example.com", "參加者")
+            created = host.post("/api/meetups", json=self.meetup_payload())
+            self.assertEqual(created.status_code, 201)
+            meetup = created.json()
+            self.assertEqual(meetup["host_name"], "揪團者")
+            self.assertEqual(meetup["departure_city"], "新北市")
+            self.assertEqual(meetup["departure_district"], "板橋區")
+            self.assertEqual(meetup["destinations"], ["十分老街", "九份老街"])
+            self.assertEqual(meetup["participant_count"], 1)
+            self.assertTrue(meetup["is_owner"])
+            self.assertTrue(meetup["is_participating"])
+
+            public_list = TestClient(main.app).get("/api/meetups")
+            self.assertEqual(public_list.status_code, 200)
+            self.assertEqual([item["id"] for item in public_list.json()], [meetup["id"]])
+
+            joined = attendee.post(
+                f"/api/meetups/{meetup['id']}/participants"
+            )
+            self.assertEqual(joined.status_code, 200)
+            self.assertEqual(joined.json()["participant_count"], 2)
+            self.assertTrue(joined.json()["is_participating"])
+            self.assertEqual(
+                attendee.post(f"/api/meetups/{meetup['id']}/participants").json()[
+                    "participant_count"
+                ],
+                2,
+            )
+            left = attendee.delete(
+                f"/api/meetups/{meetup['id']}/participants"
+            )
+            self.assertEqual(left.status_code, 200)
+            self.assertEqual(left.json()["participant_count"], 1)
+            self.assertFalse(left.json()["is_participating"])
+            self.assertEqual(
+                host.delete(f"/api/meetups/{meetup['id']}/participants").status_code,
+                409,
+            )
+
+    def test_meetup_limit_edit_permissions_and_cancel(self) -> None:
+            host = new_user("meetup-limit-host@example.com")
+            created = host.post("/api/meetups", json=self.meetup_payload())
+            meetup_id = created.json()["id"]
+            outsider = new_user("meetup-limit-outsider@example.com")
+            self.assertEqual(
+                outsider.put(
+                    f"/api/meetups/{meetup_id}",
+                    json=self.meetup_payload(title="無權編輯"),
+                ).status_code,
+                404,
+            )
+            self.assertEqual(
+                outsider.delete(f"/api/meetups/{meetup_id}").status_code,
+                404,
+            )
+
+            for index in range(2, 11):
+                attendee = new_user(f"meetup-cap-{index}@example.com")
+                joined = attendee.post(f"/api/meetups/{meetup_id}/participants")
+                self.assertEqual(joined.status_code, 200)
+                self.assertEqual(joined.json()["participant_count"], index)
+
+            extra = new_user("meetup-cap-extra@example.com")
+            self.assertEqual(
+                extra.post(f"/api/meetups/{meetup_id}/participants").status_code,
+                409,
+            )
+
+            updated_payload = self.meetup_payload(
+                title="週末路線更新",
+                destinations=["十分瀑布", "九份老街", "基隆夜市"],
+            )
+            updated = host.put(
+                f"/api/meetups/{meetup_id}", json=updated_payload
+            )
+            self.assertEqual(updated.status_code, 200)
+            self.assertEqual(updated.json()["title"], "週末路線更新")
+            self.assertEqual(
+                updated.json()["destinations"],
+                ["十分瀑布", "九份老街", "基隆夜市"],
+            )
+            self.assertEqual(updated.json()["participant_count"], 10)
+
+            self.assertEqual(host.delete(f"/api/meetups/{meetup_id}").status_code, 204)
+            self.assertEqual(host.get("/api/meetups").json(), [])
+
+    def test_meetup_requires_future_time_and_route(self) -> None:
+            host = new_user("meetup-validation@example.com")
+            self.assertEqual(
+                host.post(
+                    "/api/meetups",
+                    json=self.meetup_payload(
+                        starts_at=(datetime.now() - timedelta(days=1)).isoformat()
+                    ),
+                ).status_code,
+                422,
+            )
+            self.assertEqual(
+                host.post(
+                    "/api/meetups",
+                    json=self.meetup_payload(destinations=[]),
+                ).status_code,
+                422,
+            )
+            self.assertEqual(
+                TestClient(main.app).post(
+                    "/api/meetups",
+                    json=self.meetup_payload(),
+                ).status_code,
+                401,
+            )
 
 
 class DiaryChatTests(ApiTestCase):
@@ -1618,6 +2299,34 @@ class MapsProxyTests(ApiTestCase):
         )
         self.assertEqual(down.status_code, 502)
         self.assertNotIn("server-key", down.text)
+
+
+class SessionPurgeTests(ApiTestCase):
+    def test_expired_sessions_are_refused_and_purged_without_writing_on_every_request(
+        self,
+    ) -> None:
+        client = new_user("purge@example.com")
+        self.assertEqual(client.get("/api/auth/me").status_code, 200)
+        with main.get_connection() as conn:
+            conn.execute("UPDATE auth_sessions SET expires_at = 0")
+            conn.commit()
+
+        # Between purges the row stays, and it still must not authenticate anyone.
+        with mock.patch.object(main, "_next_session_purge", float("inf")):
+            self.assertEqual(client.get("/api/auth/me").status_code, 401)
+            with main.get_connection() as conn:
+                remaining = conn.execute(
+                    "SELECT COUNT(*) FROM auth_sessions WHERE expires_at = 0"
+                ).fetchone()[0]
+            self.assertGreater(remaining, 0)
+
+        with mock.patch.object(main, "_next_session_purge", 0.0):
+            self.assertEqual(client.get("/api/auth/me").status_code, 401)
+            with main.get_connection() as conn:
+                remaining = conn.execute(
+                    "SELECT COUNT(*) FROM auth_sessions WHERE expires_at = 0"
+                ).fetchone()[0]
+        self.assertEqual(remaining, 0)
 
 
 class WebAssetTests(ApiTestCase):

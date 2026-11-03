@@ -12,6 +12,11 @@ function apiUrl(path) {
   return `${apiBaseUrl}${path}`;
 }
 
+// Uploaded files live on the API server, which may not be the page's own origin.
+function mediaUrl(url) {
+  return url?.startsWith("/api/") ? apiUrl(url.slice(4)) : url;
+}
+
 function getFormText(formData, name) {
   const value = formData.get(name);
   return typeof value === "string" ? value.trim() : "";
@@ -71,9 +76,14 @@ function escapeHtml(value) {
   });
 }
 
+// The database stores UTC without saying so.
+function serverDate(value) {
+  return new Date(`${value.replace(" ", "T")}Z`);
+}
+
 function formatDate(value) {
   if (!value) return "剛剛";
-  const date = new Date(`${value.replace(" ", "T")}Z`);
+  const date = serverDate(value);
   return Number.isNaN(date.getTime())
     ? value
     : new Intl.DateTimeFormat("zh-TW", {

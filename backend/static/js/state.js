@@ -1,6 +1,14 @@
 const resendVerificationButton = document.querySelector("#resend-verification");
 const entriesContainer = document.querySelector("#entries");
 const entryCount = document.querySelector("#entry-count");
+const meetupDialog = document.querySelector("#meetup-dialog");
+const meetupForm = document.querySelector("#meetup-form");
+const meetupFormTitle = document.querySelector("#meetup-form-title");
+const meetupSubmitButton = document.querySelector("#meetup-submit");
+const meetupCount = document.querySelector("#meetup-count");
+const meetupList = document.querySelector("#meetup-list");
+const meetupLoadError = document.querySelector("#meetup-load-error");
+const meetupLoadErrorMessage = document.querySelector("#meetup-load-error-message");
 const timelineFootprints = document.querySelector("#timeline-footprints");
 const dialog = document.querySelector("#entry-dialog");
 const form = document.querySelector("#entry-form");
@@ -12,6 +20,8 @@ const homeView = document.querySelector("#home-view");
 const profileView = document.querySelector("#profile-view");
 const profilePageTitle = document.querySelector("#profile-page-title");
 const profileAvatar = document.querySelector("#profile-avatar");
+const profileAvatarOpen = document.querySelector("#profile-avatar-open");
+const avatarViewer = document.querySelector("#avatar-viewer");
 const profileAvatarInitial = document.querySelector("#profile-avatar-initial");
 const profileDisplayName = document.querySelector("#profile-display-name");
 const profileBio = document.querySelector("#profile-bio");
@@ -32,7 +42,6 @@ const profileSocialDialog = document.querySelector("#profile-social-dialog");
 const profileSocialList = document.querySelector("#profile-social-list");
 const profileSocialTitle = document.querySelector("#profile-social-title");
 const profileSocialDescription = document.querySelector("#profile-social-description");
-const profileSocialBackButton = document.querySelector("#profile-social-back");
 const aiDiaryView = document.querySelector("#ai-diary-view");
 const aiChatForm = document.querySelector("#ai-chat-form");
 const aiChatInput = document.querySelector("#ai-chat-input");
@@ -61,6 +70,10 @@ const mapPointDialogTitle = document.querySelector("#map-point-dialog-title");
 const mapPointSaveButton = document.querySelector("#map-point-save");
 const tripPointOptions = document.querySelector("#trip-point-options");
 const tripList = document.querySelector("#trip-list");
+const tripFormTitle = document.querySelector("#trip-form-title");
+const tripSubmitButton = document.querySelector("#trip-submit");
+const tripCancelEditButton = document.querySelector("#trip-cancel-edit");
+const tripAddFootprintButton = document.querySelector("#trip-add-footprint");
 const mapPointForm = document.querySelector("#map-point-form");
 const mapPointDialog = document.querySelector("#map-point-dialog");
 const tripForm = document.querySelector("#trip-form");
@@ -84,6 +97,43 @@ const resetPasswordForm = document.querySelector("#reset-password-form");
 const resetPasswordStatus = document.querySelector("#reset-password-status");
 let currentUser = null;
 let currentProfile = null;
+let viewedProfile = null;
+let viewedUsername = null;
+const profileEditOpen = document.querySelector("#profile-edit-open");
+const themeToggle = document.querySelector("#theme-toggle");
+const profileFollowButton = document.querySelector("#profile-follow");
+const profileRequestsOpen = document.querySelector("#profile-requests-open");
+const profileRequestsCount = document.querySelector("#profile-requests-count");
+const profilePostsTitle = document.querySelector("#profile-posts-title");
+const navRequestsBadge = document.querySelector("#nav-requests-badge");
+const avatarViewerImage = document.querySelector("#avatar-viewer-image");
+const PRIVACY_LABELS = { private: "私密", friends: "摯友", public: "公開" };
+
+let listLoads = new WeakMap();
+
+// A placeholder only appears when a list would otherwise show someone else's data.
+// A refresh of the same data keeps what is on screen, and the newest request wins.
+function beginListLoad(container, owner, placeholder) {
+  const isNewOwner = listLoads.get(container)?.owner !== owner;
+  if (isNewOwner) container.innerHTML = placeholder;
+  const load = { owner };
+  listLoads.set(container, load);
+  return { isNewOwner, isCurrent: () => listLoads.get(container) === load };
+}
+
+// After an error the list shows a message, so the next load starts from a placeholder.
+function forgetListLoad(...containers) {
+  containers.forEach((container) => listLoads.delete(container));
+}
+
+// Signing out cancels every load in flight and forces the next user to start clean.
+function resetListLoads() {
+  listLoads = new WeakMap();
+}
+
+function sessionOwner() {
+  return currentUser?.id ?? "anonymous";
+}
 let profilePosts = [];
 let currentSocialRelation = null;
 let editingEntryId = null;
@@ -100,8 +150,15 @@ let mapInfoWindow = null;
 let googleMapsLoad = null;
 let mapPoints = [];
 let selectedMapPointId = null;
+const mapPointDetailAnimations = new WeakMap();
 let pickingMapPoint = false;
 let savedMapPointForm = "";
 let pendingMapPickRow = null;
+let mapPickReturnScrollY = 0;
 let editingMapPointId = null;
+let editingTripId = null;
+let addingFootprintToTripForm = false;
 let trips = [];
+let meetups = [];
+let savedMeetupForm = "";
+let editingMeetupId = null;

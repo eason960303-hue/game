@@ -18,7 +18,7 @@ from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Literal, Optional
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qs, urlencode, urlsplit
+from urllib.parse import parse_qs, urlencode
 from urllib.request import Request as URLRequest
 from urllib.request import urlopen
 
@@ -32,7 +32,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
 if __package__:
-    from .database import get_connection, init_db
+    from .database import DB_PATH, get_connection, init_db
     from .models import (
         EntryCreate,
         EntryOut,
@@ -42,7 +42,7 @@ if __package__:
         SettingsOut,
     )
 else:
-    from database import get_connection, init_db
+    from database import DB_PATH, get_connection, init_db
     from models import (
         EntryCreate,
         EntryOut,
@@ -186,10 +186,19 @@ class EntryUpdate(BaseModel):
     tags: Optional[str] = Field(default=None, max_length=1000)
 
 
+USERNAME_MAX_LENGTH = 30
+USERNAME_PATTERN = re.compile(r"[a-z0-9._]+")
+OWNER_COLUMNS = (
+    "users.display_name AS owner_name, users.username AS owner_username, "
+    "users.avatar_url AS owner_avatar_url"
+)
+PROFILE_COLUMNS = "id, username, display_name, bio, avatar_url, is_private"
+
+
 class ProfileUpdate(BaseModel):
     display_name: Optional[str] = Field(default=None, min_length=1, max_length=80)
     bio: Optional[str] = Field(default=None, max_length=500)
-    avatar_url: Optional[str] = Field(default=None, max_length=2048)
+    username: Optional[str] = Field(default=None, max_length=USERNAME_MAX_LENGTH)
     is_private: Optional[bool] = None
 
 
@@ -240,6 +249,34 @@ class TripCreate(BaseModel):
     point_ids: list[int] = Field(default_factory=list, max_length=100)
 
 
+class MeetupCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=160)
+    starts_at: datetime
+    departure_city: str = Field(..., min_length=1, max_length=40)
+    departure_district: str = Field(..., min_length=1, max_length=50)
+    destinations: list[str] = Field(..., min_length=1, max_length=20)
+
+    @model_validator(mode="after")
+    def normalize_meetup(self) -> "MeetupCreate":
+        starts_at = self.starts_at.astimezone()
+        if starts_at <= datetime.now().astimezone():
+            raise ValueError("出發時間需晚於現在")
+        title = self.title.strip()
+        city = self.departure_city.strip()
+        district = self.departure_district.strip()
+        destinations = [destination.strip() for destination in self.destinations]
+        if not title or not city or not district:
+            raise ValueError("標題與出發地區不可空白")
+        if any(not destination for destination in destinations):
+            raise ValueError("目的地不可空白")
+        self.title = title
+        self.departure_city = city
+        self.departure_district = district
+        self.destinations = destinations
+        self.starts_at = starts_at.astimezone(timezone.utc)
+        return self
+
+
 def allow_map_points_without_coordinates(conn: sqlite3.Connection) -> None:
     columns = {
         row["name"]: row["notnull"]
@@ -247,6 +284,8 @@ def allow_map_points_without_coordinates(conn: sqlite3.Connection) -> None:
     }
     if not columns["latitude"]:
         return
+    if "cover_url" not in columns:
+        conn.execute("ALTER TABLE map_points ADD COLUMN cover_url TEXT")
     # SQLite cannot drop NOT NULL in place, so the table is rebuilt in one transaction.
     conn.commit()
     conn.execute("BEGIN IMMEDIATE")
@@ -273,13 +312,14 @@ def allow_map_points_without_coordinates(conn: sqlite3.Connection) -> None:
                 privacy TEXT NOT NULL DEFAULT 'private'
                     CHECK (privacy IN ('private', 'friends', 'public')),
                 points_json TEXT NOT NULL DEFAULT '[]',
+                cover_url TEXT,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
         copied = (
             "id, owner_id, name, latitude, longitude, note, privacy, "
-            "points_json, created_at"
+            "points_json, cover_url, created_at"
         )
         conn.execute(
             f"INSERT INTO map_points_new ({copied}) SELECT {copied} FROM map_points"
@@ -297,6 +337,44 @@ def allow_map_points_without_coordinates(conn: sqlite3.Connection) -> None:
     except Exception:
         conn.rollback()
         raise
+
+
+def assign_default_username(
+    conn: sqlite3.Connection, user_id: int, email: Optional[str]
+) -> str:
+    prefix = (email or "").split("@", 1)[0].lower()
+    base = re.sub(r"\.{2,}", ".", re.sub(r"[^a-z0-9._]", "_", prefix)).strip(".")
+    base = base[:USERNAME_MAX_LENGTH].rstrip(".")
+    if not base or base.isdigit():
+        base = f"user{user_id}"
+    username = base
+    suffix = 1
+    while conn.execute(
+        "SELECT 1 FROM users WHERE username = ? AND id != ?", (username, user_id)
+    ).fetchone():
+        suffix += 1
+        username = f"{base[:USERNAME_MAX_LENGTH - len(str(suffix))].rstrip('.')}{suffix}"
+    conn.execute("UPDATE users SET username = ? WHERE id = ?", (username, user_id))
+    return username
+
+
+def normalize_username(value: str) -> str:
+    return value.strip().lstrip("@").lower()
+
+
+def validated_username(value: Optional[str]) -> str:
+    username = normalize_username(value or "")
+    if not USERNAME_PATTERN.fullmatch(username):
+        raise HTTPException(
+            status_code=422, detail="帳號 ID 只能使用英文字母、數字、底線和句點"
+        )
+    if username.startswith(".") or username.endswith(".") or ".." in username:
+        raise HTTPException(
+            status_code=422, detail="帳號 ID 的句點不可在開頭、結尾或連續出現"
+        )
+    if username.isdigit():
+        raise HTTPException(status_code=422, detail="帳號 ID 不可以全部都是數字")
+    return username
 
 
 def init_feature_tables() -> None:
@@ -414,6 +492,7 @@ def init_feature_tables() -> None:
                 privacy TEXT NOT NULL DEFAULT 'private'
                     CHECK (privacy IN ('private', 'friends', 'public')),
                 points_json TEXT NOT NULL DEFAULT '[]',
+                cover_url TEXT,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -440,6 +519,30 @@ def init_feature_tables() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS meetups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                starts_at TEXT NOT NULL,
+                departure_city TEXT NOT NULL,
+                departure_district TEXT NOT NULL,
+                destinations_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS meetup_participants (
+                meetup_id INTEGER NOT NULL REFERENCES meetups(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (meetup_id, user_id)
+            )
+            """
+        )
         for table in ("entries", "location_logs", "map_points", "trips"):
             columns = {
                 row["name"] for row in conn.execute(f"PRAGMA table_info({table})")
@@ -456,6 +559,15 @@ def init_feature_tables() -> None:
             conn.execute("ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT ''")
         if "avatar_url" not in user_columns:
             conn.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
+        if "username" not in user_columns:
+            conn.execute("ALTER TABLE users ADD COLUMN username TEXT")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)"
+        )
+        for row in conn.execute(
+            "SELECT id, email FROM users WHERE username IS NULL ORDER BY id"
+        ).fetchall():
+            assign_default_username(conn, row["id"], row["email"])
         if "is_private" not in user_columns:
             conn.execute(
                 "ALTER TABLE users ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0"
@@ -478,6 +590,8 @@ def init_feature_tables() -> None:
             conn.execute(
                 "ALTER TABLE map_points ADD COLUMN points_json TEXT NOT NULL DEFAULT '[]'"
             )
+        if "cover_url" not in map_point_columns:
+            conn.execute("ALTER TABLE map_points ADD COLUMN cover_url TEXT")
         allow_map_points_without_coordinates(conn)
 
         settings_columns = {
@@ -516,6 +630,29 @@ def init_feature_tables() -> None:
             conn.execute(
                 f"CREATE INDEX IF NOT EXISTS idx_{table}_owner_id ON {table}(owner_id)"
             )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_map_points_cover_url
+            ON map_points(cover_url) WHERE cover_url IS NOT NULL
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS follow_requests (
+                requester_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                target_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (requester_id, target_id),
+                CHECK (requester_id != target_id)
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_follow_requests_target ON follow_requests(target_id, created_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions(expires_at)"
+        )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_user_follows_followed ON user_follows(followed_id, follower_id)"
         )
@@ -725,6 +862,20 @@ def clear_login_failures(key: str) -> None:
         _login_failures.pop(key, None)
 
 
+SESSION_PURGE_INTERVAL_SECONDS = 3600
+_next_session_purge = 0.0
+
+
+def purge_expired_sessions(conn: sqlite3.Connection, now: Any) -> None:
+    # Lookups already ignore expired rows, so reads need not take the write lock each time.
+    global _next_session_purge
+    if time.monotonic() < _next_session_purge:
+        return
+    _next_session_purge = time.monotonic() + SESSION_PURGE_INTERVAL_SECONDS
+    conn.execute("DELETE FROM auth_sessions WHERE expires_at <= ?", (now,))
+    conn.commit()
+
+
 def get_current_user(request: Request) -> dict[str, Any]:
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
@@ -741,11 +892,26 @@ def get_current_user(request: Request) -> dict[str, Any]:
             """,
             (token_hash, now),
         ).fetchone()
-        conn.execute("DELETE FROM auth_sessions WHERE expires_at <= ?", (now,))
-        conn.commit()
+        purge_expired_sessions(conn, now)
     if row is None:
         raise HTTPException(status_code=401, detail="登入已失效，請重新登入")
     return public_user(row)
+
+
+def get_optional_user_id(request: Request) -> int | None:
+    token = request.cookies.get(SESSION_COOKIE)
+    if not token:
+        return None
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT user_id FROM auth_sessions
+            WHERE token_hash = ? AND expires_at > ?
+            """,
+            (token_hash, int(time.time())),
+        ).fetchone()
+    return row["user_id"] if row else None
 
 
 def oauth_provider_configured(provider: str) -> bool:
@@ -907,6 +1073,7 @@ def login_with_provider(provider: str, claims: dict[str, Any]) -> dict[str, Any]
                 (email, display_name),
             )
             user_id = cursor.lastrowid
+            assign_default_username(conn, user_id, email)
             if conn.execute(
                 "SELECT COUNT(*) FROM users WHERE id != ?", (user_id,)
             ).fetchone()[0] == 0:
@@ -1324,6 +1491,7 @@ def register_account(
                 (email, password_hash, display_name),
             )
             user_id = cursor.lastrowid
+            assign_default_username(conn, user_id, email)
             if not had_users:
                 assign_legacy_data_to_first_user(conn, user_id)
             if verification_required:
@@ -1563,8 +1731,8 @@ def get_user_profile(
 ) -> dict[str, Any]:
     with get_connection() as conn:
         profile = conn.execute(
-            """
-            SELECT id, email, display_name, bio, avatar_url, is_private
+            f"""
+            SELECT {PROFILE_COLUMNS}
             FROM users
             WHERE id = ?
             """,
@@ -1586,12 +1754,14 @@ def get_user_profile(
             "SELECT COUNT(*) FROM user_follows WHERE follower_id = ?",
             (user["id"],),
         ).fetchone()[0]
+        follow_requests_count = conn.execute(
+            "SELECT COUNT(*) FROM follow_requests WHERE target_id = ?",
+            (user["id"],),
+        ).fetchone()[0]
     if profile is None:
         raise HTTPException(status_code=404, detail="找不到使用者個人檔案")
     return {
-        "username": profile["email"].split("@", 1)[0]
-        if profile["email"]
-        else f"user{profile['id']}",
+        "username": profile["username"],
         "display_name": profile["display_name"],
         "bio": profile["bio"] or "",
         "avatar_url": profile["avatar_url"],
@@ -1599,6 +1769,7 @@ def get_user_profile(
         "posts_count": posts_count,
         "followers_count": followers_count,
         "following_count": following_count,
+        "follow_requests_count": follow_requests_count,
     }
 
 
@@ -1616,7 +1787,7 @@ def list_user_relations(
     with get_connection() as conn:
         rows = conn.execute(
             f"""
-            SELECT users.id, users.display_name, users.email, users.avatar_url,
+            SELECT users.id, users.display_name, users.username, users.avatar_url,
                    EXISTS (
                        SELECT 1 FROM user_close_friends close_friends
                        WHERE close_friends.owner_id = ? AND close_friends.friend_id = users.id
@@ -1635,9 +1806,7 @@ def list_user_relations(
     return [
         {
             "id": row["id"],
-            "username": row["email"].split("@", 1)[0]
-            if row["email"]
-            else f"user{row['id']}",
+            "username": row["username"],
             "display_name": row["display_name"],
             "avatar_url": row["avatar_url"],
             "is_close_friend": bool(row["is_close_friend"]),
@@ -1652,7 +1821,7 @@ def search_users(
     q: str = "",
     user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
-    term = q.strip().lstrip("@").lower()
+    term = normalize_username(q)
     if len(term) < 2:
         raise HTTPException(status_code=422, detail="請輸入至少 2 個字元搜尋帳號")
     if len(term) > 80:
@@ -1661,12 +1830,16 @@ def search_users(
     with get_connection() as conn:
         rows = conn.execute(
             """
-            SELECT users.id, users.email, users.display_name, users.avatar_url,
+            SELECT users.id, users.username, users.display_name, users.avatar_url,
                    users.is_private,
                    EXISTS (
                        SELECT 1 FROM user_follows follows
                        WHERE follows.follower_id = ? AND follows.followed_id = users.id
                    ) AS is_following,
+                   EXISTS (
+                       SELECT 1 FROM follow_requests requests
+                       WHERE requests.requester_id = ? AND requests.target_id = users.id
+                   ) AS is_requested,
                    EXISTS (
                        SELECT 1 FROM user_follows follows
                        WHERE follows.follower_id = users.id AND follows.followed_id = ?
@@ -1674,14 +1847,16 @@ def search_users(
             FROM users
             WHERE users.id != ?
                 AND (
-                    lower(users.display_name) LIKE ? ESCAPE '!'
-                    OR lower(users.email) LIKE ? ESCAPE '!'
+                    users.username LIKE ? ESCAPE '!'
+                    OR lower(users.display_name) LIKE ? ESCAPE '!'
+                    OR lower(users.email) = ?
                 )
             ORDER BY
                 CASE
-                    WHEN lower(users.display_name) LIKE ? ESCAPE '!' THEN 0
-                    WHEN lower(users.email) LIKE ? ESCAPE '!' THEN 1
-                    ELSE 2
+                    WHEN users.username LIKE ? ESCAPE '!' THEN 0
+                    WHEN lower(users.display_name) LIKE ? ESCAPE '!' THEN 1
+                    WHEN lower(users.email) = ? THEN 2
+                    ELSE 3
                 END,
                 users.display_name COLLATE NOCASE,
                 users.id
@@ -1691,26 +1866,43 @@ def search_users(
                 user["id"],
                 user["id"],
                 user["id"],
+                user["id"],
                 f"%{escaped}%",
                 f"%{escaped}%",
+                term,
                 f"{escaped}%",
                 f"{escaped}%",
+                term,
             ),
         ).fetchall()
     return [
         {
             "id": row["id"],
-            "username": row["email"].split("@", 1)[0]
-            if row["email"]
-            else f"user{row['id']}",
+            "username": row["username"],
             "display_name": row["display_name"],
             "avatar_url": row["avatar_url"],
             "is_private": bool(row["is_private"]),
             "is_following": bool(row["is_following"]),
+            "is_requested": bool(row["is_requested"]),
             "follows_you": bool(row["follows_you"]),
         }
         for row in rows
     ]
+
+
+@app.get("/api/profiles/{username}")
+def get_profile_by_username(
+    username: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id FROM users WHERE username = ?",
+            (normalize_username(username),),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="找不到這個帳號")
+    return get_public_user_profile(row["id"], user)
 
 
 @app.get("/api/users/{user_id}/profile")
@@ -1722,8 +1914,8 @@ def get_public_user_profile(
     point_filter = visible_content_filter("map_points")
     with get_connection() as conn:
         profile = conn.execute(
-            """
-            SELECT id, email, display_name, bio, avatar_url, is_private
+            f"""
+            SELECT {PROFILE_COLUMNS}
             FROM users WHERE id = ?
             """,
             (user_id,),
@@ -1732,7 +1924,7 @@ def get_public_user_profile(
             raise HTTPException(status_code=404, detail="找不到使用者個人檔案")
         entries = conn.execute(
             f"""
-            SELECT entries.*, users.display_name AS owner_name,
+            SELECT entries.*, {OWNER_COLUMNS},
                    (entries.owner_id = ?) AS is_owner
             FROM entries JOIN users ON users.id = entries.owner_id
             WHERE entries.owner_id = ? AND ({entry_filter})
@@ -1742,7 +1934,7 @@ def get_public_user_profile(
         ).fetchall()
         points = conn.execute(
             f"""
-            SELECT map_points.*, users.display_name AS owner_name,
+            SELECT map_points.*, {OWNER_COLUMNS},
                    (map_points.owner_id = ?) AS is_owner
             FROM map_points JOIN users ON users.id = map_points.owner_id
             WHERE map_points.owner_id = ? AND ({point_filter})
@@ -1756,6 +1948,20 @@ def get_public_user_profile(
         following_count = conn.execute(
             "SELECT COUNT(*) FROM user_follows WHERE follower_id = ?", (user_id,)
         ).fetchone()[0]
+        relation = conn.execute(
+            """
+            SELECT
+                EXISTS (
+                    SELECT 1 FROM user_follows
+                    WHERE follower_id = ? AND followed_id = ?
+                ) AS is_following,
+                EXISTS (
+                    SELECT 1 FROM follow_requests
+                    WHERE requester_id = ? AND target_id = ?
+                ) AS is_requested
+            """,
+            (user["id"], user_id, user["id"], user_id),
+        ).fetchone()
 
     posts = [
         {
@@ -1783,6 +1989,7 @@ def get_public_user_profile(
                 "privacy": point["privacy"],
                 "created_at": point["created_at"],
                 "points": point["points"],
+                "cover_url": point["cover_url"],
                 "is_owner": bool(point["is_owner"]),
             }
         )
@@ -1790,9 +1997,7 @@ def get_public_user_profile(
     return {
         "profile": {
             "id": profile["id"],
-            "username": profile["email"].split("@", 1)[0]
-            if profile["email"]
-            else f"user{profile['id']}",
+            "username": profile["username"],
             "display_name": profile["display_name"],
             "bio": profile["bio"] or "",
             "avatar_url": profile["avatar_url"],
@@ -1800,6 +2005,9 @@ def get_public_user_profile(
             "posts_count": len(posts),
             "followers_count": followers_count,
             "following_count": following_count,
+            "is_self": profile["id"] == user["id"],
+            "is_following": bool(relation["is_following"]),
+            "is_requested": bool(relation["is_requested"]),
         },
         "posts": posts,
     }
@@ -1821,15 +2029,8 @@ def update_user_profile(
         values["display_name"] = display_name
     if "bio" in fields:
         values["bio"] = (update.bio or "").strip()
-    if "avatar_url" in fields:
-        avatar_url = (update.avatar_url or "").strip()
-        if avatar_url:
-            parsed_url = urlsplit(avatar_url)
-            if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
-                raise HTTPException(
-                    status_code=422, detail="頭像網址必須是有效的 HTTP 或 HTTPS 網址"
-                )
-        values["avatar_url"] = avatar_url or None
+    if "username" in fields:
+        values["username"] = validated_username(update.username)
     if "is_private" in fields:
         if update.is_private is None:
             raise HTTPException(status_code=422, detail="請指定帳號是公開或私人")
@@ -1837,14 +2038,31 @@ def update_user_profile(
 
     assignments = ", ".join(f"{column} = ?" for column in values)
     with get_connection() as conn:
-        conn.execute(
-            f"UPDATE users SET {assignments} WHERE id = ?",
-            [*values.values(), user["id"]],
-        )
+        try:
+            conn.execute(
+                f"UPDATE users SET {assignments} WHERE id = ?",
+                [*values.values(), user["id"]],
+            )
+        except sqlite3.IntegrityError as error:
+            raise HTTPException(
+                status_code=409, detail="這個帳號 ID 已經有人使用"
+            ) from error
+        if values.get("is_private") == 0:
+            # A public account needs no approval, so nobody stays waiting.
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO user_follows (follower_id, followed_id)
+                SELECT requester_id, target_id FROM follow_requests WHERE target_id = ?
+                """,
+                (user["id"],),
+            )
+            conn.execute(
+                "DELETE FROM follow_requests WHERE target_id = ?", (user["id"],)
+            )
         conn.commit()
         profile = conn.execute(
-            """
-            SELECT id, email, display_name, bio, avatar_url, is_private
+            f"""
+            SELECT {PROFILE_COLUMNS}
             FROM users
             WHERE id = ?
             """,
@@ -1853,14 +2071,208 @@ def update_user_profile(
     if profile is None:
         raise HTTPException(status_code=404, detail="找不到使用者個人檔案")
     return {
-        "username": profile["email"].split("@", 1)[0]
-        if profile["email"]
-        else f"user{profile['id']}",
+        "username": profile["username"],
         "display_name": profile["display_name"],
         "bio": profile["bio"] or "",
         "avatar_url": profile["avatar_url"],
         "is_private": bool(profile["is_private"]),
     }
+
+
+AVATAR_DIR = DB_PATH.parent / "avatars"
+AVATAR_URL_PREFIX = "/api/avatars/"
+FOOTPRINT_COVER_DIR = DB_PATH.parent / "footprint-covers"
+FOOTPRINT_COVER_URL_PREFIX = "/api/footprint-covers/"
+STORED_IMAGE_PATTERN = re.compile(r"[0-9a-f]{32}\.(?:jpg|png|webp)")
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+
+
+def image_extension(header: bytes | bytearray) -> Optional[str]:
+    # Checks the bytes rather than the claimed type, so SVG and HTML cannot get through.
+    if header.startswith(b"\xff\xd8\xff"):
+        return "jpg"
+    if header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+        return "webp"
+    return None
+
+
+async def read_image_upload(
+    request: Request, too_large_detail: str, unsupported_detail: str
+) -> tuple[bytearray, str]:
+    too_large = HTTPException(status_code=413, detail=too_large_detail)
+    declared_length = request.headers.get("content-length", "")
+    if declared_length.isdigit() and int(declared_length) > MAX_IMAGE_BYTES:
+        raise too_large
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        if len(data) > MAX_IMAGE_BYTES:
+            raise too_large
+    extension = image_extension(data[:12])
+    if extension is None:
+        raise HTTPException(status_code=415, detail=unsupported_detail)
+    return data, extension
+
+
+def write_stored_image(
+    directory: Path, url_prefix: str, data: bytes | bytearray, extension: str
+) -> str:
+    directory.mkdir(parents=True, exist_ok=True)
+    filename = f"{secrets.token_hex(16)}.{extension}"
+    (directory / filename).write_bytes(data)
+    return f"{url_prefix}{filename}"
+
+
+def remove_stored_image(url: Optional[str], url_prefix: str, directory: Path) -> None:
+    if not url or not url.startswith(url_prefix):
+        return
+    filename = url.removeprefix(url_prefix)
+    if STORED_IMAGE_PATTERN.fullmatch(filename):
+        (directory / filename).unlink(missing_ok=True)
+
+
+def replace_avatar(user_id: int, avatar_url: Optional[str]) -> None:
+    with get_connection() as conn:
+        previous = conn.execute(
+            "SELECT avatar_url FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+        conn.execute(
+            "UPDATE users SET avatar_url = ? WHERE id = ?", (avatar_url, user_id)
+        )
+        conn.commit()
+    remove_stored_image(
+        previous["avatar_url"] if previous else None, AVATAR_URL_PREFIX, AVATAR_DIR
+    )
+
+
+def store_avatar(user_id: int, data: bytes | bytearray, extension: str) -> str:
+    avatar_url = write_stored_image(AVATAR_DIR, AVATAR_URL_PREFIX, data, extension)
+    replace_avatar(user_id, avatar_url)
+    return avatar_url
+
+
+@app.post("/api/user/avatar")
+async def upload_avatar(
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    data, extension = await read_image_upload(
+        request, "頭貼圖片不可超過 5 MB", "頭貼只支援 JPG、PNG 或 WebP 圖片"
+    )
+    avatar_url = await run_in_threadpool(store_avatar, user["id"], data, extension)
+    return {"avatar_url": avatar_url}
+
+
+@app.delete("/api/user/avatar", status_code=status.HTTP_204_NO_CONTENT)
+def delete_avatar(user: dict[str, Any] = Depends(get_current_user)) -> Response:
+    replace_avatar(user["id"], None)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/api/avatars/{filename}", include_in_schema=False)
+def get_avatar(filename: str) -> FileResponse:
+    path = AVATAR_DIR / filename
+    if not STORED_IMAGE_PATTERN.fullmatch(filename) or not path.is_file():
+        raise HTTPException(status_code=404, detail="找不到頭貼")
+    # A new upload gets a new name, so a stored file never changes.
+    return FileResponse(
+        path, headers={"Cache-Control": "public, max-age=31536000, immutable"}
+    )
+
+
+def owned_point_cover(
+    conn: sqlite3.Connection, point_id: int, user_id: int
+) -> sqlite3.Row:
+    point = conn.execute(
+        "SELECT cover_url FROM map_points WHERE id = ? AND owner_id = ?",
+        (point_id, user_id),
+    ).fetchone()
+    if point is None:
+        raise HTTPException(status_code=404, detail="找不到這個足跡")
+    return point
+
+
+def remove_footprint_cover_file(cover_url: Optional[str]) -> None:
+    remove_stored_image(cover_url, FOOTPRINT_COVER_URL_PREFIX, FOOTPRINT_COVER_DIR)
+
+
+def store_footprint_cover(
+    point_id: int, user_id: int, data: bytes | bytearray, extension: str
+) -> dict[str, Any]:
+    with get_connection() as conn:
+        previous = owned_point_cover(conn, point_id, user_id)
+        cover_url = write_stored_image(
+            FOOTPRINT_COVER_DIR, FOOTPRINT_COVER_URL_PREFIX, data, extension
+        )
+        conn.execute(
+            "UPDATE map_points SET cover_url = ? WHERE id = ? AND owner_id = ?",
+            (cover_url, point_id, user_id),
+        )
+        point = get_map_point(conn, point_id, user_id)
+        conn.commit()
+    remove_footprint_cover_file(previous["cover_url"])
+    return point
+
+
+@app.post("/api/map-points/{point_id}/cover")
+async def upload_footprint_cover(
+    point_id: int,
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    with get_connection() as conn:
+        owned_point_cover(conn, point_id, user["id"])
+    data, extension = await read_image_upload(
+        request,
+        "足跡背景照片不可超過 5 MB",
+        "足跡背景照片只支援 JPG、PNG 或 WebP 圖片",
+    )
+    return await run_in_threadpool(
+        store_footprint_cover, point_id, user["id"], data, extension
+    )
+
+
+@app.delete("/api/map-points/{point_id}/cover", status_code=status.HTTP_204_NO_CONTENT)
+def delete_footprint_cover(
+    point_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> Response:
+    with get_connection() as conn:
+        point = owned_point_cover(conn, point_id, user["id"])
+        conn.execute(
+            "UPDATE map_points SET cover_url = NULL WHERE id = ? AND owner_id = ?",
+            (point_id, user["id"]),
+        )
+        conn.commit()
+    remove_footprint_cover_file(point["cover_url"])
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/api/footprint-covers/{filename}", include_in_schema=False)
+def get_footprint_cover(
+    filename: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> FileResponse:
+    if not STORED_IMAGE_PATTERN.fullmatch(filename):
+        raise HTTPException(status_code=404, detail="找不到足跡背景照片")
+    cover_url = f"{FOOTPRINT_COVER_URL_PREFIX}{filename}"
+    point_filter = visible_content_filter("map_points")
+    with get_connection() as conn:
+        point = conn.execute(
+            f"""
+            SELECT map_points.id
+            FROM map_points
+            JOIN users ON users.id = map_points.owner_id
+            WHERE map_points.cover_url = ? AND ({point_filter})
+            """,
+            (cover_url, user["id"], user["id"], user["id"]),
+        ).fetchone()
+    path = FOOTPRINT_COVER_DIR / filename
+    if point is None or not path.is_file():
+        raise HTTPException(status_code=404, detail="找不到足跡背景照片")
+    return FileResponse(path, headers={"Cache-Control": "private, no-store"})
 
 
 @app.get("/api/user/posts")
@@ -1913,7 +2325,9 @@ def list_user_posts(
                 "privacy": footprint["privacy"],
                 "tags": None,
                 "created_at": footprint["created_at"],
+                "is_owner": True,
                 "points": footprint["points"],
+                "cover_url": footprint["cover_url"],
             }
         )
     posts.sort(
@@ -2156,7 +2570,7 @@ def list_entries(user: dict[str, Any] = Depends(get_current_user)) -> list[dict[
     with get_connection() as conn:
         rows = conn.execute(
             f"""
-            SELECT entries.*, users.display_name AS owner_name,
+            SELECT entries.*, {OWNER_COLUMNS},
                    (entries.owner_id = ?) AS is_owner
             FROM entries
             JOIN users ON users.id = entries.owner_id
@@ -2246,8 +2660,8 @@ def update_entry_privacy(
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="找不到這篇日記")
         row = conn.execute(
-            """
-            SELECT entries.*, users.display_name AS owner_name, 1 AS is_owner
+            f"""
+            SELECT entries.*, {OWNER_COLUMNS}, 1 AS is_owner
             FROM entries JOIN users ON users.id = entries.owner_id
             WHERE entries.id = ? AND entries.owner_id = ?
             """,
@@ -2303,8 +2717,8 @@ def update_entry(
             [*values.values(), entry_id, user["id"]],
         )
         updated = conn.execute(
-            """
-            SELECT entries.*, users.display_name AS owner_name, 1 AS is_owner
+            f"""
+            SELECT entries.*, {OWNER_COLUMNS}, 1 AS is_owner
             FROM entries JOIN users ON users.id = entries.owner_id
             WHERE entries.id = ? AND entries.owner_id = ?
             """,
@@ -2339,7 +2753,7 @@ def list_friends(
     with get_connection() as conn:
         rows = conn.execute(
             """
-            SELECT users.id, users.email, users.display_name, users.avatar_url,
+            SELECT users.id, users.email, users.username, users.display_name, users.avatar_url,
                    EXISTS (
                        SELECT 1 FROM user_close_friends close_friends
                        WHERE close_friends.owner_id = ? AND close_friends.friend_id = users.id
@@ -2365,6 +2779,134 @@ def list_friends(
     ]
 
 
+def follow_or_request(
+    conn: sqlite3.Connection, follower_id: int, target_id: int
+) -> bool:
+    """Follows a public account at once; a private one must approve. True if following."""
+    if conn.execute(
+        "SELECT 1 FROM user_follows WHERE follower_id = ? AND followed_id = ?",
+        (follower_id, target_id),
+    ).fetchone():
+        return True
+    is_private = conn.execute(
+        "SELECT is_private FROM users WHERE id = ?", (target_id,)
+    ).fetchone()[0]
+    if is_private:
+        conn.execute(
+            "INSERT OR IGNORE INTO follow_requests (requester_id, target_id) VALUES (?, ?)",
+            (follower_id, target_id),
+        )
+        return False
+    conn.execute(
+        "INSERT INTO user_follows (follower_id, followed_id) VALUES (?, ?)",
+        (follower_id, target_id),
+    )
+    return True
+
+
+def delete_follow_request(
+    conn: sqlite3.Connection, requester_id: int, target_id: int
+) -> None:
+    cursor = conn.execute(
+        "DELETE FROM follow_requests WHERE requester_id = ? AND target_id = ?",
+        (requester_id, target_id),
+    )
+    if cursor.rowcount == 0:
+        raise HTTPException(status_code=404, detail="找不到這個追蹤請求")
+
+
+def end_follow(conn: sqlite3.Connection, follower_id: int, followed_id: int) -> int:
+    # Ending a follow also revokes the close-friend grant, so following again cannot
+    # silently restore it. Returns how many follows were removed.
+    conn.execute(
+        "DELETE FROM user_close_friends WHERE owner_id = ? AND friend_id = ?",
+        (followed_id, follower_id),
+    )
+    return conn.execute(
+        "DELETE FROM user_follows WHERE follower_id = ? AND followed_id = ?",
+        (follower_id, followed_id),
+    ).rowcount
+
+
+@app.get("/api/user/follow-requests")
+def list_follow_requests(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT users.id, users.username, users.display_name, users.avatar_url,
+                   follow_requests.created_at
+            FROM follow_requests
+            JOIN users ON users.id = follow_requests.requester_id
+            WHERE follow_requests.target_id = ?
+            ORDER BY follow_requests.created_at DESC, users.id DESC
+            """,
+            (user["id"],),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.post(
+    "/api/user/follow-requests/{requester_id}/accept",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def accept_follow_request(
+    requester_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> Response:
+    with get_connection() as conn:
+        delete_follow_request(conn, requester_id, user["id"])
+        conn.execute(
+            "INSERT OR IGNORE INTO user_follows (follower_id, followed_id) VALUES (?, ?)",
+            (requester_id, user["id"]),
+        )
+        conn.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.delete(
+    "/api/user/follow-requests/{requester_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def decline_follow_request(
+    requester_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> Response:
+    with get_connection() as conn:
+        delete_follow_request(conn, requester_id, user["id"])
+        conn.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.delete(
+    "/api/users/{user_id}/follow-request",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def cancel_follow_request(
+    user_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> Response:
+    with get_connection() as conn:
+        delete_follow_request(conn, user["id"], user_id)
+        conn.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.delete(
+    "/api/user/followers/{follower_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def remove_follower(
+    follower_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> Response:
+    with get_connection() as conn:
+        if end_follow(conn, follower_id, user["id"]) == 0:
+            raise HTTPException(status_code=404, detail="找不到這位粉絲")
+        conn.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @app.post("/api/friends", status_code=status.HTTP_201_CREATED)
 def follow_friend(
     friend: FriendCreate,
@@ -2380,10 +2922,7 @@ def follow_friend(
             raise HTTPException(status_code=404, detail="找不到這個帳號")
         if target["id"] == user["id"]:
             raise HTTPException(status_code=400, detail="不能追蹤自己的帳號")
-        conn.execute(
-            "INSERT OR IGNORE INTO user_follows (follower_id, followed_id) VALUES (?, ?)",
-            (user["id"], target["id"]),
-        )
+        is_following = follow_or_request(conn, user["id"], target["id"])
         if friend.is_close_friend:
             conn.execute(
                 "INSERT OR IGNORE INTO user_close_friends (owner_id, friend_id) VALUES (?, ?)",
@@ -2395,6 +2934,8 @@ def follow_friend(
         "email": target["email"],
         "display_name": target["display_name"],
         "is_close_friend": friend.is_close_friend,
+        "is_following": is_following,
+        "is_requested": not is_following,
     }
 
 
@@ -2416,19 +2957,13 @@ def follow_user(
         ).fetchone()
         if target is None:
             raise HTTPException(status_code=404, detail="找不到這個帳號")
-        conn.execute(
-            "INSERT OR IGNORE INTO user_follows (follower_id, followed_id) VALUES (?, ?)",
-            (user["id"], target["id"]),
-        )
+        is_following = follow_or_request(conn, user["id"], target["id"])
         conn.commit()
-        is_following = conn.execute(
-            "SELECT 1 FROM user_follows WHERE follower_id = ? AND followed_id = ?",
-            (user["id"], target["id"]),
-        ).fetchone() is not None
     return {
         "id": target["id"],
         "display_name": target["display_name"],
         "is_following": is_following,
+        "is_requested": not is_following,
     }
 
 
@@ -2473,16 +3008,7 @@ def unfollow_friend(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> Response:
     with get_connection() as conn:
-        cursor = conn.execute(
-            "DELETE FROM user_follows WHERE follower_id = ? AND followed_id = ?",
-            (user["id"], friend_id),
-        )
-        # Following again must not silently restore the author's close-friend grant.
-        conn.execute(
-            "DELETE FROM user_close_friends WHERE owner_id = ? AND friend_id = ?",
-            (friend_id, user["id"]),
-        )
-        if cursor.rowcount == 0:
+        if end_follow(conn, user["id"], friend_id) == 0:
             raise HTTPException(status_code=404, detail="找不到追蹤中的好友")
         conn.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -2672,6 +3198,68 @@ def build_route_points(point: MapPointCreate) -> list[FootprintRoutePoint]:
     ]
 
 
+def map_point_values(point: MapPointCreate) -> tuple[Any, ...]:
+    route_points = build_route_points(point)
+    return (
+        point.name.strip(),
+        route_points[0].lat,
+        route_points[0].lng,
+        point.note.strip(),
+        point.privacy,
+        json.dumps(
+            [route_point.model_dump() for route_point in route_points],
+            ensure_ascii=False,
+        ),
+    )
+
+
+def insert_map_point(
+    conn: sqlite3.Connection, owner_id: int, values: tuple[Any, ...]
+) -> int:
+    return conn.execute(
+        """
+        INSERT INTO map_points
+            (owner_id, name, latitude, longitude, note, privacy, points_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (owner_id, *values),
+    ).lastrowid
+
+
+def require_owned_points(
+    conn: sqlite3.Connection, owner_id: int, point_ids: list[int]
+) -> None:
+    if not point_ids:
+        return
+    placeholders = ",".join("?" for _ in point_ids)
+    found = conn.execute(
+        f"SELECT id FROM map_points WHERE owner_id = ? AND id IN ({placeholders})",
+        [owner_id, *point_ids],
+    ).fetchall()
+    if len(found) != len(point_ids):
+        raise HTTPException(status_code=404, detail="部分選取的足跡不存在")
+
+
+def insert_trip_points(
+    conn: sqlite3.Connection, trip_id: int, point_ids: list[int]
+) -> None:
+    conn.executemany(
+        """
+        INSERT INTO trip_map_points (trip_id, map_point_id, position)
+        VALUES (?, ?, ?)
+        """,
+        [(trip_id, point_id, position) for position, point_id in enumerate(point_ids)],
+    )
+
+
+def trip_output(row: sqlite3.Row) -> dict[str, Any]:
+    trip = dict(row)
+    trip.pop("owner_id", None)
+    trip["is_public"] = bool(trip["is_public"])
+    trip["points"] = []
+    return trip
+
+
 def get_trip_with_points(
     conn: sqlite3.Connection, trip_id: int, owner_id: int | None = None
 ) -> dict[str, Any]:
@@ -2684,9 +3272,7 @@ def get_trip_with_points(
         ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="找不到這個行程包")
-    trip = dict(row)
-    trip.pop("owner_id", None)
-    trip["is_public"] = bool(trip["is_public"])
+    trip = trip_output(row)
     trip["points"] = [
         map_point_output(dict(point))
         for point in conn.execute(
@@ -2712,7 +3298,7 @@ def list_map_points(
     with get_connection() as conn:
         rows = conn.execute(
             f"""
-            SELECT map_points.*, users.display_name AS owner_name,
+            SELECT map_points.*, {OWNER_COLUMNS},
                    (map_points.owner_id = ?) AS is_owner
             FROM map_points
             JOIN users ON users.id = map_points.owner_id
@@ -2733,29 +3319,10 @@ def list_map_points(
 def create_map_point(
     point: MapPointCreate, user: dict[str, Any] = Depends(get_current_user)
 ) -> dict[str, Any]:
-    normalized_route_points = build_route_points(point)
-    first_point = normalized_route_points[0]
+    values = map_point_values(point)
     with get_connection() as conn:
-        cursor = conn.execute(
-            """
-            INSERT INTO map_points
-                (owner_id, name, latitude, longitude, note, privacy, points_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                user["id"],
-                point.name.strip(),
-                first_point.lat,
-                first_point.lng,
-                point.note.strip(),
-                point.privacy,
-                json.dumps(
-                    [route_point.model_dump() for route_point in normalized_route_points],
-                    ensure_ascii=False,
-                ),
-            ),
-        )
-        created = get_map_point(conn, cursor.lastrowid, user["id"])
+        point_id = insert_map_point(conn, user["id"], values)
+        created = get_map_point(conn, point_id, user["id"])
         conn.commit()
     return created
 
@@ -2766,8 +3333,7 @@ def replace_map_point(
     point: MapPointCreate,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    route_points = build_route_points(point)
-    first_point = route_points[0]
+    values = map_point_values(point)
     with get_connection() as conn:
         cursor = conn.execute(
             """
@@ -2776,19 +3342,7 @@ def replace_map_point(
                 points_json = ?
             WHERE id = ? AND owner_id = ?
             """,
-            (
-                point.name.strip(),
-                first_point.lat,
-                first_point.lng,
-                point.note.strip(),
-                point.privacy,
-                json.dumps(
-                    [route_point.model_dump() for route_point in route_points],
-                    ensure_ascii=False,
-                ),
-                point_id,
-                user["id"],
-            ),
+            (*values, point_id, user["id"]),
         )
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="找不到這個足跡")
@@ -2803,16 +3357,16 @@ def delete_map_point(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> Response:
     with get_connection() as conn:
-        cursor = conn.execute(
+        point = owned_point_cover(conn, point_id, user["id"])
+        conn.execute(
             "DELETE FROM map_points WHERE id = ? AND owner_id = ?",
             (point_id, user["id"]),
         )
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="找不到這個足跡")
         conn.execute(
             "DELETE FROM trip_map_points WHERE map_point_id = ?", (point_id,)
         )
         conn.commit()
+    remove_footprint_cover_file(point["cover_url"])
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -2834,22 +3388,243 @@ def update_map_point_privacy(
     return point
 
 
+MEETUP_PARTICIPANT_LIMIT = 10
+
+
+def meetup_output(
+    conn: sqlite3.Connection, meetup_id: int, viewer_id: int | None
+) -> dict[str, Any]:
+    row = conn.execute(
+        """
+        SELECT meetups.*, users.display_name AS host_name,
+               users.username AS host_username,
+               (meetups.owner_id = ?) AS is_owner,
+               (SELECT COUNT(*) FROM meetup_participants
+                WHERE meetup_id = meetups.id) AS participant_count,
+               EXISTS (
+                   SELECT 1 FROM meetup_participants
+                   WHERE meetup_id = meetups.id AND user_id = ?
+               ) AS is_participating
+        FROM meetups
+        JOIN users ON users.id = meetups.owner_id
+        WHERE meetups.id = ?
+        """,
+        (viewer_id, viewer_id, meetup_id),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="找不到這個揪團邀請")
+    try:
+        destinations = json.loads(row["destinations_json"])
+    except (json.JSONDecodeError, TypeError) as error:
+        raise HTTPException(status_code=500, detail="揪團路線資料格式錯誤") from error
+    if not isinstance(destinations, list) or not all(
+        isinstance(destination, str) for destination in destinations
+    ):
+        raise HTTPException(status_code=500, detail="揪團路線資料格式錯誤")
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "starts_at": row["starts_at"],
+        "departure_city": row["departure_city"],
+        "departure_district": row["departure_district"],
+        "destinations": destinations,
+        "host_name": row["host_name"],
+        "host_username": row["host_username"],
+        "participant_count": row["participant_count"],
+        "participant_limit": MEETUP_PARTICIPANT_LIMIT,
+        "is_owner": bool(row["is_owner"]),
+        "is_participating": bool(row["is_participating"]),
+    }
+
+
+def get_meetup(
+    conn: sqlite3.Connection, meetup_id: int, viewer_id: int | None
+) -> dict[str, Any]:
+    return meetup_output(conn, meetup_id, viewer_id)
+
+
+def meetup_values(meetup: MeetupCreate) -> tuple[str, str, str, str, str]:
+    return (
+        meetup.title,
+        meetup.starts_at.isoformat(timespec="seconds"),
+        meetup.departure_city,
+        meetup.departure_district,
+        json.dumps(meetup.destinations, ensure_ascii=False),
+    )
+
+
+@app.get("/api/meetups")
+def list_meetups(request: Request) -> list[dict[str, Any]]:
+    viewer_id = get_optional_user_id(request)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_connection() as conn:
+        meetup_ids = [
+            row["id"]
+            for row in conn.execute(
+                "SELECT id FROM meetups WHERE starts_at > ? ORDER BY starts_at, id",
+                (now,),
+            ).fetchall()
+        ]
+        return [get_meetup(conn, meetup_id, viewer_id) for meetup_id in meetup_ids]
+
+
+@app.post("/api/meetups", status_code=status.HTTP_201_CREATED)
+def create_meetup(
+    meetup: MeetupCreate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO meetups
+                (owner_id, title, starts_at, departure_city, departure_district, destinations_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (user["id"], *meetup_values(meetup)),
+        )
+        meetup_id = cursor.lastrowid
+        conn.execute(
+            "INSERT INTO meetup_participants (meetup_id, user_id) VALUES (?, ?)",
+            (meetup_id, user["id"]),
+        )
+        created = get_meetup(conn, meetup_id, user["id"])
+        conn.commit()
+    return created
+
+
+@app.put("/api/meetups/{meetup_id}")
+def update_meetup(
+    meetup_id: int,
+    meetup: MeetupCreate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE meetups
+            SET title = ?, starts_at = ?, departure_city = ?,
+                departure_district = ?, destinations_json = ?
+            WHERE id = ? AND owner_id = ?
+            """,
+            (*meetup_values(meetup), meetup_id, user["id"]),
+        )
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="找不到這個揪團邀請")
+        updated = get_meetup(conn, meetup_id, user["id"])
+        conn.commit()
+    return updated
+
+
+@app.delete("/api/meetups/{meetup_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_meetup(
+    meetup_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> Response:
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id FROM meetups WHERE id = ? AND owner_id = ?",
+            (meetup_id, user["id"]),
+        ).fetchone()
+        if existing is None:
+            raise HTTPException(status_code=404, detail="找不到這個揪團邀請")
+        conn.execute(
+            "DELETE FROM meetup_participants WHERE meetup_id = ?", (meetup_id,)
+        )
+        conn.execute(
+            "DELETE FROM meetups WHERE id = ? AND owner_id = ?",
+            (meetup_id, user["id"]),
+        )
+        conn.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post("/api/meetups/{meetup_id}/participants")
+def join_meetup(
+    meetup_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_connection() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        meetup = conn.execute(
+            "SELECT starts_at FROM meetups WHERE id = ?", (meetup_id,)
+        ).fetchone()
+        if meetup is None or meetup["starts_at"] <= now:
+            raise HTTPException(status_code=404, detail="找不到可參加的揪團邀請")
+        current = conn.execute(
+            """
+            SELECT 1 FROM meetup_participants
+            WHERE meetup_id = ? AND user_id = ?
+            """,
+            (meetup_id, user["id"]),
+        ).fetchone()
+        if current is None:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM meetup_participants WHERE meetup_id = ?",
+                (meetup_id,),
+            ).fetchone()[0]
+            if count >= MEETUP_PARTICIPANT_LIMIT:
+                raise HTTPException(status_code=409, detail="這個揪團已達 10 人上限")
+            conn.execute(
+                "INSERT INTO meetup_participants (meetup_id, user_id) VALUES (?, ?)",
+                (meetup_id, user["id"]),
+            )
+        joined = get_meetup(conn, meetup_id, user["id"])
+        conn.commit()
+    return joined
+
+
+@app.delete("/api/meetups/{meetup_id}/participants")
+def leave_meetup(
+    meetup_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    with get_connection() as conn:
+        meetup = conn.execute(
+            "SELECT owner_id FROM meetups WHERE id = ?", (meetup_id,)
+        ).fetchone()
+        if meetup is None:
+            raise HTTPException(status_code=404, detail="找不到這個揪團邀請")
+        if meetup["owner_id"] == user["id"]:
+            raise HTTPException(
+                status_code=409, detail="揪團者不能退出邀請；請編輯或取消揪團"
+            )
+        conn.execute(
+            "DELETE FROM meetup_participants WHERE meetup_id = ? AND user_id = ?",
+            (meetup_id, user["id"]),
+        )
+        left = get_meetup(conn, meetup_id, user["id"])
+        conn.commit()
+    return left
+
+
 @app.get("/api/trips")
 def list_trips(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     with get_connection() as conn:
-        trip_ids = [
-            row["id"]
+        trips = {
+            row["id"]: trip_output(row)
             for row in conn.execute(
-                "SELECT id FROM trips WHERE owner_id = ? ORDER BY created_at DESC, id DESC",
+                "SELECT * FROM trips WHERE owner_id = ? ORDER BY created_at DESC, id DESC",
                 (user["id"],),
             ).fetchall()
-        ]
-        return [
-            get_trip_with_points(conn, trip_id, user["id"])
-            for trip_id in trip_ids
-        ]
+        }
+        rows = conn.execute(
+            """
+            SELECT map_points.*, trip_map_points.trip_id AS linked_trip_id
+            FROM trip_map_points
+            JOIN trips ON trips.id = trip_map_points.trip_id
+            JOIN map_points ON map_points.id = trip_map_points.map_point_id
+            WHERE trips.owner_id = ? AND map_points.owner_id = ?
+            ORDER BY trip_map_points.position, map_points.id
+            """,
+            (user["id"], user["id"]),
+        ).fetchall()
+    for row in rows:
+        point = dict(row)
+        trips[point.pop("linked_trip_id")]["points"].append(map_point_output(point))
+    return list(trips.values())
 
 
 @app.post("/api/trips", status_code=status.HTTP_201_CREATED)
@@ -2858,32 +3633,103 @@ def create_trip(
 ) -> dict[str, Any]:
     point_ids = list(dict.fromkeys(trip.point_ids))
     with get_connection() as conn:
-        if point_ids:
-            placeholders = ",".join("?" for _ in point_ids)
-            found = conn.execute(
-                f"SELECT id FROM map_points WHERE owner_id = ? AND id IN ({placeholders})",
-                [user["id"], *point_ids],
-            ).fetchall()
-            if len(found) != len(point_ids):
-                raise HTTPException(
-                    status_code=404, detail="部分選取的足跡不存在"
-                )
+        require_owned_points(conn, user["id"], point_ids)
         cursor = conn.execute(
             "INSERT INTO trips (owner_id, title, description, is_public) VALUES (?, ?, ?, ?)",
             (user["id"], trip.title.strip(), trip.description.strip(), int(trip.is_public)),
         )
         trip_id = cursor.lastrowid
-        conn.executemany(
+        insert_trip_points(conn, trip_id, point_ids)
+        created = get_trip_with_points(conn, trip_id, user["id"])
+        conn.commit()
+    return created
+
+
+@app.put("/api/trips/{trip_id}")
+def update_trip(
+    trip_id: int,
+    trip: TripCreate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    point_ids = list(dict.fromkeys(trip.point_ids))
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id FROM trips WHERE id = ? AND owner_id = ?",
+            (trip_id, user["id"]),
+        ).fetchone()
+        if existing is None:
+            raise HTTPException(status_code=404, detail="找不到這個行程包")
+        require_owned_points(conn, user["id"], point_ids)
+        conn.execute(
+            """
+            UPDATE trips
+            SET title = ?, description = ?, is_public = ?
+            WHERE id = ? AND owner_id = ?
+            """,
+            (
+                trip.title.strip(),
+                trip.description.strip(),
+                int(trip.is_public),
+                trip_id,
+                user["id"],
+            ),
+        )
+        conn.execute("DELETE FROM trip_map_points WHERE trip_id = ?", (trip_id,))
+        insert_trip_points(conn, trip_id, point_ids)
+        updated = get_trip_with_points(conn, trip_id, user["id"])
+        conn.commit()
+    return updated
+
+
+@app.delete("/api/trips/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_trip(
+    trip_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> Response:
+    with get_connection() as conn:
+        deleted = conn.execute(
+            "DELETE FROM trips WHERE id = ? AND owner_id = ?",
+            (trip_id, user["id"]),
+        ).rowcount
+        if not deleted:
+            raise HTTPException(status_code=404, detail="找不到這個行程包")
+        # The footprints stay; only their place in this trip goes away.
+        conn.execute("DELETE FROM trip_map_points WHERE trip_id = ?", (trip_id,))
+        conn.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post("/api/trips/{trip_id}/points", status_code=status.HTTP_201_CREATED)
+def create_trip_map_point(
+    trip_id: int,
+    point: MapPointCreate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    values = map_point_values(point)
+    with get_connection() as conn:
+        trip = conn.execute(
+            "SELECT id FROM trips WHERE id = ? AND owner_id = ?",
+            (trip_id, user["id"]),
+        ).fetchone()
+        if trip is None:
+            raise HTTPException(status_code=404, detail="找不到這個行程包")
+        map_point_id = insert_map_point(conn, user["id"], values)
+        position = conn.execute(
+            """
+            SELECT COALESCE(MAX(position) + 1, 0)
+            FROM trip_map_points
+            WHERE trip_id = ?
+            """,
+            (trip_id,),
+        ).fetchone()[0]
+        conn.execute(
             """
             INSERT INTO trip_map_points (trip_id, map_point_id, position)
             VALUES (?, ?, ?)
             """,
-            [
-                (trip_id, point_id, position)
-                for position, point_id in enumerate(point_ids)
-            ],
+            (trip_id, map_point_id, position),
         )
-        created = get_trip_with_points(conn, trip_id, user["id"])
+        created = get_map_point(conn, map_point_id, user["id"])
         conn.commit()
     return created
 
@@ -2925,7 +3771,7 @@ def get_entry(
     with get_connection() as conn:
         row = conn.execute(
             f"""
-            SELECT entries.*, users.display_name AS owner_name,
+            SELECT entries.*, {OWNER_COLUMNS},
                    (entries.owner_id = ?) AS is_owner
             FROM entries
             JOIN users ON users.id = entries.owner_id

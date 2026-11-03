@@ -91,10 +91,7 @@ function placePendingRoutePoint(latlng, placeName = "") {
   });
   const nameInput = pendingMapPickRow.querySelector("[data-route-name]");
   if (!nameInput.value.trim()) nameInput.value = placeName || "地圖途經點";
-  pickingMapPoint = false;
-  pendingMapPickRow = null;
-  mapPickBanner.hidden = true;
-  mapPointDialog.showModal();
+  resumeMapPointForm();
   nameInput.focus();
   document.querySelector("#map-form-status").textContent =
     "已將地圖座標加入所選途經點。";
@@ -161,10 +158,7 @@ routePointList.addEventListener("click", (event) => {
   }
   const pickButton = event.target.closest("[data-route-pick]");
   if (pickButton) {
-    pendingMapPickRow = pickButton.closest(".route-point-row");
-    mapPointDialog.close();
-    pickingMapPoint = true;
-    mapPickBanner.hidden = false;
+    startMapPick(pickButton.closest(".route-point-row"));
     return;
   }
 
@@ -190,27 +184,54 @@ function embeddedMapUrl(selectedPoint) {
   return `https://www.google.com/maps?${params}`;
 }
 
-function updateEmbeddedMap() {
-  const frame = document.querySelector("#map-canvas iframe");
-  if (!frame) return;
-  const url = embeddedMapUrl(
-    mapPoints.find((point) => point.id === selectedMapPointId),
-  );
-  if (frame.getAttribute("src") !== url) frame.setAttribute("src", url);
-}
+const MAP_FRAME_DRAW_MS = 700;
+const MAP_FRAME_FADE_MS = 200;
 
-// Google's iframe map needs no key, so the page still shows a real map without one.
-function showMapUnavailable(message) {
-  map = null;
+function createEmbeddedMapFrame() {
   const frame = document.createElement("iframe");
   frame.title = "Google 地圖";
   frame.loading = "lazy";
   frame.referrerPolicy = "strict-origin";
-  document.querySelector("#map-canvas").replaceChildren(frame);
+  return frame;
+}
+
+// A cross-origin map can't move without reloading, so the new one loads behind
+// the current one and only takes over once it has had time to draw.
+function updateEmbeddedMap() {
+  const canvas = document.querySelector("#map-canvas");
+  // The last settled frame is the live one; an older one may still be fading out.
+  const shown = [...canvas.querySelectorAll("iframe:not(.is-loading)")].pop();
+  if (!shown) return;
+  const url = embeddedMapUrl(
+    mapPoints.find((point) => point.id === selectedMapPointId),
+  );
+  const loading = canvas.querySelector("iframe.is-loading");
+  if (loading?.getAttribute("src") === url) return;
+  loading?.remove();
+  if (shown.getAttribute("src") === url) return;
+  // Nothing is on screen to protect while the map is hidden or opening for the first time.
+  if (mapView.hidden || !shown.hasAttribute("src")) {
+    shown.setAttribute("src", url);
+    return;
+  }
+  const next = createEmbeddedMapFrame();
+  next.className = "is-loading";
+  next.setAttribute("src", url);
+  next.addEventListener("load", () => {
+    window.setTimeout(() => {
+      if (!next.isConnected) return;
+      next.classList.remove("is-loading");
+      window.setTimeout(() => shown.remove(), MAP_FRAME_FADE_MS);
+    }, MAP_FRAME_DRAW_MS);
+  });
+  canvas.append(next);
+}
+
+// Google's iframe map needs no key, so the page still shows a real map without one.
+function showMapUnavailable() {
+  map = null;
+  document.querySelector("#map-canvas").replaceChildren(createEmbeddedMapFrame());
   updateEmbeddedMap();
-  const note = document.querySelector("#map-embed-note");
-  note.textContent = `${message}目前是內嵌地圖，只能瀏覽和看路線。`;
-  note.hidden = false;
   mapPanel.classList.remove("map-ready");
   mapPanel.classList.add("map-unavailable");
 }
@@ -224,8 +245,7 @@ function loadGoogleMaps() {
           return;
         }
         window.onGoogleMapsReady = () => resolve(config);
-        window.gm_authFailure = () =>
-          showMapUnavailable("Google 地圖金鑰無效或未獲授權。");
+        window.gm_authFailure = () => showMapUnavailable();
         const params = new URLSearchParams({
           key: config.api_key,
           v: "weekly",
@@ -269,9 +289,9 @@ async function initMap() {
     map.addListener("contextmenu", handleMapContextMenu);
     initMapTools();
     renderMapMarkers();
-  } catch (error) {
+  } catch {
     googleMapsLoad = null;
-    showMapUnavailable(error.message);
+    showMapUnavailable();
   }
 }
 
@@ -346,12 +366,102 @@ function updateMapRoute(selectedPoint) {
   }
 }
 
+function startMapPick(row) {
+  pendingMapPickRow = row;
+  mapPickReturnScrollY = window.scrollY;
+  mapPointDialog.close();
+  pickingMapPoint = true;
+  mapPickBanner.hidden = false;
+  // The form can also open from the trips view, where the map is hidden.
+  if (mapView.hidden) {
+    applyView("map");
+    window.scrollTo(0, 0);
+  }
+}
+
+function stopMapPick() {
+  pickingMapPoint = false;
+  pendingMapPickRow = null;
+  mapPickBanner.hidden = true;
+}
+
+function resumeMapPointForm() {
+  stopMapPick();
+  // Picking never changes the URL, so it still names the view the form came from.
+  applyViewFromUrl();
+  window.scrollTo(0, mapPickReturnScrollY);
+  mapPointDialog.showModal();
+}
+
+function setMapCardExpanded(pointId, isExpanded) {
+  const button = mapPointsContainer.querySelector(`[data-map-point="${pointId}"]`);
+  if (!button) return;
+  const card = button.closest(".map-point-card");
+  const details = card.querySelector(".map-point-details");
+  card.classList.toggle("is-selected", isExpanded);
+  card.classList.toggle("is-expanded", isExpanded);
+  button.setAttribute("aria-expanded", String(isExpanded));
+  const previous = mapPointDetailAnimations.get(details);
+  if (previous) {
+    details.removeEventListener("transitionend", previous.onTransitionEnd);
+    window.clearTimeout(previous.timeoutId);
+  }
+
+  const startHeight = details.hidden
+    ? 0
+    : details.getBoundingClientRect().height;
+  const startOpacity = details.hidden
+    ? 0
+    : Number.parseFloat(window.getComputedStyle(details).opacity);
+  if (isExpanded) details.hidden = false;
+  details.style.height = `${startHeight}px`;
+  details.style.opacity = String(startOpacity);
+  details.style.overflow = "hidden";
+  details.getBoundingClientRect();
+
+  const finish = () => {
+    const animation = mapPointDetailAnimations.get(details);
+    if (!animation || animation.isExpanded !== isExpanded) return;
+    details.removeEventListener("transitionend", animation.onTransitionEnd);
+    window.clearTimeout(animation.timeoutId);
+    mapPointDetailAnimations.delete(details);
+    if (!isExpanded) details.hidden = true;
+    details.style.removeProperty("height");
+    details.style.removeProperty("opacity");
+    details.style.removeProperty("overflow");
+  };
+  const onTransitionEnd = (event) => {
+    if (event.propertyName === "height") finish();
+  };
+  const timeoutId = window.setTimeout(finish, 700);
+  mapPointDetailAnimations.set(details, {
+    isExpanded,
+    onTransitionEnd,
+    timeoutId,
+  });
+  details.addEventListener("transitionend", onTransitionEnd);
+  window.requestAnimationFrame(() => {
+    if (card.classList.contains("is-expanded") !== isExpanded) return;
+    const borderHeight =
+      Number.parseFloat(window.getComputedStyle(details).borderTopWidth) || 0;
+    details.style.height = isExpanded
+      ? `${details.scrollHeight + borderHeight}px`
+      : "0px";
+    details.style.opacity = isExpanded ? "1" : "0";
+  });
+}
+
 function selectMapPoint(pointId) {
   const point = mapPoints.find((item) => item.id === pointId);
   if (!point) return;
+  if (point.id !== selectedMapPointId) {
+    flushPrivacyDrafts();
+    setMapCardExpanded(selectedMapPointId, false);
+  }
   selectedMapPointId = point.id;
   if (map) clearMapSheet();
-  renderMapPoints();
+  setMapCardExpanded(point.id, true);
+  renderMapMarkers();
   mapPointsContainer
     .querySelector(`[data-map-point="${point.id}"]`)
     ?.focus();
@@ -385,11 +495,31 @@ function closeMapPointDialog() {
   ) {
     return;
   }
-  pickingMapPoint = false;
-  pendingMapPickRow = null;
+  stopMapPick();
   editingMapPointId = null;
-  mapPickBanner.hidden = true;
+  addingFootprintToTripForm = false;
   mapPointDialog.close();
+}
+
+function showMapPointDialog() {
+  document.querySelector("#map-form-status").textContent = "";
+  savedMapPointForm = mapPointFormSnapshot();
+  mapPointDialog.showModal();
+  mapPointForm.elements.name.focus();
+}
+
+function openNewMapPointDialog(addToTripForm = false) {
+  if (!currentUser) {
+    openLoginDialog();
+    return;
+  }
+  addingFootprintToTripForm = addToTripForm;
+  mapPointForm.reset();
+  resetRoutePoints();
+  editingMapPointId = null;
+  setMapPointDialogMode(false);
+  stopMapPick();
+  showMapPointDialog();
 }
 
 function openMapPointEditor(pointId) {
@@ -397,6 +527,7 @@ function openMapPointEditor(pointId) {
     (item) => item.id === pointId && item.is_owner,
   );
   if (!point) return;
+  addingFootprintToTripForm = false;
   editingMapPointId = point.id;
   mapPointForm.reset();
   mapPointForm.elements.name.value = point.name;
@@ -407,10 +538,7 @@ function openMapPointEditor(pointId) {
     addRoutePoint(routePoint);
   });
   setMapPointDialogMode(true);
-  document.querySelector("#map-form-status").textContent = "";
-  savedMapPointForm = mapPointFormSnapshot();
-  mapPointDialog.showModal();
-  mapPointForm.elements.name.focus();
+  showMapPointDialog();
 }
 
 mapPointsContainer.addEventListener("click", (event) => {
@@ -424,8 +552,10 @@ mapPointsContainer.addEventListener("click", (event) => {
   const pointId = Number(button.dataset.mapPoint);
   const isAlreadyExpanded = selectedMapPointId === pointId;
   if (isAlreadyExpanded) {
+    flushPrivacyDrafts();
     selectedMapPointId = null;
-    renderMapPoints();
+    setMapCardExpanded(pointId, false);
+    renderMapMarkers();
     mapInfoWindow?.close();
     mapPointsContainer
       .querySelector(`[data-map-point="${pointId}"]`)
@@ -480,19 +610,15 @@ function renderMapPoints() {
               </ol>
               <button class="secondary-button map-point-directions" type="button" data-google-route-navigation="${Number(point.id)}">前往 Google 導航</button>
               <div class="map-point-top">
-                <span class="mood">${privacyLabel(point.privacy)}</span>
-                <span class="entry-owner">${escapeHtml(point.owner_name || "我的足跡")}</span>
+                <span class="mood" data-privacy-badge="point:${Number(point.id)}">${privacyLabel(point.privacy)}</span>
+                ${ownerLink(point, "我的足跡")}
               </div>
               ${
                 point.is_owner
                   ? `<div class="map-point-actions">
                       <button class="secondary-button" type="button" data-edit-map-point="${point.id}">編輯這趟足跡</button>
                       <label class="compact-field">隱私層級
-                        <select class="privacy-select" data-privacy-point="${point.id}" aria-label="設定 ${escapeHtml(point.name)} 的隱私層級">
-                          <option value="private" ${point.privacy === "private" ? "selected" : ""}>私密</option>
-                          <option value="friends" ${point.privacy === "friends" ? "selected" : ""}>摯友</option>
-                          <option value="public" ${point.privacy === "public" ? "selected" : ""}>公開</option>
-                        </select>
+                        ${privacySelectHtml("data-privacy-point", point.id, point.name, point.privacy)}
                       </label>
                     </div>`
                   : ""
@@ -504,6 +630,7 @@ function renderMapPoints() {
       )
       .join("");
     const ownPoints = mapPoints.filter((point) => point.is_owner);
+    const checkedPointIds = checkedTripPointIds();
     tripPointOptions.innerHTML = ownPoints.length
       ? ownPoints
           .map(
@@ -511,12 +638,13 @@ function renderMapPoints() {
           <label>
             <input type="checkbox" value="${point.id}" data-trip-point>
             ${escapeHtml(point.name)}
-            <span class="mood">${privacyLabel(point.privacy)}</span>
+            <span class="mood" data-privacy-badge="point:${Number(point.id)}">${privacyLabel(point.privacy)}</span>
           </label>
         `,
           )
           .join("")
       : '<span class="privacy-note">新增自己的足跡後即可加入行程包。</span>';
+    setCheckedTripPoints(checkedPointIds);
   }
 
   renderMapMarkers();
@@ -576,19 +704,27 @@ function renderMapMarkers() {
 }
 
 async function loadMapPoints() {
-  mapPointsContainer.innerHTML =
-    '<div class="module-empty">正在載入足跡…</div>';
+  const load = beginListLoad(
+    mapPointsContainer,
+    sessionOwner(),
+    '<div class="module-empty">正在載入足跡…</div>',
+  );
   try {
-    mapPoints = await apiRequest("/map-points");
-    if (!Array.isArray(mapPoints)) {
+    await privacySavesFinished();
+    const points = await apiRequest("/map-points");
+    if (!load.isCurrent()) return;
+    if (!Array.isArray(points)) {
       throw new Error("伺服器回傳的足跡資料格式不正確。");
     }
+    mapPoints = withPrivacyDrafts(points);
     if (!mapPoints.some((point) => point.id === selectedMapPointId)) {
       selectedMapPointId = null;
     }
     renderTimelineFootprints(mapPoints);
     renderMapPoints();
   } catch (error) {
+    if (!load.isCurrent()) return;
+    forgetListLoad(mapPointsContainer);
     mapPointCount.textContent = "載入失敗";
     timelineFootprints.innerHTML = `<div class="error-state">${escapeHtml(error.message)}<button class="retry-button" type="button" data-retry-timeline-footprints>重新整理</button></div>`;
     mapPointsContainer.innerHTML =

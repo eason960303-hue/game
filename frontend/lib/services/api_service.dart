@@ -10,6 +10,7 @@ import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:http/http.dart' as http;
 import 'package:life_logger/models/map_place.dart';
 import 'package:life_logger/models/user_profile.dart';
+import 'package:life_logger/services/location_service.dart' show Coordinates;
 
 class ApiException implements Exception {
   const ApiException(this.message, {this.statusCode});
@@ -176,7 +177,7 @@ class ApiService {
   static Future<List<PlaceSuggestion>> fetchPlaceSuggestions(
     String query, {
     required String sessionToken,
-    ({double latitude, double longitude})? center,
+    Coordinates? center,
   }) async {
     final data = await _request(
       'POST',
@@ -192,7 +193,7 @@ class ApiService {
 
   static Future<List<MapPlace>> searchPlaces(
     String query, {
-    ({double latitude, double longitude})? center,
+    Coordinates? center,
   }) async {
     final data = await _request(
       'POST',
@@ -230,7 +231,7 @@ class ApiService {
   }
 
   static Map<String, double> _centerJson(
-    ({double latitude, double longitude}) center,
+    Coordinates center,
   ) {
     return {'latitude': center.latitude, 'longitude': center.longitude};
   }

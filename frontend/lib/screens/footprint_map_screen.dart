@@ -203,6 +203,7 @@ class _FootprintMapScreenState extends State<FootprintMapScreen> {
   bool _avoidHighways = false;
   bool _avoidFerries = false;
   List<MapRoute> _routes = const [];
+  final _routePaths = Expando<List<LatLng>>();
   int _selectedRoute = 0;
   Uri? _navigationUri;
 
@@ -226,7 +227,7 @@ class _FootprintMapScreenState extends State<FootprintMapScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  ({double latitude, double longitude}) get _center =>
+  Coordinates get _center =>
       (latitude: _cameraTarget.latitude, longitude: _cameraTarget.longitude);
 
   // --- Search ---
@@ -544,7 +545,8 @@ class _FootprintMapScreenState extends State<FootprintMapScreen> {
     });
   }
 
-  List<LatLng> _routeCoordinates(MapRoute route) => [
+  // Decoded once per route, because every rebuild draws every route.
+  List<LatLng> _routeCoordinates(MapRoute route) => _routePaths[route] ??= [
         for (final (latitude, longitude) in decodePolyline(route.polyline))
           LatLng(latitude, longitude),
       ];

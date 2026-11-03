@@ -25,31 +25,14 @@ document.querySelector("#refresh-server-status").addEventListener(
   refreshServerStatus,
 );
 
-document.querySelector("#map-add-open").addEventListener("click", () => {
-  if (!currentUser) {
-    openLoginDialog();
-    return;
-  }
-  mapPointForm.reset();
-  resetRoutePoints();
-  editingMapPointId = null;
-  setMapPointDialogMode(false);
-  pickingMapPoint = false;
-  pendingMapPickRow = null;
-  mapPickBanner.hidden = true;
-  document.querySelector("#map-form-status").textContent = "";
-  savedMapPointForm = mapPointFormSnapshot();
-  mapPointDialog.showModal();
-  mapPointForm.elements.name.focus();
-});
+document
+  .querySelector("#map-add-open")
+  .addEventListener("click", () => openNewMapPointDialog());
 
-document.querySelector("#cancel-map-pick").addEventListener("click", () => {
-  pickingMapPoint = false;
-  pendingMapPickRow = null;
-  mapPickBanner.hidden = true;
-  // Picking only hid the form; bring it back with what was already typed.
-  mapPointDialog.showModal();
-});
+// Picking only hid the form; this brings it back with what was already typed.
+document
+  .querySelector("#cancel-map-pick")
+  .addEventListener("click", resumeMapPointForm);
 
 document
   .querySelector("#map-point-dismiss")
@@ -80,6 +63,7 @@ document.querySelector("#map-point-delete").addEventListener("click", async () =
   status.textContent = "";
   try {
     await apiRequest(`/map-points/${editingMapPointId}`, { method: "DELETE" });
+    privacyDrafts.delete(editingMapPointId);
     editingMapPointId = null;
     mapPointDialog.close();
     await loadMapPoints();
@@ -118,16 +102,22 @@ mapPointForm.addEventListener("submit", async (event) => {
         : "/map-points",
       jsonOptions(editingMapPointId ? "PUT" : "POST", payload),
     );
+    // The form already saved its own privacy, which replaces any waiting choice.
+    privacyDrafts.delete(saved.id);
+    if (saved.id !== selectedMapPointId) flushPrivacyDrafts();
     mapPointForm.reset();
     resetRoutePoints();
     editingMapPointId = null;
-    pickingMapPoint = false;
-    pendingMapPickRow = null;
-    mapPickBanner.hidden = true;
+    stopMapPick();
     mapPointDialog.close();
     // Open the saved footprint so the map and card show the result right away.
     selectedMapPointId = saved.id;
-    await loadMapPoints();
+    const addToTripForm = addingFootprintToTripForm;
+    addingFootprintToTripForm = false;
+    await Promise.all([loadMapPoints(), loadTrips()]);
+    if (addToTripForm) {
+      setCheckedTripPoints([...checkedTripPointIds(), saved.id]);
+    }
     mapPointsContainer
       .querySelector(`[data-map-point="${saved.id}"]`)
       ?.scrollIntoView({ block: "nearest" });
@@ -138,17 +128,7 @@ mapPointForm.addEventListener("submit", async (event) => {
   }
 });
 
-mapPointsContainer.addEventListener("change", async (event) => {
-  const select = event.target.closest("[data-privacy-point]");
-  if (!select) return;
-  try {
-    await apiRequest(
-      `/map-points/${select.dataset.privacyPoint}/privacy`,
-      jsonOptions("PATCH", { privacy: select.value }),
-    );
-    await loadMapPoints();
-  } catch (error) {
-    window.alert(`更新隱私設定失敗：${error.message}`);
-    await loadMapPoints();
-  }
-});
+window.addEventListener("pagehide", flushPrivacyDrafts);
+mapPointsContainer.addEventListener("change", updatePrivacy);
+timelineFootprints.addEventListener("change", updatePrivacy);
+profileFootprintsGrid.addEventListener("change", updatePrivacy);

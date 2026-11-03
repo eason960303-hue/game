@@ -1,6 +1,6 @@
 # Life Logger
 
-日記與足跡記錄應用：FastAPI + SQLite 後端、網頁版介面，以及 Flutter App。
+日記、足跡與公開揪團應用：可發起最多 10 人的揪團邀請、預覽路線並直接參加。使用 FastAPI + SQLite 後端，提供網頁版介面與 Flutter App。
 
 ## 後端與網頁版
 

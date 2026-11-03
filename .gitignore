@@ -11,3 +11,5 @@ backend/data/*.sqlite3
 
 # Local credentials
 tset.txt
+backend/data/avatars/
+backend/data/footprint-covers/

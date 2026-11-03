@@ -94,16 +94,11 @@
   transition: transform 160ms ease, background 160ms ease;
 }
 
-.footprint-marker.is-day {
-  background: #65a2df;
-}
-
 .footprint-marker.is-selected {
   transform: scale(1.45);
   background: #e47d55;
 }
 
-.map-help,
 .privacy-note {
   margin: 10px 0 0;
   font-size: 12px;

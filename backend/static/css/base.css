@@ -208,8 +208,3 @@ button {
   background: #e2efff;
   color: var(--blue-dark);
 }
-
-.top-note {
-  color: var(--muted);
-  font-size: 13px;
-}

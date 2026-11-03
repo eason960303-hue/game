@@ -1,6 +1,17 @@
 async function loadTravelData() {
-  await loadMapPoints();
-  await loadTrips();
+  await Promise.all([loadMapPoints(), loadTrips()]);
+}
+
+// Loads the home feed and the open view once each, instead of one after the other.
+async function loadSessionData() {
+  const view = viewFromUrl();
+  const loads = [loadEntries(), loadMeetups()];
+  const viewLoadsMapPoints = view === "map" || view === "trips";
+  if (currentUser && !viewLoadsMapPoints) loads.push(loadMapPoints());
+  const viewLoadsRequestCount = view === "profile" && !viewedUsername;
+  if (currentUser && !viewLoadsRequestCount) refreshFollowRequestCount();
+  loadViewData(view);
+  await Promise.all(loads);
 }
 
 function updateAccountUi() {
@@ -32,8 +43,7 @@ async function initializeSession() {
     currentUser = null;
   }
   updateAccountUi();
-  await Promise.all([loadEntries(), loadOAuthProviders()]);
-  if (currentUser) await loadTravelData();
+  await Promise.all([loadSessionData(), loadOAuthProviders()]);
 }
 
 function showVerificationPrompt(email) {

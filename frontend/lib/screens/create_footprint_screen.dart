@@ -137,11 +137,6 @@ class _CreateFootprintScreenState extends State<CreateFootprintScreen> {
     }
   }
 
-  String? _requireText(String? value, String message) {
-    if (value == null || value.trim().isEmpty) return message;
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -174,7 +169,7 @@ class _CreateFootprintScreenState extends State<CreateFootprintScreen> {
                                   hintText: '例如：旗津一日散步',
                                 ),
                                 validator: (value) =>
-                                    _requireText(value, '請輸入足跡名稱'),
+                                    requireText(value, '請輸入足跡名稱'),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -277,7 +272,7 @@ class _CreateFootprintScreenState extends State<CreateFootprintScreen> {
           onChanged: (_) {
             if (stop.isLocated) setState(stop.clearLocation);
           },
-          validator: (value) => _requireText(value, '請輸入地點名稱或地址'),
+          validator: (value) => requireText(value, '請輸入地點名稱或地址'),
         ),
         if (stop.isLocated)
           const Padding(

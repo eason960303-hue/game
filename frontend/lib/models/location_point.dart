@@ -19,7 +19,6 @@ class LocationPoint {
   final double? latitude;
   final double? longitude;
   final String? note;
-  final String createdAt;
   final bool isOwner;
   final List<RouteStop> stops;
 
@@ -32,7 +31,6 @@ class LocationPoint {
     this.latitude,
     this.longitude,
     this.note,
-    required this.createdAt,
     this.isOwner = true,
     this.stops = const [],
     this.mapQueries = const [],
@@ -64,7 +62,6 @@ class LocationPoint {
       latitude: json['latitude'] != null ? (json['latitude'] as num).toDouble() : null,
       longitude: json['longitude'] != null ? (json['longitude'] as num).toDouble() : null,
       note: json['note'],
-      createdAt: json['created_at'] ?? '',
       isOwner: json['is_owner'] ?? true,
       stops: [
         for (final stop in rawStops)

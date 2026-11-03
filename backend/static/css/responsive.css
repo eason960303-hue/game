@@ -1,6 +1,5 @@
 @media (max-width: 760px) {
-  .ai-diary-layout,
-  .friend-management {
+  .ai-diary-layout {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -84,11 +83,6 @@
     font-size: 12px;
   }
 
-  .top-note {
-    max-width: 120px;
-    text-align: right;
-  }
-
   .topbar-tools {
     width: 100%;
     flex-wrap: wrap;
@@ -152,13 +146,31 @@
     grid-template-columns: 1fr;
   }
 
-  .module-layout,
-  .trip-layout {
+  .meetup-form-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .meetup-form-fields .meetup-destinations {
+    grid-column: 1;
+  }
+
+  .meetup-date-time-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .meetup-card-heading {
+    flex-direction: column;
+  }
+
+  .meetup-card-footer {
+    align-items: flex-start;
+  }
+
+    .trip-layout {
     grid-template-columns: 1fr;
   }
 
-  .map-points,
-  .trip-grid {
+  .map-points {
     grid-template-columns: 1fr;
   }
 
@@ -170,15 +182,5 @@
   .route-point-row-actions,
   .route-point-row .compact-field:first-of-type {
     grid-column: 1;
-  }
-
-  .friend-card {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .friend-card-controls {
-    width: 100%;
-    justify-content: space-between;
   }
 }

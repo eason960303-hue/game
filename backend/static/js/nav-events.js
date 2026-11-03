@@ -1,52 +1,197 @@
 const navigationButtons = document.querySelectorAll(".navigation [data-view]");
 const viewButtons = document.querySelectorAll("[data-view]");
 
+// The address remembers the page so a refresh stays on it.
+function usernameFromUrl() {
+  const hash = window.location.hash.slice(1);
+  if (!hash.startsWith("user/")) return null;
+  try {
+    return decodeURIComponent(hash.slice("user/".length)) || null;
+  } catch {
+    return null;
+  }
+}
+
+function viewFromUrl() {
+  if (usernameFromUrl()) return "profile";
+  const view = window.location.hash.slice(1);
+  return Array.from(navigationButtons).some((item) => item.dataset.view === view)
+    ? view
+    : "home";
+}
+
+function applyView(view, username = null) {
+  flushPrivacyDrafts();
+  viewedUsername = username;
+  const leftMapPick = view !== "map" && pickingMapPoint;
+  if (leftMapPick) stopMapPick();
+  navigationButtons.forEach((item) => {
+    // Someone else's profile is not the "my profile" tab.
+    if (item.dataset.view === view && !username) {
+      item.setAttribute("aria-current", "page");
+    } else {
+      item.removeAttribute("aria-current");
+    }
+  });
+
+  homeView.hidden = view !== "home";
+  profileView.hidden = view !== "profile";
+  aiDiaryView.hidden = view !== "ai-diary";
+  mapView.hidden = view !== "map";
+  document.body.classList.toggle("map-mode", view === "map");
+  tripsView.hidden = view !== "trips";
+  // Leaving mid-pick must not lose the form that is waiting behind the map.
+  if (leftMapPick) mapPointDialog.showModal();
+}
+
+function loadViewData(view) {
+  if (view === "home") return;
+  if (view === "map") initMap();
+  if (!currentUser) {
+    openLoginDialog();
+    return;
+  }
+  if (view === "ai-diary") {
+    loadAiDiaryStatus();
+    loadEntries();
+  }
+  else if (view === "map") loadMapPoints();
+  else if (view === "trips") loadTravelData();
+  else if (viewedUsername) loadMemberProfile(viewedUsername);
+  else loadProfile();
+}
+
+function applyViewFromUrl() {
+  const view = viewFromUrl();
+  applyView(view, usernameFromUrl());
+  return view;
+}
+
 viewButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const view = button.dataset.view;
-    if (view !== "map" && pickingMapPoint) {
-      pickingMapPoint = false;
-      pendingMapPickRow = null;
-      mapPickBanner.hidden = true;
+    applyView(view);
+    const url =
+      view === "home"
+        ? window.location.pathname + window.location.search
+        : `#${view}`;
+    if (window.location.hash !== (view === "home" ? "" : url)) {
+      window.history.pushState(null, "", url);
     }
-    navigationButtons.forEach((item) => {
-      item.removeAttribute("aria-current");
-    });
-    navigationButtons.forEach((item) => {
-      if (item.dataset.view === view) item.setAttribute("aria-current", "page");
-    });
-
-    homeView.hidden = view !== "home";
-    profileView.hidden = view !== "profile";
-    aiDiaryView.hidden = view !== "ai-diary";
-    mapView.hidden = view !== "map";
-    document.body.classList.toggle("map-mode", view === "map");
-    tripsView.hidden = view !== "trips";
-    if (view === "ai-diary") {
-      if (currentUser) loadAiDiaryStatus();
-      else openLoginDialog();
-    } else if (view === "profile") {
-      if (currentUser) loadProfile();
-      else openLoginDialog();
-    } else if (view === "map") {
-      initMap();
-      if (currentUser) {
-        loadMapPoints();
-      } else {
-        openLoginDialog();
-      }
-    } else if (view === "trips") {
-      if (currentUser) loadTravelData();
-      else openLoginDialog();
-    }
+    loadViewData(view);
   });
 });
 
-document.querySelector("#retry-load").addEventListener("click", loadEntries);
-document.querySelector("#profile-retry").addEventListener("click", loadProfile);
-entriesContainer.addEventListener("change", updateEntryPrivacy);
+// Profile links are plain anchors, so the browser's back button just works.
+window.addEventListener("popstate", () => {
+  if (avatarViewer.open) avatarViewer.close();
+  const view = applyViewFromUrl();
+  window.scrollTo(0, 0);
+  loadViewData(view);
+});
 
-document.querySelector("#profile-edit-open").addEventListener("click", () => {
+document.addEventListener("click", (event) => {
+  if (!event.target.closest('a[href^="#user/"]')) return;
+  if (profileSocialDialog.open) profileSocialDialog.close();
+  closeAccountSearchResults();
+});
+
+profileAvatarOpen.addEventListener("click", () => {
+  avatarViewerImage.src = profileAvatar.src;
+  avatarViewerImage.alt = profileAvatar.alt;
+  avatarViewer.showModal();
+});
+
+// Like the app it copies, a tap anywhere dismisses the enlarged photo.
+avatarViewer.addEventListener("click", () => avatarViewer.close());
+
+profileFollowButton.addEventListener("click", async () => {
+  if (!viewedProfile?.id) return;
+  profileFollowButton.disabled = true;
+  try {
+    const wasFollowing = viewedProfile.is_following;
+    await toggleFollow(viewedProfile);
+    const feedChanged = viewedProfile.is_following !== wasFollowing;
+    await Promise.all([
+      loadMemberProfile(viewedUsername),
+      feedChanged ? loadEntries() : null,
+    ]);
+  } catch (error) {
+    profileFollowButton.disabled = false;
+    window.alert(`更新追蹤狀態失敗：${error.message}`);
+  }
+});
+
+document.querySelector("#retry-load").addEventListener("click", loadEntries);
+document.querySelector("#profile-retry").addEventListener("click", () => {
+  loadViewData("profile");
+});
+entriesContainer.addEventListener("change", updatePrivacy);
+profileDiariesGrid.addEventListener("change", updatePrivacy);
+
+const AVATAR_SIZE = 1024;
+const profileAvatarInput = document.querySelector("#profile-edit-avatar-input");
+const profileAvatarPreview = document.querySelector("#profile-edit-avatar-preview");
+const profileAvatarPreviewInitial = document.querySelector(
+  "#profile-edit-avatar-initial",
+);
+const profileAvatarRemove = document.querySelector("#profile-edit-avatar-remove");
+let pendingAvatarBlob = null;
+let avatarRemovalPending = false;
+let avatarPreviewObjectUrl = null;
+
+function showProfileAvatarPreview(url) {
+  profileAvatarPreview.hidden = !url;
+  profileAvatarPreviewInitial.hidden = Boolean(url);
+  if (url) profileAvatarPreview.src = url;
+  else profileAvatarPreview.removeAttribute("src");
+  profileAvatarRemove.hidden = !url;
+}
+
+function resetProfileAvatarEditor() {
+  if (avatarPreviewObjectUrl) URL.revokeObjectURL(avatarPreviewObjectUrl);
+  avatarPreviewObjectUrl = null;
+  pendingAvatarBlob = null;
+  avatarRemovalPending = false;
+  profileAvatarInput.value = "";
+  profileAvatarPreviewInitial.textContent = avatarInitial(currentProfile?.display_name);
+  showProfileAvatarPreview(mediaUrl(currentProfile?.avatar_url));
+}
+
+profileAvatarInput.addEventListener("change", async () => {
+  const [file] = profileAvatarInput.files;
+  if (!file) return;
+  profileEditStatus.textContent = "";
+  try {
+    if (file.size > MAX_IMAGE_SOURCE_BYTES) {
+      throw new Error("圖片太大，請選擇 25 MB 以下的檔案。");
+    }
+    let blob;
+    try {
+      blob = await cropImageToJpeg(file, AVATAR_SIZE, AVATAR_SIZE, 0.9);
+    } catch {
+      blob = null;
+    }
+    if (!blob) throw new Error("無法讀取這張圖片，請改用 JPG、PNG 或 WebP。");
+    if (avatarPreviewObjectUrl) URL.revokeObjectURL(avatarPreviewObjectUrl);
+    avatarPreviewObjectUrl = URL.createObjectURL(blob);
+    pendingAvatarBlob = blob;
+    avatarRemovalPending = false;
+    showProfileAvatarPreview(avatarPreviewObjectUrl);
+  } catch (error) {
+    profileEditStatus.textContent = error.message;
+  } finally {
+    profileAvatarInput.value = "";
+  }
+});
+
+profileAvatarRemove.addEventListener("click", () => {
+  pendingAvatarBlob = null;
+  avatarRemovalPending = true;
+  showProfileAvatarPreview(null);
+});
+
+profileEditOpen.addEventListener("click", () => {
   if (!currentUser) {
     openLoginDialog();
     return;
@@ -55,8 +200,8 @@ document.querySelector("#profile-edit-open").addEventListener("click", () => {
   profileEditForm.elements.display_name.value =
     currentProfile?.display_name || "";
   profileEditForm.elements.bio.value = currentProfile?.bio || "";
-  profileEditForm.elements.avatar_url.value =
-    currentProfile?.avatar_url || "";
+  profileEditForm.elements.username.value = currentProfile?.username || "";
+  resetProfileAvatarEditor();
   profileEditForm.elements.is_private.checked = Boolean(
     currentProfile?.is_private,
   );
@@ -71,22 +216,42 @@ document
   .querySelector("#profile-edit-cancel")
   .addEventListener("click", () => profileEditDialog.close());
 
+// Drops a chosen photo the dialog no longer needs, whichever way it closed.
+profileEditDialog.addEventListener("close", resetProfileAvatarEditor);
+
 profileEditForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   profileEditStatus.textContent = "";
   profileEditSaveButton.disabled = true;
   const values = new FormData(profileEditForm);
+  const cardsChanged =
+    Boolean(pendingAvatarBlob) ||
+    avatarRemovalPending ||
+    getFormText(values, "display_name") !== currentProfile?.display_name ||
+    getFormText(values, "username").toLowerCase() !== currentProfile?.username;
   try {
     await apiRequest(
       "/user/profile",
       jsonOptions("PATCH", {
         display_name: getFormText(values, "display_name"),
         bio: getFormText(values, "bio"),
-        avatar_url: getFormText(values, "avatar_url"),
+        username: getFormText(values, "username"),
         is_private: values.get("is_private") === "on",
       }),
     );
-    await loadProfile();
+    if (pendingAvatarBlob) {
+      await apiRequest("/user/avatar", {
+        method: "POST",
+        headers: { "Content-Type": pendingAvatarBlob.type },
+        body: pendingAvatarBlob,
+      });
+    } else if (avatarRemovalPending) {
+      await apiRequest("/user/avatar", { method: "DELETE" });
+    }
+    // Cards everywhere show this name, ID and avatar; a bio edit touches none of them.
+    await Promise.all(
+      cardsChanged ? [loadProfile(), loadEntries(), loadMapPoints()] : [loadProfile()],
+    );
     profileEditDialog.close();
   } catch (error) {
     profileEditStatus.textContent = error.message;

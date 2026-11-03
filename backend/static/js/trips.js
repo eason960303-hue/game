@@ -1,3 +1,17 @@
+function checkedTripPointIds() {
+  return Array.from(
+    tripPointOptions.querySelectorAll("[data-trip-point]:checked"),
+    (checkbox) => Number(checkbox.value),
+  );
+}
+
+function setCheckedTripPoints(pointIds) {
+  const selectedIds = new Set(pointIds);
+  tripPointOptions.querySelectorAll("[data-trip-point]").forEach((checkbox) => {
+    checkbox.checked = selectedIds.has(Number(checkbox.value));
+  });
+}
+
 function renderTrips() {
   if (trips.length === 0) {
     tripList.innerHTML =
@@ -18,11 +32,15 @@ function renderTrips() {
           <ol class="trip-points">
             ${trip.points.map((point) => `<li>${escapeHtml(point.name)} · ${privacyLabel(point.privacy)}</li>`).join("") || "<li>尚未加入足跡</li>"}
           </ol>
-          ${
-            trip.is_public
-              ? `<div class="trip-actions"><button class="small-action" type="button" data-share-trip="${trip.id}">複製公開分享連結</button></div>`
-              : ""
-          }
+          <div class="trip-actions">
+            <button class="small-action" type="button" data-edit-trip="${trip.id}">編輯</button>
+            ${
+              trip.is_public
+                ? `<button class="small-action" type="button" data-share-trip="${trip.id}">複製公開分享連結</button>`
+                : ""
+            }
+            <button class="small-action is-destructive" type="button" data-delete-trip="${trip.id}">刪除</button>
+          </div>
         </article>
       `,
     )
@@ -30,11 +48,19 @@ function renderTrips() {
 }
 
 async function loadTrips() {
-  tripList.innerHTML = '<div class="module-empty">正在載入行程…</div>';
+  const load = beginListLoad(
+    tripList,
+    sessionOwner(),
+    '<div class="module-empty">正在載入行程…</div>',
+  );
   try {
-    trips = await apiRequest("/trips");
+    const loadedTrips = await apiRequest("/trips");
+    if (!load.isCurrent()) return;
+    trips = loadedTrips;
     renderTrips();
   } catch (error) {
+    if (!load.isCurrent()) return;
+    forgetListLoad(tripList);
     tripList.innerHTML =
       `<div class="error-state">${escapeHtml(error.message)}<button class="retry-button" id="retry-trips" type="button">重新整理</button></div>`;
     document

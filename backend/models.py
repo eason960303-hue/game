@@ -26,6 +26,8 @@ class EntryOut(BaseModel):
     tags: Optional[str] = None
     created_at: str
     owner_name: Optional[str] = None
+    owner_username: Optional[str] = None
+    owner_avatar_url: Optional[str] = None
     is_owner: bool = False
 
 

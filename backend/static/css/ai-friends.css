@@ -101,6 +101,98 @@
   flex: 1;
 }
 
+.ai-diary-side {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+}
+
+.diary-month-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+
+.diary-month-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.diary-month-heading h2 {
+  margin: 0;
+  color: #263b53;
+  font-size: 16px;
+}
+
+.diary-month-controls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.diary-month-controls .small-action {
+  min-width: 36px;
+  min-height: 42px;
+  padding: 0;
+  font-size: 18px;
+}
+
+.diary-month-list {
+  display: grid;
+  max-height: 340px;
+  overflow-y: auto;
+  gap: 8px;
+}
+
+.diary-month-entry {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.diary-month-entry summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  padding: 10px 12px;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.diary-month-day {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.diary-month-entry-title {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diary-month-entry p {
+  margin: 0;
+  padding: 0 12px 12px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diary-month-empty {
+  margin: 0;
+  padding: 18px 8px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
 .privacy-note-card {
   padding: 18px;
 }
@@ -116,44 +208,6 @@
   color: var(--muted);
   font-size: 12px;
   line-height: 1.75;
-}
-
-.friend-management {
-  display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-  gap: 16px;
-  margin-top: 20px;
-}
-
-.friend-form {
-  display: grid;
-  align-content: start;
-  gap: 11px;
-}
-
-.friend-form h2,
-.friend-list-heading {
-  margin: 0;
-  color: #263b53;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.friend-list {
-  display: grid;
-  align-content: start;
-  gap: 9px;
-}
-
-.friend-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid #e6edf5;
-  border-radius: 14px;
-  background: #fff;
 }
 
 .friend-card-info {
@@ -179,12 +233,6 @@
   font-size: 11px;
 }
 
-.friend-card-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .friend-close-toggle {
   display: flex;
   align-items: center;
@@ -192,15 +240,6 @@
   color: #64778d;
   font-size: 11px;
   white-space: nowrap;
-}
-
-.friend-remove {
-  padding: 6px 8px;
-  border: 1px solid #e6edf5;
-  border-radius: 8px;
-  background: #fff;
-  color: #7a8a9d;
-  font-size: 11px;
 }
 
 .entry-owner {
@@ -226,10 +265,6 @@
 
 .entry-privacy-field .privacy-select {
   min-height: 32px;
-}
-
-.points-section {
-  margin-top: 22px;
 }
 
 .points-heading {
