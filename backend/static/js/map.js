@@ -943,6 +943,7 @@ function mapPointCardHtml(point) {
         <span class="mood" data-privacy-badge="point:${Number(point.id)}">${privacyLabel(point.privacy)}</span>
         ${ownerLink(point, "我的足跡")}
       </div>
+      ${footprintReactionsHtml(point)}
       ${
         point.is_owner
           ? `<div class="map-point-actions">

@@ -287,3 +287,16 @@ profileEditForm.addEventListener("submit", async (event) => {
     profileEditSaveButton.disabled = false;
   }
 });
+
+// The logo fetches the latest content in place, keeping the current tab, filters and scroll.
+const BRAND_SPIN_MS = 600;
+const brandRefreshButton = document.querySelector("#brand-refresh");
+brandRefreshButton.addEventListener("click", async () => {
+  if (brandRefreshButton.classList.contains("is-refreshing")) return;
+  brandRefreshButton.classList.add("is-refreshing");
+  brandRefreshButton.setAttribute("aria-busy", "true");
+  const shown = new Promise((resolve) => setTimeout(resolve, BRAND_SPIN_MS));
+  await Promise.allSettled([loadSessionData(), shown]);
+  brandRefreshButton.classList.remove("is-refreshing");
+  brandRefreshButton.removeAttribute("aria-busy");
+});

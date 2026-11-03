@@ -44,12 +44,29 @@ function entryCanBeEdited(createdAt) {
 
 const timelineFilter = createContentFilter({
   rootId: "timeline-filter",
-  label: "篩選好友與我的足跡",
+  label: "篩選足跡",
   items: () => mapPoints,
   regionOf: (point) => mapPointRegion(point),
   who: FOOTPRINT_WHO,
   onChange: () => renderTimelineFootprints(),
 });
+
+function footprintReactionsHtml(point) {
+  const id = Number(point.id);
+  const likes = Number(point.like_count) || 0;
+  return `
+    <div class="footprint-reactions">
+      <button class="footprint-reaction is-like" type="button" data-footprint-reaction="like" data-point-id="${id}" aria-pressed="${Boolean(point.is_liked)}" aria-label="按讚，目前 ${likes} 個讚">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5S3.5 15.4 3.5 9.2A4.7 4.7 0 0 1 12 6.5a4.7 4.7 0 0 1 8.5 2.7c0 6.2-8.5 11.3-8.5 11.3z"/></svg>
+        <span data-like-count>${likes}</span>
+      </button>
+      <button class="footprint-reaction is-save" type="button" data-footprint-reaction="save" data-point-id="${id}" aria-pressed="${Boolean(point.is_saved)}" aria-label="收藏這趟足跡">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11a1 1 0 0 1 1 1v16l-6.5-4.5-6.5 4.5v-16a1 1 0 0 1 1-1z"/></svg>
+        <span>收藏</span>
+      </button>
+    </div>
+  `;
+}
 
 function renderTimelineFootprints() {
   timelineFilter.refresh();
@@ -87,6 +104,7 @@ function renderTimelineFootprints() {
             <p>${ownerLink(point, "我的足跡")} · ${stops.length} 個途經點</p>
             <p class="timeline-footprint-stops">${stopSummary || "尚未新增途經點"}${remainingStops}</p>
             ${point.note ? `<p class="timeline-footprint-note">${escapeHtml(point.note)}</p>` : ""}
+            ${footprintReactionsHtml(point)}
           </div>
           <button class="small-action" type="button" data-timeline-map-point="${Number(point.id)}">在地圖查看</button>
         </article>

@@ -143,6 +143,77 @@ mapPointForm.addEventListener("submit", async (event) => {
   }
 });
 
+// The same footprint can be on screen in both lists, so every copy of a button is updated.
+function showFootprintReactions(point) {
+  document
+    .querySelectorAll(`[data-footprint-reaction][data-point-id="${point.id}"]`)
+    .forEach((button) => {
+      if (button.dataset.footprintReaction === "like") {
+        button.setAttribute("aria-pressed", String(point.is_liked));
+        button.setAttribute("aria-label", `按讚，目前 ${point.like_count} 個讚`);
+        button.querySelector("[data-like-count]").textContent = point.like_count;
+      } else {
+        button.setAttribute("aria-pressed", String(point.is_saved));
+      }
+    });
+}
+
+const footprintReactionsPending = new Set();
+
+async function toggleFootprintReaction(event) {
+  const button = event.target.closest("[data-footprint-reaction]");
+  if (!button) return;
+  const kind = button.dataset.footprintReaction;
+  const id = Number(button.dataset.pointId);
+  const key = `${kind}:${id}`;
+  const point = mapPoints.find((item) => item.id === id);
+  if (!point || footprintReactionsPending.has(key)) return;
+
+  const before = {
+    is_liked: point.is_liked,
+    is_saved: point.is_saved,
+    like_count: point.like_count,
+  };
+  const active = kind === "like" ? !point.is_liked : !point.is_saved;
+  // The tap shows at once; the server's answer then settles the count.
+  if (kind === "like") {
+    point.is_liked = active;
+    point.like_count += active ? 1 : -1;
+  } else {
+    point.is_saved = active;
+  }
+  showFootprintReactions(point);
+
+  footprintReactionsPending.add(key);
+  try {
+    const saved = await apiRequest(`/map-points/${id}/${kind}`, {
+      method: active ? "PUT" : "DELETE",
+    });
+    // A refresh may have replaced the list while this was on its way.
+    const current = mapPoints.find((item) => item.id === id);
+    if (current) {
+      Object.assign(current, saved);
+      showFootprintReactions(current);
+    }
+    if (kind === "save") {
+      if (timelineFilter.whoKey() === "saved") renderTimelineFootprints();
+      if (mapPointsFilter.whoKey() === "saved") renderMapPoints();
+    }
+  } catch (error) {
+    const current = mapPoints.find((item) => item.id === id);
+    if (current) {
+      Object.assign(current, before);
+      showFootprintReactions(current);
+    }
+    window.alert(error.message || "操作失敗，請稍後再試。");
+  } finally {
+    footprintReactionsPending.delete(key);
+  }
+}
+
+mapPointsContainer.addEventListener("click", toggleFootprintReaction);
+timelineFootprints.addEventListener("click", toggleFootprintReaction);
+
 window.addEventListener("pagehide", flushPrivacyDrafts);
 mapPointsContainer.addEventListener("change", updatePrivacy);
 timelineFootprints.addEventListener("change", updatePrivacy);

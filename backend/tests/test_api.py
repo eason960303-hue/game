@@ -143,7 +143,7 @@ class EntryTests(ApiTestCase):
 
     def test_create_entry_accepts_every_privacy_option(self) -> None:
         client = new_user("privacy@example.com")
-        for privacy in ("private", "friends", "public"):
+        for privacy in ("private", "friends", "followers", "public"):
             response = client.post(
                 "/api/entries",
                 json={"title": "標題", "content": "內容", "privacy": privacy},
@@ -167,7 +167,7 @@ class EntryTests(ApiTestCase):
     def test_entries_stay_hidden_from_followers_at_every_privacy_level(self) -> None:
         author = new_user("author@example.com")
         follower = new_user("follower@example.com")
-        for privacy in ("private", "friends", "public"):
+        for privacy in ("private", "friends", "followers", "public"):
             author.post(
                 "/api/entries",
                 json={"title": privacy, "content": "內容", "privacy": privacy},
@@ -1185,8 +1185,8 @@ class MapPointTests(ApiTestCase):
             """
         )
 
-        main.allow_map_points_without_coordinates(conn)
-        main.allow_map_points_without_coordinates(conn)
+        main.upgrade_map_points_table(conn)
+        main.upgrade_map_points_table(conn)
 
         row = conn.execute("SELECT id, name, latitude FROM map_points").fetchone()
         self.assertEqual(tuple(row), (7, "舊足跡", 22.6))
@@ -1238,7 +1238,7 @@ class MapPointTests(ApiTestCase):
     def test_map_points_only_show_public_or_close_friend_content(self) -> None:
         author = new_user("map-author@example.com")
         follower = new_user("map-follower@example.com")
-        for privacy in ("private", "friends", "public"):
+        for privacy in ("private", "friends", "followers", "public"):
             created = author.post(
                 "/api/map-points",
                 json={
@@ -2679,6 +2679,188 @@ class WebAssetTests(ApiTestCase):
                 client.get("/api/maps/config").json(),
                 {"api_key": "browser-key", "map_id": "map-1"},
             )
+
+
+class MapPointReactionTests(ApiTestCase):
+    def footprint(self, client: TestClient, privacy: str = "public") -> int:
+        response = client.post(
+            "/api/map-points",
+            json={"name": "海邊", "latitude": 22.6, "longitude": 120.2, "privacy": privacy},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        return response.json()["id"]
+
+    def listed(self, client: TestClient, point_id: int) -> dict:
+        return next(
+            point
+            for point in client.get("/api/map-points").json()
+            if point["id"] == point_id
+        )
+
+    def test_likes_count_everyone_but_saves_stay_personal(self) -> None:
+        author = new_user("react-author@example.com")
+        fan = new_user("react-fan@example.com")
+        point_id = self.footprint(author)
+
+        self.assertEqual(
+            fan.put(f"/api/map-points/{point_id}/like").json(),
+            {"like_count": 1, "is_liked": True, "is_saved": False},
+        )
+        # Tapping twice from two tabs must not count twice.
+        self.assertEqual(
+            fan.put(f"/api/map-points/{point_id}/like").json()["like_count"], 1
+        )
+        self.assertTrue(fan.put(f"/api/map-points/{point_id}/save").json()["is_saved"])
+
+        seen_by_author = self.listed(author, point_id)
+        self.assertEqual(seen_by_author["like_count"], 1)
+        self.assertFalse(seen_by_author["is_liked"])
+        self.assertFalse(seen_by_author["is_saved"])
+        seen_by_fan = self.listed(fan, point_id)
+        self.assertTrue(seen_by_fan["is_liked"])
+        self.assertTrue(seen_by_fan["is_saved"])
+
+        self.assertEqual(
+            fan.delete(f"/api/map-points/{point_id}/like").json(),
+            {"like_count": 0, "is_liked": False, "is_saved": True},
+        )
+        self.assertFalse(
+            fan.delete(f"/api/map-points/{point_id}/save").json()["is_saved"]
+        )
+
+    def test_hidden_footprints_cannot_be_liked_or_saved(self) -> None:
+        author = new_user("react-hidden@example.com")
+        stranger = new_user("react-stranger@example.com")
+        point_id = self.footprint(author, "private")
+        for kind in ("like", "save"):
+            self.assertEqual(
+                stranger.put(f"/api/map-points/{point_id}/{kind}").status_code, 404
+            )
+        self.assertEqual(self.listed(author, point_id)["like_count"], 0)
+
+    def test_saved_footprint_disappears_when_it_turns_private(self) -> None:
+        author = new_user("react-turns@example.com")
+        fan = new_user("react-turns-fan@example.com")
+        point_id = self.footprint(author)
+        fan.put(f"/api/map-points/{point_id}/save")
+        author.patch(
+            f"/api/map-points/{point_id}/privacy", json={"privacy": "private"}
+        )
+        self.assertNotIn(
+            point_id, {point["id"] for point in fan.get("/api/map-points").json()}
+        )
+
+    def test_deleting_a_footprint_clears_its_reactions(self) -> None:
+        author = new_user("react-delete@example.com")
+        point_id = self.footprint(author)
+        author.put(f"/api/map-points/{point_id}/like")
+        author.put(f"/api/map-points/{point_id}/save")
+        self.assertEqual(author.delete(f"/api/map-points/{point_id}").status_code, 204)
+        with main.get_connection() as conn:
+            for table in main.MAP_POINT_REACTION_TABLES.values():
+                count = conn.execute(
+                    f"SELECT COUNT(*) FROM {table} WHERE map_point_id = ?", (point_id,)
+                ).fetchone()[0]
+                self.assertEqual(count, 0)
+
+    def test_signed_out_visitors_cannot_react(self) -> None:
+        author = new_user("react-anon@example.com")
+        point_id = self.footprint(author)
+        response = TestClient(main.app).put(f"/api/map-points/{point_id}/like")
+        self.assertEqual(response.status_code, 401)
+
+
+class FollowersPrivacyTests(ApiTestCase):
+    def names(self, client: TestClient) -> set[str]:
+        return {point["name"] for point in client.get("/api/map-points").json()}
+
+    def post(self, client: TestClient, name: str) -> int:
+        response = client.post(
+            "/api/map-points",
+            json={"name": name, "latitude": 22.6, "longitude": 120.2, "privacy": "followers"},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertEqual(response.json()["privacy"], "followers")
+        return response.json()["id"]
+
+    def test_only_current_followers_see_it(self) -> None:
+        author = new_user("followers-author@example.com")
+        fan = new_user("followers-fan@example.com")
+        stranger = new_user("followers-stranger@example.com")
+        self.post(author, "只給追蹤者")
+        author_id = author.get("/api/auth/me").json()["user"]["id"]
+
+        self.assertIn("只給追蹤者", self.names(author))
+        self.assertNotIn("只給追蹤者", self.names(fan))
+        # No close-friend grant: following is enough at this level.
+        fan.post(f"/api/users/{author_id}/follow")
+        self.assertIn("只給追蹤者", self.names(fan))
+        self.assertNotIn("只給追蹤者", self.names(stranger))
+        fan.delete(f"/api/friends/{author_id}")
+        self.assertNotIn("只給追蹤者", self.names(fan))
+
+    def test_private_account_needs_an_approved_follow(self) -> None:
+        author = new_user("followers-private@example.com")
+        author.patch("/api/user/profile", json={"is_private": True})
+        fan = new_user("followers-pending@example.com")
+        self.post(author, "私帳追蹤者")
+        author_id = author.get("/api/auth/me").json()["user"]["id"]
+        fan_id = fan.get("/api/auth/me").json()["user"]["id"]
+
+        fan.post(f"/api/users/{author_id}/follow")
+        self.assertNotIn("私帳追蹤者", self.names(fan))
+        author.post(f"/api/user/follow-requests/{fan_id}/accept")
+        self.assertIn("私帳追蹤者", self.names(fan))
+
+    def test_public_rule_for_private_accounts_is_unchanged(self) -> None:
+        author = new_user("followers-public@example.com")
+        author.patch("/api/user/profile", json={"is_private": True})
+        stranger = new_user("followers-public-s@example.com")
+        author.post(
+            "/api/map-points",
+            json={"name": "私帳公開", "latitude": 22.6, "longitude": 120.2, "privacy": "public"},
+        )
+        self.assertNotIn("私帳公開", self.names(stranger))
+
+    def test_old_table_is_upgraded_without_losing_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            conn = sqlite3.connect(Path(folder) / "old.db")
+            conn.row_factory = sqlite3.Row
+            conn.execute(
+                """
+                CREATE TABLE map_points (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    owner_id INTEGER,
+                    name TEXT NOT NULL,
+                    latitude REAL,
+                    longitude REAL,
+                    note TEXT NOT NULL DEFAULT '',
+                    privacy TEXT NOT NULL DEFAULT 'private'
+                        CHECK (privacy IN ('private', 'friends', 'public')),
+                    points_json TEXT NOT NULL DEFAULT '[]',
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    cover_url TEXT
+                )
+                """
+            )
+            conn.execute(
+                "INSERT INTO map_points (id, owner_id, name, privacy, cover_url) "
+                "VALUES (41, 1, '舊足跡', 'friends', '/c.png')"
+            )
+            conn.commit()
+            main.upgrade_map_points_table(conn)
+            main.upgrade_map_points_table(conn)  # Safe to run on every start.
+            row = conn.execute("SELECT * FROM map_points").fetchone()
+            self.assertEqual(
+                (row["id"], row["name"], row["privacy"], row["cover_url"]),
+                (41, "舊足跡", "friends", "/c.png"),
+            )
+            conn.execute("UPDATE map_points SET privacy = 'followers'")
+            next_id = conn.execute(
+                "INSERT INTO map_points (name) VALUES ('新')"
+            ).lastrowid
+            self.assertEqual(next_id, 42)
+            conn.close()
 
 
 if __name__ == "__main__":

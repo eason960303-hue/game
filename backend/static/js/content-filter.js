@@ -17,6 +17,11 @@ const FOOTPRINT_WHO = {
     matches: (point) => point.is_owner,
     empty: "你還沒有足跡，按下「＋」開始新增。",
   },
+  saved: {
+    label: "收藏",
+    matches: (point) => point.is_saved,
+    empty: "還沒有收藏的足跡。在足跡卡片按下書籤就會存到這裡。",
+  },
 };
 
 function groupBy(items, keyOf) {

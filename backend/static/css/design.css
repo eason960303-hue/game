@@ -123,6 +123,7 @@ time,
   padding: 0;
   border: 0;
   background: transparent;
+  cursor: pointer;
   flex: none;
   gap: 8px;
   font-size: var(--text-lg);
@@ -1427,4 +1428,78 @@ body.map-mode .map-sidebar,
   background: var(--surface);
   color: var(--accent-text);
   box-shadow: var(--shadow-1);
+}
+
+.brand.is-refreshing .brand-mark {
+  animation: brand-refresh-spin 600ms ease-in-out;
+}
+
+@keyframes brand-refresh-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand.is-refreshing .brand-mark {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* ---------- Footprint likes and saves ---------- */
+.footprint-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.footprint-reaction {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.footprint-reaction:hover {
+  border-color: var(--line-strong);
+  background: var(--tint);
+}
+
+.footprint-reaction svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.footprint-reaction.is-like[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--highlight-soft);
+  color: var(--highlight);
+}
+
+.footprint-reaction.is-save[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.footprint-reaction[aria-pressed="true"] svg {
+  fill: currentColor;
+}
+
+@media (pointer: coarse) {
+  .footprint-reaction {
+    min-height: 44px;
+  }
 }

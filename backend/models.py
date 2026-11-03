@@ -5,6 +5,9 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
+Privacy = Literal["private", "friends", "followers", "public"]
+
+
 class EntryCreate(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -12,7 +15,7 @@ class EntryCreate(BaseModel):
     content: str = Field(..., min_length=1, max_length=12000)
     mood: str = Field(default="happy", max_length=80)
     location: Optional[str] = Field(default=None, max_length=200)
-    privacy: Literal["private", "friends", "public"] = "private"
+    privacy: Privacy = "private"
     tags: Optional[str] = Field(default=None, max_length=1000)
 
 

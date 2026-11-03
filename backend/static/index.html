@@ -29,7 +29,7 @@
   <body>
     <main class="page app-shell">
       <header class="topbar floating-topbar">
-        <button class="brand" type="button" data-view="home" aria-label="回到首頁">
+        <button class="brand" id="brand-refresh" type="button" aria-label="Life Logger，更新最新內容" title="更新最新內容">
           <span class="brand-mark" aria-hidden="true">✦</span>
           <span>Life Logger</span>
         </button>
@@ -133,7 +133,7 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow">沿途片刻</p>
-              <h2 id="timeline-footprints-title">好友與我的足跡</h2>
+              <h2 id="timeline-footprints-title">足跡</h2>
             </div>
             <button class="secondary-button" type="button" data-view="map">開啟地圖</button>
           </div>
@@ -345,7 +345,7 @@
           </div>
           <aside class="map-sidebar" aria-labelledby="map-points-title">
             <div class="map-sidebar-heading">
-              <h2 class="points-heading" id="map-points-title">已收藏的足跡</h2>
+              <h2 class="points-heading" id="map-points-title">足跡列表</h2>
               <div class="content-filter" id="map-point-filter" hidden></div>
               <span class="entry-count" id="map-point-count">0 個地點</span>
             </div>
@@ -415,7 +415,7 @@
               <span id="route-point-editor-title">途經地點</span>
               <button class="secondary-button" id="route-point-add" type="button">＋ 新增途經點</button>
             </div>
-            <p class="privacy-note">輸入地點後，系統會列出地址選項，點一下就會鎖定位置。有同名地點時，離這趟其他站最近的排在最前面。足跡會依起點（第 1 站）的縣市和區分類。</p>
+            <p class="privacy-note">如果找不到地點，請改用附近的地址搜尋。</p>
             <div class="route-point-list" id="route-point-list"></div>
           </section>
           <label class="compact-field">小記
@@ -424,11 +424,12 @@
           <label class="compact-field">隱私層級
             <select name="privacy">
               <option value="private">私密</option>
-              <option value="friends">摯友</option>
               <option value="public">公開</option>
+              <option value="friends">摯友</option>
+              <option value="followers">追蹤者</option>
             </select>
           </label>
-          <p class="privacy-note">摯友足跡只會顯示給追蹤者中已獲作者允許的人；公開行程僅分享公開足跡。</p>
+          <p class="privacy-note">追蹤者足跡所有追蹤你的人都看得到；摯友足跡只會顯示給追蹤者中已獲作者允許的人；公開行程僅分享公開足跡。</p>
           <p class="status-message" id="map-form-status" role="status"></p>
           <div class="map-point-form-actions">
             <button class="route-point-remove" id="map-point-delete" type="button" hidden>刪除這趟足跡</button>
@@ -537,7 +538,7 @@
           <input name="is_private" type="checkbox" />
           私人帳號
         </label>
-        <p class="privacy-note">公開帳號的公開貼文所有人都能看見；私人帳號的公開貼文只有粉絲能看見，新的追蹤者要經你同意；現有粉絲不受影響，改回公開帳號會自動通過等待中的請求。摯友與私密貼文的規則不變。</p>
+        <p class="privacy-note">公開帳號的公開貼文所有人都能看見；私人帳號的公開貼文只有粉絲能看見，新的追蹤者要經你同意；現有粉絲不受影響，改回公開帳號會自動通過等待中的請求。摯友、追蹤者與私密貼文的規則不變。</p>
         <p class="status-message" id="profile-edit-status" role="status"></p>
         <div class="modal-actions">
           <button class="secondary-button" id="profile-edit-cancel" type="button">取消</button>

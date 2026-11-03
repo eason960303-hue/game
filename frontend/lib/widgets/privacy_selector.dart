@@ -12,16 +12,22 @@ const _privacyOptions = [
     icon: Icons.lock_outline_rounded,
   ),
   (
+    value: 'public',
+    label: '公開',
+    description: '所有人都看得到；私人帳號只有追蹤你的人看得到',
+    icon: Icons.public_rounded,
+  ),
+  (
     value: 'friends',
     label: '摯友',
     description: '只有摯友名單中的追蹤者看得到',
-    icon: Icons.group_outlined,
+    icon: Icons.star_outline_rounded,
   ),
   (
-    value: 'public',
-    label: '公開',
+    value: 'followers',
+    label: '追蹤者',
     description: '所有追蹤你的人都看得到',
-    icon: Icons.public_rounded,
+    icon: Icons.group_outlined,
   ),
 ];
 

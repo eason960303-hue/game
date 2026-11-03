@@ -107,7 +107,7 @@ const profileRequestsCount = document.querySelector("#profile-requests-count");
 const profilePostsTitle = document.querySelector("#profile-posts-title");
 const navRequestsBadge = document.querySelector("#nav-requests-badge");
 const avatarViewerImage = document.querySelector("#avatar-viewer-image");
-const PRIVACY_LABELS = { private: "私密", friends: "摯友", public: "公開" };
+const PRIVACY_LABELS = { private: "私密", public: "公開", friends: "摯友", followers: "追蹤者" };
 
 let listLoads = new WeakMap();
 
