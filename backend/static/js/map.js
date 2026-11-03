@@ -1,5 +1,11 @@
+const ROUTE_SUGGEST_DELAY_MS = 400;
+
+function routeRows() {
+  return Array.from(routePointList.querySelectorAll(".route-point-row"));
+}
+
 function renumberRoutePoints() {
-  const rows = Array.from(routePointList.querySelectorAll(".route-point-row"));
+  const rows = routeRows();
   rows.forEach((row, index) => {
     const stationNumber = index + 1;
     row.dataset.routeOrder = String(stationNumber);
@@ -40,12 +46,236 @@ function routePointQuery(routePoint) {
 function setRowCoordinates(row, coordinates) {
   row.dataset.lat = String(coordinates.lat);
   row.dataset.lng = String(coordinates.lng);
+  if (coordinates.city) row.dataset.city = coordinates.city;
+  if (coordinates.district) row.dataset.district = coordinates.district;
   row.querySelector("[data-route-located]").hidden = false;
+}
+
+function rowRoutePoint(row) {
+  return {
+    name: row.querySelector("[data-route-name]").value.trim(),
+    lat: row.dataset.lat ?? null,
+    lng: row.dataset.lng ?? null,
+  };
+}
+
+function clearRowCheck(row) {
+  delete row.dataset.checkedName;
+  const check = row.querySelector("[data-route-check]");
+  check.hidden = true;
+  check.replaceChildren();
+}
+
+function routeCheckHint(text) {
+  const hint = document.createElement("p");
+  hint.className = "privacy-note";
+  hint.textContent = text;
+  return hint;
+}
+
+function routeMapFrame(row) {
+  const frame = createEmbeddedMapFrame();
+  frame.src = embeddedPlaceUrl(routePointQuery(rowRoutePoint(row)));
+  return frame;
+}
+
+function routeCheckButton(label, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "map-text-button";
+  button.textContent = label;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function showRowCheck(row, ...children) {
+  const check = row.querySelector("[data-route-check]");
+  check.replaceChildren(...children);
+  check.hidden = false;
+}
+
+// A stop without coordinates can't be verified here, so the person checks it by eye.
+function showRowPreview(row, message = "") {
+  const located = hasCoordinates(rowRoutePoint(row));
+  showRowCheck(
+    row,
+    routeMapFrame(row),
+    routeCheckHint(
+      located
+        ? "這一站已鎖定座標。"
+        : `${message}請確認地圖上有紅色標記，而且位置正確。如果只看到海面或山區、沒有標記，就是 Google 沒找到，請加上縣市或路名再確認一次。`,
+    ),
+  );
+}
+
+function placeLabel(place) {
+  return (place.address ? `${place.name}（${place.address}）` : place.name).slice(
+    0,
+    160,
+  );
+}
+
+function osmCredit(lookup) {
+  return lookup.source === "photon"
+    ? [routeCheckHint("地點資料 © OpenStreetMap 貢獻者")]
+    : [];
+}
+
+function showRowCandidates(row, lookup, query, message) {
+  const list = document.createElement("div");
+  list.className = "route-point-candidates";
+  lookup.places.forEach((place) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "route-point-candidate";
+    const name = document.createElement("strong");
+    name.textContent = place.name;
+    const address = document.createElement("span");
+    address.textContent = place.address || "";
+    option.append(name, address);
+    option.addEventListener("click", () => {
+      choosePlace(row, place, lookup, query);
+    });
+    list.append(option);
+  });
+  const actions = document.createElement("div");
+  actions.className = "route-point-check-actions";
+  actions.append(
+    routeCheckButton("都不是，保留我打的文字", () => keepTypedText(row, query)),
+  );
+  showRowCheck(row, routeCheckHint(message), list, actions, ...osmCredit(lookup));
+}
+
+function keepTypedText(row, query) {
+  row.querySelector("[data-route-name]").value = query;
+  clearRowCoordinates(row);
+  row.dataset.checkedName = query;
+  showRowPreview(row);
+}
+
+function choosePlace(row, place, lookup, query) {
+  row.querySelector("[data-route-name]").value = placeLabel(place);
+  clearRowCoordinates(row);
+  setRowCoordinates(row, {
+    lat: place.latitude,
+    lng: place.longitude,
+    city: place.city,
+    district: place.district,
+  });
+  const actions = document.createElement("div");
+  actions.className = "route-point-check-actions";
+  if (lookup.places.length > 1) {
+    actions.append(
+      routeCheckButton("改選其他地點", () => {
+        showRowCandidates(row, lookup, query, "選一個正確的地點。");
+      }),
+    );
+  }
+  actions.append(
+    routeCheckButton("保留我打的文字", () => keepTypedText(row, query)),
+  );
+  showRowCheck(
+    row,
+    routeCheckHint(`已選擇「${place.name}」。`),
+    routeMapFrame(row),
+    actions,
+    ...osmCredit(lookup),
+  );
+}
+
+// Other stops on this trip are the best clue to which same-named place is meant.
+function routeSearchCenter(row) {
+  const rows = routeRows();
+  const index = rows.indexOf(row);
+  const neighbours = [
+    ...rows.slice(0, index).reverse(),
+    ...rows.slice(index + 1),
+  ].map(rowRoutePoint);
+  const saved = mapPoints.flatMap(footprintRoutePoints);
+  const known = [...neighbours, ...saved].find(hasCoordinates);
+  return known
+    ? { latitude: Number(known.lat), longitude: Number(known.lng) }
+    : null;
+}
+
+function lookupPlaces(row, query) {
+  const previous = rowLookups.get(row);
+  if (previous?.query === query) return previous.result;
+  const result = apiRequest(
+    "/maps/lookup",
+    jsonOptions("POST", { query, center: routeSearchCenter(row) }),
+  );
+  rowLookups.set(row, { query, result });
+  result.catch(() => rowLookups.delete(row));
+  return result;
+}
+
+function rowIsUnchecked(row) {
+  const routePoint = rowRoutePoint(row);
+  return (
+    !hasCoordinates(routePoint) && row.dataset.checkedName !== routePoint.name
+  );
+}
+
+function rowNeedsPlace(row) {
+  return rowRoutePoint(row).name && rowIsUnchecked(row);
+}
+
+// Lists the addresses a typed keyword could mean. Returns whether there were any.
+// While typing (quiet), a failed search is left for leaving the field to report.
+async function offerRowPlaces(row, { quiet = false } = {}) {
+  if (!rowNeedsPlace(row)) return true;
+  const query = rowRoutePoint(row).name;
+  let lookup;
+  try {
+    lookup = await lookupPlaces(row, query);
+  } catch {
+    if (!quiet && rowRoutePoint(row).name === query) {
+      showRowPreview(row, "地點搜尋暫時無法使用。");
+    }
+    return false;
+  }
+  // The person may have typed on, or picked an address, while this was running.
+  if (!rowNeedsPlace(row) || rowRoutePoint(row).name !== query) return true;
+  if (lookup.places.length) {
+    showRowCandidates(
+      row,
+      lookup,
+      query,
+      lookup.places[0].matched
+        ? "請點選正確的地址。"
+        : "沒有完全相符的地點，請看看有沒有正確的選項，或把名稱寫得更完整。",
+    );
+    return true;
+  }
+  if (!quiet) showRowPreview(row, "沒有找到相符的地點。");
+  return false;
+}
+
+async function checkRowLocation(button) {
+  const row = button.closest(".route-point-row");
+  const nameInput = row.querySelector("[data-route-name]");
+  const query = nameInput.value.trim();
+  if (!query) {
+    nameInput.focus();
+    return;
+  }
+  if (!rowNeedsPlace(row)) {
+    showRowPreview(row);
+    return;
+  }
+  button.disabled = true;
+  const found = await offerRowPlaces(row);
+  button.disabled = false;
+  // Nothing to choose from, so the map they just looked at is the check.
+  if (!found && rowRoutePoint(row).name === query) row.dataset.checkedName = query;
 }
 
 function clearRowCoordinates(row) {
   delete row.dataset.lat;
   delete row.dataset.lng;
+  delete row.dataset.city;
+  delete row.dataset.district;
   row.querySelector("[data-route-located]").hidden = true;
 }
 
@@ -62,10 +292,12 @@ function addRoutePoint(values = {}) {
       </span>
     </div>
     <label class="compact-field">地點名稱或地址
-      <input data-route-name maxlength="160" required placeholder="例如：旗津海岸公園、高雄市旗津區旗津三路" />
+      <input data-route-name maxlength="160" required placeholder="例如：旗津海岸公園、信義區鼎泰豐" />
     </label>
-    <p class="privacy-note route-point-located" data-route-located hidden>已定位，修改名稱後會改用名稱搜尋地點。</p>
+    <p class="privacy-note route-point-located" data-route-located hidden>已鎖定座標，修改名稱後要重新選擇地址。</p>
+    <div class="route-point-check" data-route-check hidden></div>
     <div class="route-point-row-actions">
+      <button class="secondary-button" type="button" data-route-confirm>確認位置</button>
       <button class="secondary-button" type="button" data-route-locate>使用目前位置</button>
       <button class="secondary-button" type="button" data-route-pick>在地圖選點</button>
       <button class="route-point-remove" type="button" data-route-remove>移除此站</button>
@@ -73,12 +305,15 @@ function addRoutePoint(values = {}) {
   `;
   row.querySelector("[data-route-name]").value = values.name || "";
   if (hasCoordinates(values)) setRowCoordinates(row, values);
+  // Stops that were already saved don't need checking again unless they change.
+  if (values.name) row.dataset.checkedName = values.name;
   routePointList.append(row);
   renumberRoutePoints();
   return row;
 }
 
 function resetRoutePoints() {
+  uncheckedRouteWarning = "";
   routePointList.replaceChildren();
   addRoutePoint();
 }
@@ -139,9 +374,35 @@ function moveRoutePoint(button) {
   focusTarget?.focus();
 }
 
+routePointList.addEventListener("focusout", (event) => {
+  if (!event.target.matches("[data-route-name]")) return;
+  window.clearTimeout(routeSuggestTimer);
+  offerRowPlaces(event.target.closest(".route-point-row"));
+});
+
+// Keeps the field focused: leaving it redraws the options under the tap.
+routePointList.addEventListener("mousedown", (event) => {
+  if (event.target.closest("[data-route-check] button")) event.preventDefault();
+});
+
 routePointList.addEventListener("input", (event) => {
   if (event.target.matches("[data-route-name]")) {
-    clearRowCoordinates(event.target.closest(".route-point-row"));
+    const row = event.target.closest(".route-point-row");
+    clearRowCoordinates(row);
+    window.clearTimeout(routeSuggestTimer);
+    const typing = event.target.value.trim().length >= 2;
+    // Options stay up until the new ones arrive, so the form doesn't jump per keystroke.
+    if (typing && row.querySelector(".route-point-candidates")) {
+      delete row.dataset.checkedName;
+    } else {
+      clearRowCheck(row);
+    }
+    if (typing) {
+      routeSuggestTimer = window.setTimeout(
+        () => offerRowPlaces(row, { quiet: true }),
+        ROUTE_SUGGEST_DELAY_MS,
+      );
+    }
   }
 });
 
@@ -156,6 +417,11 @@ routePointList.addEventListener("click", (event) => {
     fillRowWithCurrentLocation(locateButton);
     return;
   }
+  const confirmButton = event.target.closest("[data-route-confirm]");
+  if (confirmButton) {
+    checkRowLocation(confirmButton);
+    return;
+  }
   const pickButton = event.target.closest("[data-route-pick]");
   if (pickButton) {
     startMapPick(pickButton.closest(".route-point-row"));
@@ -168,6 +434,16 @@ routePointList.addEventListener("click", (event) => {
   renumberRoutePoints();
 });
 
+function embeddedPlaceUrl(query) {
+  const params = new URLSearchParams({
+    hl: "zh-TW",
+    output: "embed",
+    q: query,
+    z: "15",
+  });
+  return `https://www.google.com/maps?${params}`;
+}
+
 function embeddedMapUrl(selectedPoint) {
   const routePoints = selectedPoint ? footprintRoutePoints(selectedPoint) : [];
   const params = new URLSearchParams({ hl: "zh-TW", output: "embed" });
@@ -175,8 +451,7 @@ function embeddedMapUrl(selectedPoint) {
     params.set("saddr", routePointQuery(routePoints[0]));
     params.set("daddr", routePoints.slice(1).map(routePointQuery).join(" to:"));
   } else if (routePoints.length === 1) {
-    params.set("q", routePointQuery(routePoints[0]));
-    params.set("z", "15");
+    return embeddedPlaceUrl(routePointQuery(routePoints[0]));
   } else {
     params.set("ll", "23.7,120.95");
     params.set("z", "7");
@@ -303,6 +578,8 @@ function footprintRoutePoints(point) {
         lng: hasCoordinates(routePoint) ? Number(routePoint.lng) : null,
         name: routePoint.name || point.name,
         order: Number(routePoint.order) || index + 1,
+        city: routePoint.city || null,
+        district: routePoint.district || null,
       }))
       .sort((left, right) => left.order - right.order);
   }
@@ -348,7 +625,7 @@ function updateMapRoute(selectedPoint) {
         {
           icon: {
             path: "M 0,-1 0,1",
-            strokeColor: "#4386d5",
+            strokeColor: "#af4526",
             strokeOpacity: 0.82,
             scale: 3,
           },
@@ -405,19 +682,40 @@ function setMapCardExpanded(pointId, isExpanded) {
   if (previous) {
     details.removeEventListener("transitionend", previous.onTransitionEnd);
     window.clearTimeout(previous.timeoutId);
+    mapPointDetailAnimations.delete(details);
   }
+  if (!isExpanded && details.hidden) return;
 
-  const startHeight = details.hidden
-    ? 0
-    : details.getBoundingClientRect().height;
-  const startOpacity = details.hidden
-    ? 0
-    : Number.parseFloat(window.getComputedStyle(details).opacity);
-  if (isExpanded) details.hidden = false;
-  details.style.height = `${startHeight}px`;
-  details.style.opacity = String(startOpacity);
+  // Padding and the border animate with the height. A border-box element can't get
+  // shorter than them, so otherwise it stalls short of 0 and then jumps when hidden.
+  const styles = window.getComputedStyle(details);
+  const start = details.hidden
+    ? { height: 0, opacity: 0, paddingBottom: 0, borderTopWidth: 0 }
+    : {
+        height: details.getBoundingClientRect().height,
+        opacity: Number.parseFloat(styles.opacity),
+        paddingBottom: Number.parseFloat(styles.paddingBottom),
+        borderTopWidth: Number.parseFloat(styles.borderTopWidth),
+      };
+  const clearInlineStyles = () => {
+    ["height", "opacity", "overflow", "padding-bottom", "border-top-width"].forEach(
+      (property) => details.style.removeProperty(property),
+    );
+  };
+
+  details.style.transition = "none";
+  if (isExpanded) {
+    details.hidden = false;
+    clearInlineStyles();
+  }
+  const endHeight = isExpanded ? details.getBoundingClientRect().height : 0;
+  details.style.height = `${start.height}px`;
+  details.style.opacity = String(start.opacity);
+  details.style.paddingBottom = `${start.paddingBottom}px`;
+  details.style.borderTopWidth = `${start.borderTopWidth}px`;
   details.style.overflow = "hidden";
   details.getBoundingClientRect();
+  details.style.removeProperty("transition");
 
   const finish = () => {
     const animation = mapPointDetailAnimations.get(details);
@@ -426,12 +724,14 @@ function setMapCardExpanded(pointId, isExpanded) {
     window.clearTimeout(animation.timeoutId);
     mapPointDetailAnimations.delete(details);
     if (!isExpanded) details.hidden = true;
-    details.style.removeProperty("height");
-    details.style.removeProperty("opacity");
-    details.style.removeProperty("overflow");
+    clearInlineStyles();
+    if (embeddedMapUpdatePending && mapPointDetailAnimations.size === 0) {
+      embeddedMapUpdatePending = false;
+      updateEmbeddedMap();
+    }
   };
   const onTransitionEnd = (event) => {
-    if (event.propertyName === "height") finish();
+    if (event.target === details && event.propertyName === "height") finish();
   };
   const timeoutId = window.setTimeout(finish, 700);
   mapPointDetailAnimations.set(details, {
@@ -442,12 +742,15 @@ function setMapCardExpanded(pointId, isExpanded) {
   details.addEventListener("transitionend", onTransitionEnd);
   window.requestAnimationFrame(() => {
     if (card.classList.contains("is-expanded") !== isExpanded) return;
-    const borderHeight =
-      Number.parseFloat(window.getComputedStyle(details).borderTopWidth) || 0;
-    details.style.height = isExpanded
-      ? `${details.scrollHeight + borderHeight}px`
-      : "0px";
+    details.style.height = `${endHeight}px`;
     details.style.opacity = isExpanded ? "1" : "0";
+    if (isExpanded) {
+      details.style.removeProperty("padding-bottom");
+      details.style.removeProperty("border-top-width");
+    } else {
+      details.style.paddingBottom = "0px";
+      details.style.borderTopWidth = "0px";
+    }
   });
 }
 
@@ -541,10 +844,31 @@ function openMapPointEditor(pointId) {
   showMapPointDialog();
 }
 
+async function removeMapPointCover(button) {
+  const pointId = Number(button.dataset.removeMapCover);
+  const status = mapPointsContainer.querySelector(
+    `[data-map-cover-status="${pointId}"]`,
+  );
+  button.disabled = true;
+  status.textContent = "正在移除圖片…";
+  try {
+    await apiRequest(`/map-points/${pointId}/cover`, { method: "DELETE" });
+    applyMapPointCover(pointId, null, "圖片已移除。");
+  } catch (error) {
+    status.textContent = error.message || "移除圖片失敗，請稍後再試。";
+    button.disabled = false;
+  }
+}
+
 mapPointsContainer.addEventListener("click", (event) => {
   const editButton = event.target.closest("[data-edit-map-point]");
   if (editButton) {
     openMapPointEditor(Number(editButton.dataset.editMapPoint));
+    return;
+  }
+  const removeCoverButton = event.target.closest("[data-remove-map-cover]");
+  if (removeCoverButton) {
+    removeMapPointCover(removeCoverButton);
     return;
   }
   const button = event.target.closest("[data-map-point]");
@@ -565,8 +889,192 @@ mapPointsContainer.addEventListener("click", (event) => {
   selectMapPoint(pointId);
 });
 
+function mapPointCoverHtml(point) {
+  const coverUrl = mediaUrl(point.cover_url);
+  const media = coverUrl
+    ? `<img class="map-point-cover" src="${escapeHtml(coverUrl)}" alt="${escapeHtml(point.name)}的圖片" loading="lazy" decoding="async" />`
+    : "";
+  if (!point.is_owner) return media;
+  return `
+    ${media || '<div class="map-point-photo-placeholder"><span aria-hidden="true">▧</span><span>還沒有圖片</span></div>'}
+    <div class="profile-footprint-cover-actions">
+      <label class="small-action profile-cover-upload">
+        ${coverUrl ? "更換圖片" : "新增圖片"}
+        <input class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" data-map-cover-upload="${Number(point.id)}" />
+      </label>
+      ${coverUrl ? `<button class="small-action is-destructive" type="button" data-remove-map-cover="${Number(point.id)}">移除圖片</button>` : ""}
+      <span class="privacy-note" data-map-cover-status="${Number(point.id)}" role="status">圖片會顯示在足跡列表與個人檔案，最大 25 MB。</span>
+    </div>
+  `;
+}
+
+function mapPointCardHtml(point) {
+  const isSelected = point.id === selectedMapPointId;
+  const coverUrl = mediaUrl(point.cover_url);
+  const routePoints = footprintRoutePoints(point);
+  return `
+  <article class="map-point-card${isSelected ? " is-selected is-expanded" : ""}">
+    <button class="map-point-select" type="button" data-map-point="${point.id}" aria-expanded="${isSelected}" aria-controls="map-point-details-${point.id}">
+      <span class="map-point-thumb" aria-hidden="true">${coverUrl ? `<img src="${escapeHtml(coverUrl)}" alt="" loading="lazy" decoding="async" />` : "⌖"}</span>
+      <span class="map-point-summary">
+        <time datetime="${escapeHtml(point.created_at || "")}">${escapeHtml(formatDate(point.created_at))}</time>
+        <h3>${escapeHtml(point.name)}</h3>
+        <p>${escapeHtml(point.owner_name || "我的足跡")} · ${routePoints.length} 個途經點</p>
+      </span>
+      <span class="map-point-chevron" aria-hidden="true">⌄</span>
+    </button>
+    <div class="map-point-details" id="map-point-details-${point.id}"${isSelected ? "" : " hidden"}>
+      ${mapPointCoverHtml(point)}
+              <p>${escapeHtml(point.note || "尚未新增小記")}</p>
+      <ol class="route-stops">
+        ${routePoints
+          .map(
+            (routePoint) => `
+              <li>
+                <strong>第 ${routePoint.order} 站：${escapeHtml(routePoint.name)}</strong>
+                ${hasCoordinates(routePoint) ? `<span> · ${routePoint.lat.toFixed(5)}, ${routePoint.lng.toFixed(5)}</span>` : ""}
+              </li>
+            `,
+          )
+          .join("")}
+      </ol>
+      <button class="secondary-button map-point-directions" type="button" data-google-route-navigation="${Number(point.id)}">前往 Google 導航</button>
+      <div class="map-point-top">
+        <span class="mood" data-privacy-badge="point:${Number(point.id)}">${privacyLabel(point.privacy)}</span>
+        ${ownerLink(point, "我的足跡")}
+      </div>
+      ${
+        point.is_owner
+          ? `<div class="map-point-actions">
+              <button class="secondary-button" type="button" data-edit-map-point="${point.id}">編輯這趟足跡</button>
+              <label class="compact-field">隱私層級
+                ${privacySelectHtml(point.id, point.name, point.privacy)}
+              </label>
+            </div>`
+          : ""
+      }
+    </div>
+  </article>
+  `;
+}
+
+// Redraws only this card, so the other cards and their photos stay as they are.
+function applyMapPointCover(pointId, coverUrl, message) {
+  const point = mapPoints.find((item) => item.id === pointId);
+  const card = mapPointsContainer
+    .querySelector(`[data-map-point="${pointId}"]`)
+    ?.closest(".map-point-card");
+  if (!point || !card) return;
+  point.cover_url = coverUrl;
+  card.outerHTML = mapPointCardHtml(point);
+  mapPointsContainer.querySelector(
+    `[data-map-cover-status="${pointId}"]`,
+  ).textContent = message;
+}
+
+mapPointsContainer.addEventListener("change", async (event) => {
+  const input = event.target.closest("[data-map-cover-upload]");
+  const [file] = input?.files || [];
+  if (!input || !file) return;
+  const pointId = Number(input.dataset.mapCoverUpload);
+  const status = mapPointsContainer.querySelector(
+    `[data-map-cover-status="${pointId}"]`,
+  );
+  input.disabled = true;
+  status.textContent = "正在處理圖片…";
+  try {
+    const coverUrl = await uploadFootprintCover(pointId, file);
+    applyMapPointCover(pointId, coverUrl, "圖片已更新。");
+  } catch (error) {
+    status.textContent = error.message || "圖片上傳失敗，請稍後再試。";
+    input.disabled = false;
+    input.value = "";
+  }
+});
+
+const mapPointsFilter = createContentFilter({
+  rootId: "map-point-filter",
+  label: "篩選足跡",
+  items: () => mapPoints,
+  regionOf: mapPointRegion,
+  who: FOOTPRINT_WHO,
+  onChange() {
+    // The map shouldn't keep showing a footprint that just left the list.
+    if (
+      !mapPointsFilter.visible().some((point) => point.id === selectedMapPointId)
+    ) {
+      selectedMapPointId = null;
+    }
+    renderMapPoints();
+  },
+});
+
+function mapPointRegion(point) {
+  // A trip is filed under where it starts, wherever its later stops are.
+  const [start] = footprintRoutePoints(point);
+  return {
+    city: start?.city || UNFILED_REGION,
+    district: start?.district || "",
+  };
+}
+
+function mapPointGroupsHtml() {
+  const cities = groupBy(
+    mapPointsFilter.visible(),
+    (point) => mapPointRegion(point).city,
+  );
+  const names = [...cities.keys()].sort(
+    (a, b) => (a === UNFILED_REGION) - (b === UNFILED_REGION),
+  );
+  return names
+    .map((city) => {
+      const points = cities.get(city);
+      const districts = groupBy(points, (point) => mapPointRegion(point).district);
+      const isOpen =
+        mapPointsFilter.city() ||
+        !closedMapRegions.has(city) ||
+        points.some((point) => point.id === selectedMapPointId);
+      const named = [...districts.keys()].some(Boolean);
+      const groups = [...districts.entries()]
+        .sort(([a], [b]) => (a === "") - (b === ""))
+        .map(
+          ([district, districtPoints]) => `
+            <div class="map-district">
+              ${named ? `<p class="map-district-name">${escapeHtml(district || OTHER_DISTRICT)}<span>${districtPoints.length}</span></p>` : ""}
+              ${districtPoints.map(mapPointCardHtml).join("")}
+            </div>
+          `,
+        )
+        .join("");
+      const unfiledHint =
+        city === UNFILED_REGION
+          ? '<p class="privacy-note">這些足跡的起點還沒有地區。編輯足跡並點選起點的地址後，就會歸到縣市和區。</p>'
+          : "";
+      return `
+        <details class="map-region" data-map-region="${escapeHtml(city)}"${isOpen ? " open" : ""}>
+          <summary><span>${escapeHtml(city)}</span><span class="map-region-count">${points.length}</span></summary>
+          ${unfiledHint}${groups}
+        </details>
+      `;
+    })
+    .join("");
+}
+
+// toggle doesn't bubble, so it has to be caught on the way down.
+mapPointsContainer.addEventListener(
+  "toggle",
+  (event) => {
+    const city = event.target.dataset?.mapRegion;
+    if (!city) return;
+    if (event.target.open) closedMapRegions.delete(city);
+    else closedMapRegions.add(city);
+  },
+  true,
+);
+
 function renderMapPoints() {
-  mapPointCount.textContent = `${mapPoints.length} 趟足跡`;
+  mapPointsFilter.refresh();
+  mapPointCount.textContent = `${mapPointsFilter.visible().length} 趟足跡`;
   if (mapPoints.length === 0) {
     selectedMapPointId = null;
     mapPointsContainer.innerHTML =
@@ -574,61 +1082,9 @@ function renderMapPoints() {
     tripPointOptions.innerHTML =
       '<span class="privacy-note">新增足跡後即可加入行程包。</span>';
   } else {
-    mapPointsContainer.innerHTML = mapPoints
-      .map(
-        (point) => {
-          const isSelected = point.id === selectedMapPointId;
-          const routePoints = footprintRoutePoints(point);
-          return `
-          <article class="map-point-card${isSelected ? " is-selected is-expanded" : ""}">
-            <button class="map-point-select" type="button" data-map-point="${point.id}" aria-expanded="${isSelected}" aria-controls="map-point-details-${point.id}">
-              <span class="map-point-thumb" aria-hidden="true">⌖</span>
-              <span class="map-point-summary">
-                <time datetime="${escapeHtml(point.created_at || "")}">${escapeHtml(formatDate(point.created_at))}</time>
-                <h3>${escapeHtml(point.name)}</h3>
-                <p>${escapeHtml(point.owner_name || "我的足跡")} · ${routePoints.length} 個途經點</p>
-              </span>
-              <span class="map-point-chevron" aria-hidden="true">⌄</span>
-            </button>
-            <div class="map-point-details" id="map-point-details-${point.id}"${isSelected ? "" : " hidden"}>
-              <div class="map-point-photo-placeholder" role="img" aria-label="此足跡沒有已儲存的照片">
-                <span aria-hidden="true">▧</span>
-                <span>此足跡尚無已儲存的照片</span>
-              </div>
-              <p>${escapeHtml(point.note || "尚未新增小記。")}</p>
-              <ol class="route-stops">
-                ${routePoints
-                  .map(
-                    (routePoint) => `
-                      <li>
-                        <strong>第 ${routePoint.order} 站：${escapeHtml(routePoint.name)}</strong>
-                        ${hasCoordinates(routePoint) ? `<span> · ${routePoint.lat.toFixed(5)}, ${routePoint.lng.toFixed(5)}</span>` : ""}
-                      </li>
-                    `,
-                  )
-                  .join("")}
-              </ol>
-              <button class="secondary-button map-point-directions" type="button" data-google-route-navigation="${Number(point.id)}">前往 Google 導航</button>
-              <div class="map-point-top">
-                <span class="mood" data-privacy-badge="point:${Number(point.id)}">${privacyLabel(point.privacy)}</span>
-                ${ownerLink(point, "我的足跡")}
-              </div>
-              ${
-                point.is_owner
-                  ? `<div class="map-point-actions">
-                      <button class="secondary-button" type="button" data-edit-map-point="${point.id}">編輯這趟足跡</button>
-                      <label class="compact-field">隱私層級
-                        ${privacySelectHtml("data-privacy-point", point.id, point.name, point.privacy)}
-                      </label>
-                    </div>`
-                  : ""
-              }
-            </div>
-          </article>
-          `;
-        },
-      )
-      .join("");
+    mapPointsContainer.innerHTML =
+      mapPointGroupsHtml() ||
+      `<div class="module-empty">${mapPointsFilter.emptyMessage()}</div>`;
     const ownPoints = mapPoints.filter((point) => point.is_owner);
     const checkedPointIds = checkedTripPointIds();
     tripPointOptions.innerHTML = ownPoints.length
@@ -652,14 +1108,17 @@ function renderMapPoints() {
 
 function renderMapMarkers() {
   if (!map) {
-    updateEmbeddedMap();
+    // Changing the iframe reloads Google's whole map, which makes a running card
+    // animation stutter, so it waits until the card has settled.
+    if (mapPointDetailAnimations.size > 0) embeddedMapUpdatePending = true;
+    else updateEmbeddedMap();
     return;
   }
   const selectedPoint = mapPoints.find(
     (point) => point.id === selectedMapPointId,
   );
   const activeMarkerKeys = new Set();
-  mapPoints.forEach((point) => {
+  mapPointsFilter.visible().forEach((point) => {
     footprintRoutePoints(point).filter(hasCoordinates).forEach((routePoint) => {
       const markerKey = `${point.id}:${routePoint.order}`;
       activeMarkerKeys.add(markerKey);
@@ -720,7 +1179,7 @@ async function loadMapPoints() {
     if (!mapPoints.some((point) => point.id === selectedMapPointId)) {
       selectedMapPointId = null;
     }
-    renderTimelineFootprints(mapPoints);
+    renderTimelineFootprints();
     renderMapPoints();
   } catch (error) {
     if (!load.isCurrent()) return;
@@ -749,3 +1208,4 @@ timelineFootprints.addEventListener("click", (event) => {
     loadMapPoints();
   }
 });
+

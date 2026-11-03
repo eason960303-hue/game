@@ -310,104 +310,79 @@ function rememberProfilePostPrivacy(type, id, privacy) {
   if (post) post.privacy = privacy;
 }
 
-const PRIVACY_KINDS = {
-  "data-entry-privacy": {
-    badge: "entry",
-    path: (id) => `/entries/${id}/privacy`,
-    failure: "更新日記隱私設定失敗",
-    remember: (id, privacy) => rememberProfilePostPrivacy("entry", id, privacy),
-  },
-  "data-privacy-point": {
-    badge: "point",
-    path: (id) => `/map-points/${id}/privacy`,
-    failure: "更新隱私設定失敗",
-    remember: (id, privacy) => {
-      const point = mapPoints.find((item) => item.id === id);
-      if (point) point.privacy = privacy;
-      rememberProfilePostPrivacy("footprint", id, privacy);
-    },
-  },
-};
-
-// Shows a privacy value everywhere the same post appears, without redrawing any list.
-function showPrivacy(attribute, id, privacy) {
-  document.querySelectorAll(`[${attribute}="${id}"]`).forEach((select) => {
+// Shows a privacy value everywhere the same footprint appears, without redrawing any list.
+function showPrivacy(id, privacy) {
+  document.querySelectorAll(`[data-privacy-point="${id}"]`).forEach((select) => {
     select.value = privacy;
     select.dataset.saved = privacy;
   });
-  const { badge, remember } = PRIVACY_KINDS[attribute];
   document
-    .querySelectorAll(`[data-privacy-badge="${badge}:${id}"]`)
+    .querySelectorAll(`[data-privacy-badge="point:${id}"]`)
     .forEach((element) => {
       element.textContent = privacyLabel(privacy);
     });
-  remember(Number(id), privacy);
+  const point = mapPoints.find((item) => item.id === id);
+  if (point) point.privacy = privacy;
+  rememberProfilePostPrivacy("footprint", id, privacy);
 }
 
 const privacySaves = new Map();
 // A footprint's choice made inside its open card waits here until that card closes.
 const privacyDrafts = new Map();
 
-// Saves for one post run one at a time, so a quick change of mind cannot arrive out
-// of order and leave the wrong privacy on the server.
-function savePrivacy(attribute, id, wanted, confirmed) {
-  const key = `${attribute}:${id}`;
-  const running = privacySaves.get(key);
+// Saves for one footprint run one at a time, so a quick change of mind cannot arrive
+// out of order and leave the wrong privacy on the server.
+function savePrivacy(id, wanted, confirmed) {
+  const running = privacySaves.get(id);
   if (running) {
     running.wanted = wanted;
     return running.finished;
   }
   const save = { confirmed, wanted };
-  privacySaves.set(key, save);
-  save.finished = runPrivacySave(attribute, id, save);
+  privacySaves.set(id, save);
+  save.finished = runPrivacySave(id, save);
   return save.finished;
 }
 
-async function runPrivacySave(attribute, id, save) {
-  const { path, failure } = PRIVACY_KINDS[attribute];
+async function runPrivacySave(id, save) {
   try {
     while (save.confirmed !== save.wanted) {
       const privacy = save.wanted;
       // keepalive lets the save finish when leaving the page is what started it.
-      await apiRequest(path(id), {
+      await apiRequest(`/map-points/${id}/privacy`, {
         ...jsonOptions("PATCH", { privacy }),
         keepalive: true,
       });
       save.confirmed = privacy;
     }
-    document.querySelectorAll(`[${attribute}="${id}"]`).forEach((select) => {
+    document.querySelectorAll(`[data-privacy-point="${id}"]`).forEach((select) => {
       select.classList.add("is-saved");
       window.setTimeout(() => select.classList.remove("is-saved"), 900);
     });
   } catch (error) {
-    showPrivacy(attribute, id, save.confirmed);
-    window.alert(`${failure}：${error.message}`);
+    showPrivacy(id, save.confirmed);
+    window.alert(`更新隱私設定失敗：${error.message}`);
   } finally {
-    privacySaves.delete(`${attribute}:${id}`);
+    privacySaves.delete(id);
   }
 }
 
 function updatePrivacy(event) {
-  const attribute = Object.keys(PRIVACY_KINDS).find((name) =>
-    event.target.hasAttribute(name),
-  );
-  if (!attribute) return;
   const select = event.target;
-  const id = Number(select.getAttribute(attribute));
-  const isDraft =
-    attribute === "data-privacy-point" &&
-    select.closest(".map-point-card, .profile-post-tile");
+  if (!select.hasAttribute("data-privacy-point")) return;
+  const id = Number(select.dataset.privacyPoint);
+  const isDraft = select.closest(".map-point-card, .profile-post-tile");
   const confirmed =
     (isDraft && privacyDrafts.get(id)?.confirmed) || select.dataset.saved;
-  showPrivacy(attribute, id, select.value);
-  if (!isDraft) savePrivacy(attribute, id, select.value, confirmed);
+  showPrivacy(id, select.value);
+  if (!isDraft) savePrivacy(id, select.value, confirmed);
   else if (select.value === confirmed) privacyDrafts.delete(id);
   else privacyDrafts.set(id, { confirmed, wanted: select.value });
 }
 
 function flushPrivacyDrafts() {
   const saves = Array.from(privacyDrafts, ([id, { confirmed, wanted }]) =>
-    savePrivacy("data-privacy-point", id, wanted, confirmed),
+    savePrivacy(id, wanted, confirmed),
   );
   privacyDrafts.clear();
   return Promise.all(saves);

@@ -15,10 +15,9 @@ async function loadSessionData() {
 }
 
 function updateAccountUi() {
-  accountName.textContent = currentUser
-    ? currentUser.display_name || currentUser.email
-    : "尚未登入";
-  loginOpenButton.textContent = currentUser ? "帳號" : "登入 / 註冊";
+  // Signed in, the account area is just the logout button.
+  accountName.hidden = Boolean(currentUser);
+  loginOpenButton.hidden = Boolean(currentUser);
   logoutButton.hidden = !currentUser;
 }
 

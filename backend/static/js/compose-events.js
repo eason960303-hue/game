@@ -71,7 +71,6 @@ async function openEntryEditor(entryId = null) {
       form.elements.title.value = entry.title || "";
       form.elements.content.value = entry.content || "";
       form.elements.location.value = entry.location || "";
-      form.elements.privacy.value = entry.privacy || "private";
       form.elements.tags.value = entry.tags || "";
       selectedMood.value = entry.mood || "開心";
       document.querySelectorAll("[data-mood]").forEach((option) => {
@@ -107,10 +106,7 @@ aiChatForm.addEventListener("submit", async (event) => {
   try {
     const result = await apiRequest(
       "/diary-chat",
-      jsonOptions("POST", {
-        message,
-        privacy: values.get("privacy"),
-      }),
+      jsonOptions("POST", { message }),
     );
     pending.remove();
     const entry = result.entry;

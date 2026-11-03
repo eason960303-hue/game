@@ -4,10 +4,10 @@
   margin-top: 37px;
   padding: clamp(28px, 6vw, 58px);
   overflow: hidden;
-  border: 1px solid #e8f0fa;
-  border-radius: 30px;
-  background: linear-gradient(117deg, #fff 9%, #eef6ff 100%);
-  box-shadow: 0 18px 50px #365b8510;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-xl);
+  background: linear-gradient(117deg, var(--surface) 9%, var(--accent-soft) 100%);
+  box-shadow: 0 18px 50px rgb(var(--shadow-rgb) / 0.063);
 }
 
 .hero-copy {
@@ -19,24 +19,23 @@
 .eyebrow {
   margin: 0 0 12px;
   color: var(--blue-dark);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.09em;
 }
 
 h1 {
   margin: 0;
-  color: #182b44;
+  color: var(--ink);
   font-size: clamp(34px, 6vw, 54px);
-  font-weight: 750;
-  letter-spacing: -0.045em;
+  font-weight: 700;
   line-height: 1.15;
 }
 
 .hero-description {
   max-width: 420px;
   margin: 17px 0 25px;
-  color: #6b7d93;
+  color: var(--ink-2);
   font-size: 15px;
   line-height: 1.8;
 }
@@ -49,68 +48,19 @@ h1 {
   gap: 9px;
   padding: 0 19px;
   border: 0;
-  border-radius: 14px;
+  border-radius: var(--r-lg);
   background: var(--blue);
-  box-shadow: 0 8px 18px #4386d536;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 650;
-  transition:
-    background 160ms ease,
+  box-shadow: 0 8px 18px rgb(var(--shadow-rgb) / 0.212);
+  color: var(--on-accent);
+  font-size: 15px;
+  font-weight: 600;
+  transition: background 160ms ease,
     transform 160ms ease;
 }
 
 .primary-button:hover {
   transform: translateY(-1px);
   background: var(--blue-dark);
-}
-
-.hero-art {
-  position: absolute;
-  top: 50%;
-  right: 7%;
-  width: 190px;
-  height: 190px;
-  transform: translateY(-50%);
-  border: 1px solid #d5e8fb;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 68% 28%, #fff 0 5px, transparent 6px),
-    radial-gradient(circle at 35% 64%, #fff 0 4px, transparent 5px),
-    radial-gradient(circle at 70% 73%, #fff 0 3px, transparent 4px),
-    linear-gradient(145deg, #d9eaff, #edf5ff 66%, #f9fcff);
-  box-shadow:
-    0 0 0 22px #e8f2fd80,
-    0 22px 50px #5394cc22;
-}
-
-.hero-art::before,
-.hero-art::after {
-  position: absolute;
-  content: "";
-  border: 1px solid #95c2ee80;
-  border-radius: 50%;
-  transform: rotate(-28deg);
-}
-
-.hero-art::before {
-  inset: 36px -26px;
-}
-
-.hero-art::after {
-  inset: 65px -47px;
-}
-
-.sun {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 55px;
-  height: 55px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: linear-gradient(145deg, #a9d4ff, #6ea9e8);
-  box-shadow: 0 0 35px #7cb7f16b;
 }
 
 .entries-section {
@@ -123,10 +73,10 @@ h1 {
   justify-content: space-between;
   gap: 16px;
   padding: 18px clamp(18px, 3vw, 26px);
-  border: 1px solid #e5edf5;
-  border-radius: 22px;
-  background: #ffffffc9;
-  box-shadow: 0 8px 26px #263e5a0a;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: 0 8px 26px rgb(var(--shadow-rgb) / 0.039);
 }
 
 .meetup-launcher .eyebrow {
@@ -156,27 +106,27 @@ h1 {
   display: flex;
   width: fit-content;
   padding: 3px;
-  border: 1px solid #dfe7f0;
-  border-radius: 11px;
-  background: #f2f5f9;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
 }
 
 .meetup-time-mode {
   min-height: 34px;
   padding: 6px 12px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   background: transparent;
-  color: #53667c;
+  color: var(--ink-2);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 
 .meetup-time-mode[aria-pressed="true"] {
-  background: #fff;
-  color: #263b53;
-  box-shadow: 0 1px 4px #263e5a1a;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgb(var(--shadow-rgb) / 0.102);
 }
 
 .meetup-date-time-fields {
@@ -189,8 +139,8 @@ h1 {
   display: grid;
   min-width: 0;
   gap: 6px;
-  color: #53667c;
-  font-size: 12px;
+  color: var(--ink-2);
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -223,17 +173,21 @@ h1 {
 .meetup-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
-  align-items: start;
+  grid-auto-rows: 1fr;
+  align-items: stretch;
   gap: 15px;
 }
 
 .meetup-card {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
   min-width: 0;
   padding: clamp(18px, 2.4vw, 24px);
-  border: 1px solid #e4eaf2;
-  border-radius: 22px;
-  background: #ffffffd9;
-  box-shadow: 0 10px 28px #263e5a0c;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: 0 10px 28px rgb(var(--shadow-rgb) / 0.047);
 }
 
 .meetup-card-heading {
@@ -245,7 +199,7 @@ h1 {
 
 .meetup-card-heading h3 {
   margin: 6px 0 0;
-  color: #263b53;
+  color: var(--ink);
   font-size: 18px;
   line-height: 1.4;
   overflow-wrap: anywhere;
@@ -253,37 +207,41 @@ h1 {
 
 .meetup-public-label,
 .meetup-host-badge {
-  color: #477bb5;
-  font-size: 11px;
+  color: var(--accent-text);
+  font-size: 12px;
   font-weight: 700;
 }
 
 .meetup-participants {
   flex: 0 0 auto;
   padding: 7px 10px;
-  border-radius: 999px;
-  background: #edf5ff;
-  color: #477bb5;
-  font-size: 12px;
+  border-radius: var(--r-xl);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 13px;
   font-weight: 700;
 }
 
 .meetup-starts-at {
   margin: 13px 0;
-  color: #687b91;
-  font-size: 13px;
-  font-weight: 650;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .meetup-route {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
   padding: 14px;
-  border-radius: 15px;
-  background: #f5f8fc;
-  color: #344c65;
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  color: var(--accent-text);
 }
 
 .meetup-route > strong {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .meetup-route ol {
@@ -291,6 +249,8 @@ h1 {
   gap: 9px;
   margin: 12px 0;
   padding: 0;
+  overflow-y: auto;
+  max-height: 132px;
   list-style: none;
 }
 
@@ -298,8 +258,8 @@ h1 {
   display: flex;
   align-items: baseline;
   gap: 9px;
-  color: #5d7087;
-  font-size: 13px;
+  color: var(--ink-2);
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
 
@@ -310,9 +270,9 @@ h1 {
   flex: 0 0 21px;
   place-items: center;
   border-radius: 50%;
-  background: #e4effb;
-  color: #477bb5;
-  font-size: 11px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -327,8 +287,8 @@ h1 {
   justify-content: space-between;
   gap: 12px;
   margin: 15px 0;
-  color: #718399;
-  font-size: 12px;
+  color: var(--ink-3);
+  font-size: 13px;
 }
 
 .meetup-inviter {
@@ -339,14 +299,15 @@ h1 {
 
 .meetup-departure {
   flex: 0 0 auto;
-  color: #426d9c;
-  font-weight: 650;
+  color: var(--accent-text);
+  font-weight: 600;
 }
 
 .meetup-card-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  margin-top: auto;
   gap: 8px;
 }
 
@@ -354,7 +315,7 @@ h1 {
 .meetup-card-actions .secondary-button {
   min-height: 38px;
   padding-inline: 13px;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .section-heading {
@@ -363,15 +324,14 @@ h1 {
 
 h2 {
   margin: 0;
-  color: #21354d;
+  color: var(--ink);
   font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.02em;
 }
 
 .entry-count {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .entries {
@@ -383,15 +343,15 @@ h2 {
 .entry-card {
   min-width: 0;
   padding: 21px 22px;
-  border: 1px solid #e8edf4;
-  border-radius: 20px;
-  background: #fff;
-  box-shadow: 0 7px 22px #263e5a08;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: 0 7px 22px rgb(var(--shadow-rgb) / 0.031);
 }
 
 .entry-card h3 {
   margin: 12px 0 8px;
-  color: #263b53;
+  color: var(--ink);
   font-size: 17px;
   line-height: 1.45;
 }
@@ -400,8 +360,8 @@ h2 {
   display: -webkit-box;
   margin: 0;
   overflow: hidden;
-  color: #75859a;
-  font-size: 14px;
+  color: var(--ink-3);
+  font-size: 15px;
   line-height: 1.7;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -411,13 +371,13 @@ h2 {
 .entry-meta {
   gap: 12px;
   margin-top: 17px;
-  color: #8392a5;
-  font-size: 12px;
+  color: var(--ink-3);
+  font-size: 13px;
 }
 
 .entry-location {
   overflow: hidden;
-  color: #6083a9;
+  color: var(--ink-3);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -425,26 +385,26 @@ h2 {
 .mood {
   display: inline-block;
   padding: 5px 9px;
-  border-radius: 99px;
-  background: #edf5ff;
-  color: #477bb5;
-  font-size: 11px;
+  border-radius: var(--r-xl);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 12px;
 }
 
 .empty-state,
 .error-state {
   grid-column: 1 / -1;
   padding: 30px;
-  border: 1px dashed #d4dfeb;
-  border-radius: 18px;
+  border: 1px dashed var(--accent-line);
+  border-radius: var(--r-lg);
   color: var(--muted);
   text-align: center;
 }
 
 .error-state {
-  border-color: #f0caca;
-  background: #fffafa;
-  color: #875454;
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
+  color: var(--ink-2);
 }
 
 .retry-button {
@@ -452,15 +412,15 @@ h2 {
   min-height: 40px;
   margin: 15px auto 0;
   padding: 0 15px;
-  border: 1px solid #c9dced;
-  border-radius: 11px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-md);
   background: white;
   color: var(--blue-dark);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .retry-button:hover {
-  background: #eff6ff;
+  background: var(--accent-soft);
 }
 
 .module-view {

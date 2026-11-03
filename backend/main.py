@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import base64
+import difflib
+import functools
 import hashlib
 import hmac
 import json
 import logging
+import math
 import os
 import re
 import secrets
@@ -16,7 +19,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Iterable, Literal, Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlencode
 from urllib.request import Request as URLRequest
@@ -221,6 +224,9 @@ class FootprintRoutePoint(BaseModel):
     lng: Optional[float] = Field(default=None, ge=-180, le=180)
     name: str = Field(..., min_length=1, max_length=160)
     order: int = Field(..., ge=1, le=50)
+    # County/city and district, used to file the footprint; found from the place.
+    city: Optional[str] = Field(default=None, max_length=40)
+    district: Optional[str] = Field(default=None, max_length=40)
 
     @model_validator(mode="after")
     def require_complete_coordinates(self) -> "FootprintRoutePoint":
@@ -1210,7 +1216,8 @@ def google_maps_json(
     try:
         with urlopen(request, timeout=15) as result:
             data = json.loads(result.read().decode("utf-8"))
-    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as error:
+    # OSError covers URLError and, on Python 3.9, a timeout while reading the reply.
+    except (OSError, ValueError) as error:
         logger.warning("Google Maps request failed: %s", error)
         raise HTTPException(
             status_code=502, detail="Google 地圖服務暫時無法使用"
@@ -1337,21 +1344,227 @@ def maps_autocomplete(
     return suggestions
 
 
-@app.post("/api/maps/search")
-def maps_search(
-    search: PlaceSearchRequest, _: dict[str, Any] = Depends(get_current_user)
+def google_text_search(
+    query: str, center: Optional[MapsCenter]
 ) -> list[dict[str, Any]]:
     data = google_maps_json(
         f"{PLACES_API_URL}/places:searchText",
         body={
-            "textQuery": search.query,
+            "textQuery": query,
             "languageCode": MAPS_LANGUAGE,
             "regionCode": MAPS_REGION,
-            **maps_location_bias(search.center),
+            **maps_location_bias(center),
         },
         field_mask=",".join(f"places.{field}" for field in PLACE_SUMMARY_FIELDS),
     )
     return [place_summary(place) for place in data.get("places", [])]
+
+
+@app.post("/api/maps/search")
+def maps_search(
+    search: PlaceSearchRequest, _: dict[str, Any] = Depends(get_current_user)
+) -> list[dict[str, Any]]:
+    return google_text_search(search.query, search.center)
+
+
+PHOTON_API_URL = "https://photon.komoot.io/api/"
+PHOTON_REVERSE_URL = "https://photon.komoot.io/reverse"
+TAIWAN_REGION_PATTERN = re.compile(
+    "(台北市|新北市|桃園市|台中市|台南市|高雄市|基隆市|新竹市|嘉義市|新竹縣|苗栗縣|"
+    "彰化縣|南投縣|雲林縣|嘉義縣|屏東縣|宜蘭縣|花蓮縣|台東縣|澎湖縣|金門縣|連江縣)"
+    # 區 is tried first, or 前鎮區 and 新市區 would stop at their first 鎮 or 市.
+    r"([^\W\d_]{1,3}?區|[^\W\d_]{1,3}?[鄉鎮市])?"
+)
+TAIWAN_CENTER = (23.7, 120.95)
+MAX_LOOKUP_PLACES = 6
+
+
+def photon_address(properties: dict[str, Any]) -> str:
+    housenumber = properties.get("housenumber") or ""
+    if properties.get("countrycode") == "TW":
+        if housenumber.isdigit():
+            housenumber += "號"
+        parts = [
+            properties.get(key) or ""
+            for key in ("county", "city", "district", "street")
+        ]
+        return "".join(dict.fromkeys(parts)) + housenumber
+    parts = [
+        properties.get("street"),
+        housenumber,
+        properties.get("city"),
+        properties.get("state"),
+        properties.get("country"),
+    ]
+    return ", ".join(part for part in parts if part)
+
+
+def region_from_text(text: str) -> tuple[Optional[str], Optional[str]]:
+    """Reads the county/city and district out of an address or a stop's name."""
+    match = TAIWAN_REGION_PATTERN.search(text.replace("臺", "台"))
+    return (match.group(1), match.group(2)) if match else (None, None)
+
+
+def photon_region(properties: dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
+    if properties.get("countrycode") != "TW":
+        return (
+            properties.get("country"),
+            properties.get("city") or properties.get("state"),
+        )
+    district = properties.get("district") or ""
+    # Photon's district is often a 里, which is too small to file footprints under.
+    if not district.endswith(("區", "鄉", "鎮", "市")):
+        district = ""
+    city, found_district = region_from_text(
+        f"{properties.get('county') or ''}{properties.get('city') or ''}{district}"
+    )
+    if city:
+        return city, found_district
+    return (properties.get("city") or "").replace("臺", "台") or None, None
+
+
+def photon_features(url: str, params: dict[str, Any], timeout: int) -> list[Any]:
+    request = URLRequest(
+        f"{url}?{urlencode(params)}", headers={"User-Agent": "LifeLogger/1.0"}
+    )
+    with urlopen(request, timeout=timeout) as result:
+        return json.loads(result.read().decode("utf-8"))["features"]
+
+
+def region_at(lat: float, lng: float) -> tuple[Optional[str], Optional[str]]:
+    """Best effort, so a footprint still saves when the lookup is unavailable."""
+    try:
+        # About 100 m is enough to tell the district, without sharing the exact spot.
+        features = photon_features(
+            PHOTON_REVERSE_URL, {"lat": round(lat, 3), "lon": round(lng, 3)}, 5
+        )
+        return photon_region(features[0]["properties"]) if features else (None, None)
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        logger.warning("Photon reverse lookup failed: %s", error)
+        return None, None
+
+
+# Photon is a free public service, so repeated keystrokes shouldn't reach it twice.
+@functools.lru_cache(maxsize=512)
+def photon_search(query: str, lat: float, lng: float) -> tuple[dict[str, Any], ...]:
+    try:
+        features = photon_features(
+            PHOTON_API_URL, {"q": query, "limit": 10, "lat": lat, "lon": lng}, 8
+        )
+        places = []
+        for feature in features:
+            properties = feature["properties"]
+            longitude, latitude = feature["geometry"]["coordinates"]
+            name = properties.get("name") or properties.get("street")
+            if name:
+                city, district = photon_region(properties)
+                places.append(
+                    {
+                        "name": name,
+                        "address": photon_address(properties),
+                        "latitude": latitude,
+                        "longitude": longitude,
+                        "city": city,
+                        "district": district,
+                    }
+                )
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        logger.warning("Photon request failed: %s", error)
+        raise HTTPException(
+            status_code=502, detail="地點搜尋暫時無法使用"
+        ) from error
+    return tuple(places)
+
+
+def normalize_place_text(text: str) -> str:
+    return re.sub(r"[\s,，、()（）]", "", text).replace("臺", "台").lower()
+
+
+def distance_km(a: tuple[float, float], b: tuple[float, float]) -> float:
+    lat_a, lng_a, lat_b, lng_b = map(math.radians, (*a, *b))
+    x = (lng_b - lng_a) * math.cos((lat_a + lat_b) / 2)
+    return math.hypot(x, lat_b - lat_a) * 6371
+
+
+def place_match_score(
+    query: str, place: dict[str, Any], near: Optional[MapsCenter]
+) -> Optional[float]:
+    """How well a place fits what was typed; None when it isn't really that place."""
+    name = normalize_place_text(place["name"])
+    address = normalize_place_text(place.get("address") or "")
+    # "高雄中山公園" should compare 中山公園 to the name and count 高雄 for the area.
+    rest = query
+    area_score = 0.0
+    for area in filter(None, region_from_text(address)):
+        for token in (area, area[:-1]):
+            if len(token) < 2:
+                continue
+            if rest.startswith(token):
+                rest = rest[len(token):]
+            elif rest.endswith(token):
+                rest = rest[: -len(token)]
+            else:
+                continue
+            # Typing the area outweighs being close, which is only ever a guess.
+            area_score = 4.0
+            break
+    if not rest or rest == name:
+        score = 4.0
+    elif rest in name:
+        score = 3.0 - 0.02 * (len(name) - len(rest))
+    elif name in rest or rest in address:
+        score = 2.5
+    elif difflib.SequenceMatcher(None, rest, name).ratio() >= 0.75:
+        score = 1.5
+    else:
+        return None
+    if near is not None:
+        kilometers = distance_km(
+            (near.latitude, near.longitude), (place["latitude"], place["longitude"])
+        )
+        score += 3.0 / (1.0 + kilometers / 30.0)
+    return score + area_score
+
+
+def rank_places(
+    query: str, places: Iterable[dict[str, Any]], near: Optional[MapsCenter]
+) -> list[dict[str, Any]]:
+    """Best guess first; `matched` says whether a place really fits the keyword."""
+    normalized = normalize_place_text(query)
+    scored = []
+    seen = set()
+    for place in places:
+        key = (place["name"], place.get("address"))
+        if key in seen or place.get("latitude") is None or place.get("longitude") is None:
+            continue
+        seen.add(key)
+        score = place_match_score(normalized, place, near)
+        scored.append((score, {**place, "matched": score is not None}))
+    scored.sort(key=lambda item: -1.0 if item[0] is None else item[0], reverse=True)
+    return [place for _, place in scored][:MAX_LOOKUP_PLACES]
+
+
+@app.post("/api/maps/lookup")
+def maps_lookup(
+    lookup: PlaceSearchRequest, _: dict[str, Any] = Depends(get_current_user)
+) -> dict[str, Any]:
+    """Finds the place a keyword means, with Google when a key is set, else Photon."""
+    query = lookup.query.strip()
+    if os.getenv("GOOGLE_MAPS_SERVER_KEY", "").strip():
+        source = "google"
+        places = []
+        for place in google_text_search(query, lookup.center):
+            city, district = region_from_text(place.get("address") or "")
+            places.append({**place, "city": city, "district": district})
+    else:
+        source = "photon"
+        lat, lng = (
+            (lookup.center.latitude, lookup.center.longitude)
+            if lookup.center
+            else TAIWAN_CENTER
+        )
+        places = photon_search(query, round(lat, 2), round(lng, 2))
+    return {"source": source, "places": rank_places(query, places, lookup.center)}
 
 
 @app.get("/api/maps/places/{place_id}")
@@ -1910,8 +2123,7 @@ def get_public_user_profile(
     user_id: int,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    entry_filter = visible_content_filter("entries")
-    point_filter = visible_content_filter("map_points")
+    point_filter = visible_content_filter()
     with get_connection() as conn:
         profile = conn.execute(
             f"""
@@ -1922,16 +2134,20 @@ def get_public_user_profile(
         ).fetchone()
         if profile is None:
             raise HTTPException(status_code=404, detail="找不到使用者個人檔案")
-        entries = conn.execute(
-            f"""
-            SELECT entries.*, {OWNER_COLUMNS},
-                   (entries.owner_id = ?) AS is_owner
-            FROM entries JOIN users ON users.id = entries.owner_id
-            WHERE entries.owner_id = ? AND ({entry_filter})
-            ORDER BY entries.created_at DESC, entries.id DESC
-            """,
-            (user["id"], user_id, user["id"], user["id"], user["id"]),
-        ).fetchall()
+        # Diaries are only ever shown to their owner.
+        entries = (
+            conn.execute(
+                f"""
+                SELECT entries.*, {OWNER_COLUMNS}, 1 AS is_owner
+                FROM entries JOIN users ON users.id = entries.owner_id
+                WHERE entries.owner_id = ?
+                ORDER BY entries.created_at DESC, entries.id DESC
+                """,
+                (user_id,),
+            ).fetchall()
+            if user_id == user["id"]
+            else []
+        )
         points = conn.execute(
             f"""
             SELECT map_points.*, {OWNER_COLUMNS},
@@ -2258,7 +2474,7 @@ def get_footprint_cover(
     if not STORED_IMAGE_PATTERN.fullmatch(filename):
         raise HTTPException(status_code=404, detail="找不到足跡背景照片")
     cover_url = f"{FOOTPRINT_COVER_URL_PREFIX}{filename}"
-    point_filter = visible_content_filter("map_points")
+    point_filter = visible_content_filter()
     with get_connection() as conn:
         point = conn.execute(
             f"""
@@ -2566,7 +2782,6 @@ async def apple_callback(request: Request) -> RedirectResponse:
 
 @app.get("/api/entries", response_model=list[EntryOut])
 def list_entries(user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
-    visible_filter = visible_content_filter("entries")
     with get_connection() as conn:
         rows = conn.execute(
             f"""
@@ -2574,10 +2789,10 @@ def list_entries(user: dict[str, Any] = Depends(get_current_user)) -> list[dict[
                    (entries.owner_id = ?) AS is_owner
             FROM entries
             JOIN users ON users.id = entries.owner_id
-            WHERE {visible_filter}
+            WHERE entries.owner_id = ?
             ORDER BY entries.created_at DESC, entries.id DESC
             """,
-            (user["id"], user["id"], user["id"], user["id"]),
+            (user["id"], user["id"]),
         ).fetchall()
     return [dict(row) for row in rows]
 
@@ -2617,22 +2832,23 @@ def create_entry(
     return created
 
 
-def visible_content_filter(table: Literal["entries", "map_points"]) -> str:
-    return f"""
-        {table}.owner_id = ?
+# Diaries never use this: they are visible to their owner only, whatever their privacy value.
+def visible_content_filter() -> str:
+    return """
+        map_points.owner_id = ?
         OR (
-            {table}.privacy = 'public'
+            map_points.privacy = 'public'
             AND (
-                NOT (SELECT is_private FROM users WHERE users.id = {table}.owner_id)
+                NOT (SELECT is_private FROM users WHERE users.id = map_points.owner_id)
                 OR EXISTS (
                     SELECT 1 FROM user_follows follows
                     WHERE follows.follower_id = ?
-                        AND follows.followed_id = {table}.owner_id
+                        AND follows.followed_id = map_points.owner_id
                 )
             )
         )
         OR (
-            {table}.privacy = 'friends'
+            map_points.privacy = 'friends'
             AND EXISTS (
                 SELECT 1
                 FROM user_follows follows
@@ -2640,7 +2856,7 @@ def visible_content_filter(table: Literal["entries", "map_points"]) -> str:
                     ON close_friends.owner_id = follows.followed_id
                     AND close_friends.friend_id = follows.follower_id
                 WHERE follows.follower_id = ?
-                    AND follows.followed_id = {table}.owner_id
+                    AND follows.followed_id = map_points.owner_id
             )
         )
     """
@@ -3170,6 +3386,11 @@ def map_point_output(point: dict[str, Any]) -> dict[str, Any]:
                 order=1,
             ).model_dump()
         ]
+    for route_point in route_points:
+        if not route_point.get("city"):
+            route_point["city"], route_point["district"] = region_from_text(
+                route_point["name"]
+            )
     point["points"] = route_points
     point.pop("owner_id", None)
     return point
@@ -3191,11 +3412,26 @@ def build_route_points(point: MapPointCreate) -> list[FootprintRoutePoint]:
     if any(not route_point.name.strip() for route_point in route_points):
         raise HTTPException(status_code=422, detail="途經點名稱不可空白")
     return [
-        route_point.model_copy(
-            update={"name": route_point.name.strip(), "order": index}
+        with_region(
+            route_point.model_copy(
+                update={"name": route_point.name.strip(), "order": index}
+            ),
+            # Footprints are filed by their start, so later stops don't need a lookup.
+            look_up=index == 1,
         )
         for index, route_point in enumerate(route_points, start=1)
     ]
+
+
+def with_region(
+    route_point: FootprintRoutePoint, look_up: bool
+) -> FootprintRoutePoint:
+    if route_point.city:
+        return route_point
+    city, district = region_from_text(route_point.name)
+    if not city and look_up and route_point.lat is not None:
+        city, district = region_at(route_point.lat, route_point.lng)
+    return route_point.model_copy(update={"city": city, "district": district})
 
 
 def map_point_values(point: MapPointCreate) -> tuple[Any, ...]:
@@ -3294,23 +3530,29 @@ def get_trip_with_points(
 def list_map_points(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
-    visible_filter = visible_content_filter("map_points")
+    visible_filter = visible_content_filter()
     with get_connection() as conn:
         rows = conn.execute(
             f"""
             SELECT map_points.*, {OWNER_COLUMNS},
-                   (map_points.owner_id = ?) AS is_owner
+                   (map_points.owner_id = ?) AS is_owner,
+                   EXISTS (
+                       SELECT 1 FROM user_follows
+                       WHERE user_follows.follower_id = ?
+                           AND user_follows.followed_id = map_points.owner_id
+                   ) AS is_following
             FROM map_points
             JOIN users ON users.id = map_points.owner_id
             WHERE {visible_filter}
             ORDER BY map_points.created_at DESC, map_points.id DESC
             """,
-            (user["id"], user["id"], user["id"], user["id"]),
+            (user["id"], user["id"], user["id"], user["id"], user["id"]),
         ).fetchall()
     points = []
     for row in rows:
         point = map_point_output(dict(row))
         point["is_owner"] = bool(point["is_owner"])
+        point["is_following"] = bool(point["is_following"])
         points.append(point)
     return points
 
@@ -3404,12 +3646,16 @@ def meetup_output(
                EXISTS (
                    SELECT 1 FROM meetup_participants
                    WHERE meetup_id = meetups.id AND user_id = ?
-               ) AS is_participating
+               ) AS is_participating,
+               EXISTS (
+                   SELECT 1 FROM user_follows
+                   WHERE follower_id = ? AND followed_id = meetups.owner_id
+               ) AS is_following
         FROM meetups
         JOIN users ON users.id = meetups.owner_id
         WHERE meetups.id = ?
         """,
-        (viewer_id, viewer_id, meetup_id),
+        (viewer_id, viewer_id, viewer_id, meetup_id),
     ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="找不到這個揪團邀請")
@@ -3434,6 +3680,7 @@ def meetup_output(
         "participant_limit": MEETUP_PARTICIPANT_LIMIT,
         "is_owner": bool(row["is_owner"]),
         "is_participating": bool(row["is_participating"]),
+        "is_following": bool(row["is_following"]),
     }
 
 
@@ -3767,7 +4014,6 @@ def get_shared_trip(trip_id: int) -> dict[str, Any]:
 def get_entry(
     entry_id: int, user: dict[str, Any] = Depends(get_current_user)
 ) -> dict[str, Any]:
-    visible_filter = visible_content_filter("entries")
     with get_connection() as conn:
         row = conn.execute(
             f"""
@@ -3775,9 +4021,9 @@ def get_entry(
                    (entries.owner_id = ?) AS is_owner
             FROM entries
             JOIN users ON users.id = entries.owner_id
-            WHERE entries.id = ? AND ({visible_filter})
+            WHERE entries.id = ? AND entries.owner_id = ?
             """,
-            (user["id"], entry_id, user["id"], user["id"], user["id"]),
+            (user["id"], entry_id, user["id"]),
         ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="Entry not found")

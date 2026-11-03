@@ -11,7 +11,7 @@
 
   .profile-stats {
     gap: 12px 20px;
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .profile-stat {
@@ -19,7 +19,7 @@
   }
 
   .profile-stat strong {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .map-workspace {
@@ -67,7 +67,7 @@
   .profile-edit-button {
     min-height: 32px;
     padding: 0 10px;
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .profile-stats {
@@ -75,12 +75,12 @@
     justify-content: space-between;
     gap: 7px;
     margin: 14px 0;
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .profile-bio-name,
   .profile-bio {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .topbar-tools {
@@ -108,31 +108,9 @@
     min-height: 290px;
     margin-top: 26px;
     align-items: flex-start;
-    border-radius: 24px;
+    border-radius: var(--r-xl);
   }
 
-  .hero-art {
-    top: auto;
-    right: 4%;
-    bottom: -34px;
-    width: 128px;
-    height: 128px;
-    transform: none;
-    opacity: 0.72;
-  }
-
-  .hero-art::before {
-    inset: 27px -19px;
-  }
-
-  .hero-art::after {
-    inset: 47px -34px;
-  }
-
-  .sun {
-    width: 39px;
-    height: 39px;
-  }
 
   .hero-copy {
     max-width: 100%;

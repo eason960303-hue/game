@@ -10,7 +10,6 @@ form.addEventListener("submit", async (event) => {
     content: getFormText(formData, "content"),
     location: getFormText(formData, "location") || null,
     mood: selectedMood.value,
-    privacy: formData.get("privacy"),
     tags: getFormText(formData, "tags"),
   };
 

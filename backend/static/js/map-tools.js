@@ -735,7 +735,7 @@ function startMeasuring() {
   measureLine = new google.maps.Polyline({
     map,
     path: [],
-    strokeColor: "#1a73e8",
+    strokeColor: "#1f6b57",
     strokeWeight: 3,
   });
 }
@@ -897,7 +897,7 @@ function drawRoutes() {
     const line = new google.maps.Polyline({
       map,
       path: route.path.map(toLatLngLiteral),
-      strokeColor: isSelected ? "#1a73e8" : "#9aa5b1",
+      strokeColor: isSelected ? "#1f6b57" : "#9c9c8e",
       strokeOpacity: isSelected ? 0.95 : 0.8,
       strokeWeight: isSelected ? 6 : 5,
       zIndex: isSelected ? 2 : 1,

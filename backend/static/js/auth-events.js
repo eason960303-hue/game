@@ -177,6 +177,7 @@ logoutButton.addEventListener("click", async () => {
     serverStatusDetail.textContent = `登出失敗：${error.message}`;
     return;
   }
+  forgetPage();
   currentUser = null;
   currentProfile = null;
   resetListLoads();
@@ -187,7 +188,7 @@ logoutButton.addEventListener("click", async () => {
   setDiaryEntries([]);
   expandedProfileDiaryId = null;
   expandedProfileFootprintId = null;
-  renderTimelineFootprints(mapPoints);
+  renderTimelineFootprints();
   setProfileOwner(null);
   clearProfileHeader();
   setFollowRequestCount(0);

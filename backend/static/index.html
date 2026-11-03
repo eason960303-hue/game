@@ -7,8 +7,11 @@
       name="description"
       content="把日常的風景、心情與足跡，收藏成自己的生活記錄。"
     />
-    <meta name="theme-color" content="#f5f5f7" />
+    <meta name="theme-color" content="#f6f3ec" />
     <title>我的生活記錄</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="css/tokens.css" />
     <link rel="stylesheet" href="css/base.css" />
     <link rel="stylesheet" href="css/home.css" />
     <link rel="stylesheet" href="css/profile.css" />
@@ -20,15 +23,16 @@
     <link rel="stylesheet" href="css/reset.css" />
     <link rel="stylesheet" href="css/apple-theme.css" />
     <link rel="stylesheet" href="css/map-tools.css" />
+    <link rel="stylesheet" href="css/design.css" />
     <script src="js/theme.js"></script>
   </head>
   <body>
     <main class="page app-shell">
       <header class="topbar floating-topbar">
-        <div class="brand">
+        <button class="brand" type="button" data-view="home" aria-label="回到首頁">
           <span class="brand-mark" aria-hidden="true">✦</span>
           <span>Life Logger</span>
-        </div>
+        </button>
         <div class="account-search" id="account-search">
           <form class="account-search-form" id="account-search-form" role="search" autocomplete="off">
             <label class="sr-only" for="account-search-input">搜尋帳號或使用者名稱</label>
@@ -40,11 +44,11 @@
         </div>
         <div class="topbar-tools">
           <nav class="navigation flex items-center gap-2" aria-label="主要導覽">
-            <button class="nav-link" type="button" data-view="home" aria-current="page">首頁 / 時間軸</button>
-            <button class="nav-link" type="button" data-view="ai-diary">AI 聊天日記</button>
-            <button class="nav-link" type="button" data-view="map">地圖足跡</button>
-            <button class="nav-link" type="button" data-view="trips">行程包</button>
-            <button class="nav-link" type="button" data-view="profile">個人檔案<span class="nav-badge" id="nav-requests-badge" hidden></span></button>
+            <button class="nav-link" type="button" data-view="home" aria-current="page" aria-label="首頁 / 時間軸"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v8.5a.5.5 0 0 1-.5.5H15v-6H9v6H4.5a.5.5 0 0 1-.5-.5z"/></svg><span>首頁</span></button>
+            <button class="nav-link" type="button" data-view="ai-diary" aria-label="AI 聊天日記"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h14a1 1 0 0 1 1 1V16a1 1 0 0 1-1 1H10l-4.5 3.5V17H5a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1z"/><path d="M8.5 9h7M8.5 12.5h4.5"/></svg><span>AI 日記</span></button>
+            <button class="nav-link" type="button" data-view="map" aria-label="地圖足跡"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg><span>足跡</span></button>
+            <button class="nav-link" type="button" data-view="trips" aria-label="行程包"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="7.5" width="17" height="12" rx="2"/><path d="M9 7.5V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v1.5M3.5 13h17"/></svg><span>行程</span></button>
+            <button class="nav-link" type="button" data-view="profile" aria-label="個人檔案"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1-4 4-6 7.5-6s6.500 2 7.500 6"/></svg><span>我的</span><span class="nav-badge" id="nav-requests-badge" hidden></span></button>
           </nav>
           <details class="server-menu" id="server-menu">
             <summary aria-label="伺服器連線狀態與設定">
@@ -70,7 +74,7 @@
       <div class="app-view" id="home-view">
         <section class="hero" aria-labelledby="page-title">
           <div class="hero-copy">
-            <p class="eyebrow">YOUR LITTLE MOMENTS</p>
+            <p class="eyebrow" id="hero-date">今天</p>
             <h1 id="page-title">我的生活記錄</h1>
             <p class="hero-description">
               每一段日常都值得被記住。寫下今天的心情，留住走過的風景。
@@ -80,18 +84,30 @@
               新增記錄
             </button>
           </div>
-          <div class="hero-art" aria-hidden="true"><span class="sun"></span></div>
+          <div class="hero-art" aria-hidden="true">
+            <svg viewBox="0 0 340 190">
+              <path class="hero-contour" d="M20 150C70 96 118 128 170 92s92-58 150-40" />
+              <path class="hero-contour" d="M10 118c52-46 92-22 146-54S258 8 330 22" />
+              <path class="hero-contour" d="M44 180c48-44 96-20 146-48s84-40 140-26" />
+              <path class="hero-route" d="M40 158c34-38 62-14 92-34s34-54 74-58 62 20 96-26" />
+              <circle class="hero-stop" cx="40" cy="158" r="6" />
+              <circle class="hero-stop" cx="132" cy="124" r="6" />
+              <circle class="hero-stop" cx="206" cy="66" r="6" />
+              <circle class="hero-stop-now" cx="302" cy="40" r="9" />
+            </svg>
+          </div>
         </section>
 
         <section class="entries-section meetup-section" aria-labelledby="meetups-title">
           <div class="meetup-launcher">
             <div>
-              <p class="eyebrow">MAKE PLANS, GO TOGETHER</p>
+              <p class="eyebrow">一起出門</p>
               <h2 id="meetups-title">現正揪團</h2>
               <span class="entry-count" id="meetup-count">載入中…</span>
             </div>
             <button class="primary-button" id="meetup-open" type="button">發起邀請</button>
           </div>
+          <div class="content-filter" id="meetup-filter" hidden></div>
           <div class="meetup-list" id="meetup-list" aria-live="polite"></div>
           <div class="error-state" id="meetup-load-error" role="alert" hidden>
             <p id="meetup-load-error-message">目前無法載入公開邀請。</p>
@@ -116,11 +132,12 @@
         <section class="entries-section timeline-footprints" aria-labelledby="timeline-footprints-title">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">MOMENTS ALONG THE WAY</p>
+              <p class="eyebrow">沿途片刻</p>
               <h2 id="timeline-footprints-title">好友與我的足跡</h2>
             </div>
             <button class="secondary-button" type="button" data-view="map">開啟地圖</button>
           </div>
+          <div class="content-filter" id="timeline-filter" hidden></div>
           <div class="timeline-footprint-grid" id="timeline-footprints" aria-live="polite">
             <div class="module-empty">登入後載入你與好友分享的足跡。</div>
           </div>
@@ -204,13 +221,6 @@
               <label class="compact-field" for="ai-chat-input">今天想記下什麼？</label>
               <textarea class="compact-field ai-chat-composer" id="ai-chat-input" name="message" maxlength="12000" required placeholder="例如：下班後去河邊散步，看到夕陽覺得很放鬆…"></textarea>
               <div class="ai-chat-controls">
-                <label class="compact-field">日記隱私
-                  <select name="privacy">
-                    <option value="private">私密（只有自己）</option>
-                    <option value="friends">摯友（允許名單）</option>
-                    <option value="public">公開（依帳號設定）</option>
-                  </select>
-                </label>
                 <button class="primary-button" id="ai-chat-send" type="submit">整理並儲存</button>
               </div>
             </form>
@@ -218,7 +228,7 @@
           <div class="ai-diary-side">
             <aside class="module-card privacy-note-card">
               <h2>日記隱私說明</h2>
-              <p>AI 會收到你提交的這段文字，用來整理標題、內容、心情與標籤。日記會依你選擇的隱私層級儲存；AI 服務尚未設定時，不會儲存未完成解析的訊息。</p>
+              <p>AI 會收到你提交的這段文字，用來整理標題、內容、心情與標籤。日記只有你自己看得到；AI 服務尚未設定時，不會儲存未完成解析的訊息。</p>
             </aside>
             <section class="module-card diary-month-card" aria-labelledby="diary-month-title">
               <div class="diary-month-heading">
@@ -336,6 +346,7 @@
           <aside class="map-sidebar" aria-labelledby="map-points-title">
             <div class="map-sidebar-heading">
               <h2 class="points-heading" id="map-points-title">已收藏的足跡</h2>
+              <div class="content-filter" id="map-point-filter" hidden></div>
               <span class="entry-count" id="map-point-count">0 個地點</span>
             </div>
             <div class="map-points" id="map-points" aria-live="polite">
@@ -404,7 +415,7 @@
               <span id="route-point-editor-title">途經地點</span>
               <button class="secondary-button" id="route-point-add" type="button">＋ 新增途經點</button>
             </div>
-            <p class="privacy-note">輸入地點名稱或地址，Google 地圖會自動找到位置。名稱太籠統時可能找到同名地點，請改填完整地址。</p>
+            <p class="privacy-note">輸入地點後，系統會列出地址選項，點一下就會鎖定位置。有同名地點時，離這趟其他站最近的排在最前面。足跡會依起點（第 1 站）的縣市和區分類。</p>
             <div class="route-point-list" id="route-point-list"></div>
           </section>
           <label class="compact-field">小記
@@ -582,14 +593,6 @@
           地點（選填）
           <input name="location" maxlength="200" placeholder="例如：河岸散步" />
         </label>
-        <label class="field">
-          隱私層級
-          <select name="privacy">
-            <option value="private">私密（只有自己）</option>
-            <option value="friends">摯友（允許名單）</option>
-            <option value="public">公開（依帳號設定）</option>
-          </select>
-        </label>
         <div class="field">
           <span>照片（選填）</span>
           <label class="photo-picker" for="entry-photo">
@@ -699,6 +702,7 @@
 
     <script src="js/state.js"></script>
     <script src="js/api.js"></script>
+    <script src="js/content-filter.js"></script>
     <script src="js/views.js"></script>
     <script src="js/social.js"></script>
     <script src="js/map.js"></script>

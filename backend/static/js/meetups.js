@@ -32,13 +32,49 @@ function meetupDirectionsUrl(meetup) {
   return url.toString();
 }
 
+// Every meetup is a public invitation, so 公開 is the whole list.
+const MEETUP_WHO = {
+  friends: {
+    label: "好友",
+    matches: (meetup) => !meetup.is_owner && meetup.is_following,
+    empty: "目前沒有好友發起的揪團。",
+  },
+  public: {
+    label: "公開",
+    matches: () => true,
+    empty: "",
+  },
+  mine: {
+    label: "個人",
+    matches: (meetup) => meetup.is_owner || meetup.is_participating,
+    empty: "你還沒有發起或參加揪團。",
+  },
+};
+
+const meetupFilter = createContentFilter({
+  rootId: "meetup-filter",
+  label: "篩選揪團",
+  items: () => meetups,
+  regionOf: (meetup) => ({
+    city: meetup.departure_city.replace("臺", "台"),
+    district: meetup.departure_district,
+  }),
+  who: MEETUP_WHO,
+  onChange: renderMeetups,
+});
+
 function renderMeetups() {
-  meetupCount.textContent = `${meetups.length} 個公開邀請`;
-  if (meetups.length === 0) {
-    meetupList.replaceChildren();
+  meetupFilter.refresh();
+  const visible = meetupFilter.visible();
+  meetupCount.textContent = `${visible.length} 個公開邀請`;
+  if (visible.length === 0) {
+    const message = meetupFilter.emptyMessage();
+    meetupList.innerHTML = message
+      ? `<div class="module-empty">${message}</div>`
+      : "";
     return;
   }
-  meetupList.innerHTML = meetups
+  meetupList.innerHTML = visible
     .map((meetup) => {
       const full = meetup.participant_count >= meetup.participant_limit;
       const destinations = meetup.destinations
@@ -70,11 +106,13 @@ function renderMeetups() {
             </div>
             <span class="meetup-participants">${meetup.participant_count} / ${meetup.participant_limit} 人</span>
           </div>
-          <p class="meetup-starts-at">${escapeHtml(meetupDateLabel(meetup.starts_at))} 出發</p>
+          <div class="meetup-start-row">
+            <p class="meetup-starts-at">${escapeHtml(meetupDateLabel(meetup.starts_at))} 出發</p>
+            <a class="small-action meetup-route-link" href="${escapeHtml(meetupDirectionsUrl(meetup))}" target="_blank" rel="noopener noreferrer">查看 Google 地圖路線</a>
+          </div>
           <div class="meetup-route">
             <strong>預計路線</strong>
             <ol>${destinations}</ol>
-            <a class="small-action meetup-route-link" href="${escapeHtml(meetupDirectionsUrl(meetup))}" target="_blank" rel="noopener noreferrer">查看 Google 地圖路線</a>
           </div>
           <div class="meetup-card-footer">
             <span class="meetup-inviter">邀請者：${escapeHtml(meetup.host_name)}</span>

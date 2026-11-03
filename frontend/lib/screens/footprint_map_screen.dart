@@ -652,8 +652,8 @@ class _FootprintMapScreenState extends State<FootprintMapScreen> {
             polylineId: PolylineId('route:$index'),
             points: _routeCoordinates(route),
             color: index == _selectedRoute
-                ? const Color(0xFF1A73E8)
-                : const Color(0xFF9AA5B1),
+                ? const Color(0xFF74C9AB)
+                : const Color(0xFF9A9C90),
             width: index == _selectedRoute ? 6 : 5,
             zIndex: index == _selectedRoute ? 2 : 1,
             consumeTapEvents: true,

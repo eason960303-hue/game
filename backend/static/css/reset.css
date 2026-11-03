@@ -1,6 +1,6 @@
 /* Reset based on Tailwind CSS v3.4.17 Preflight (MIT License), plus the few utility classes the page uses.
    Loaded last to keep the cascade the page was built against. */
-*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}
+*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:var(--line)}
 ::after,::before{--tw-content:''}
 :host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}
 body{margin:0;line-height:inherit}
@@ -32,7 +32,7 @@ legend{padding:0}
 menu,ol,ul{list-style:none;margin:0;padding:0}
 dialog{padding:0}
 textarea{resize:vertical}
-input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}
+input::placeholder,textarea::placeholder{opacity:1;color:var(--ink-3)}
 [role=button],button{cursor:pointer}
 :disabled{cursor:default}
 audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}

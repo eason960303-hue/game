@@ -14,7 +14,7 @@
 
 .ai-chat-heading h2 {
   margin: 0;
-  color: #263b53;
+  color: var(--ink);
   font-size: 17px;
 }
 
@@ -22,7 +22,7 @@
 .ai-provider-status {
   margin: 6px 0 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.65;
 }
 
@@ -33,17 +33,17 @@
   gap: 10px;
   padding: 14px;
   overflow: auto;
-  border: 1px solid #e8edf4;
-  border-radius: 16px;
-  background: #f7faff;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
 }
 
 .ai-chat-message {
   max-width: 88%;
   padding: 11px 13px;
-  border-radius: 15px;
-  color: #445a71;
-  font-size: 13px;
+  border-radius: var(--r-lg);
+  color: var(--ink-2);
+  font-size: 14px;
   line-height: 1.7;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -51,22 +51,22 @@
 
 .ai-chat-message.is-assistant {
   align-self: flex-start;
-  border: 1px solid #e3ebf5;
+  border: 1px solid var(--accent-line);
   border-bottom-left-radius: 5px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .ai-chat-message.is-user {
   align-self: flex-end;
   border-bottom-right-radius: 5px;
-  background: #e5f1ff;
-  color: #315d8a;
+  background: var(--accent-soft);
+  color: var(--accent-text);
 }
 
 .ai-chat-message.is-error {
-  border-color: #f0caca;
-  background: #fffafa;
-  color: #875454;
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
+  color: var(--ink-2);
 }
 
 .ai-chat-form {
@@ -78,13 +78,13 @@
   width: 100%;
   min-height: 94px;
   padding: 11px 12px;
-  border: 1px solid #dfe7f0;
-  border-radius: 12px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-md);
   outline: none;
-  background: #fff;
-  color: #263b53;
+  background: var(--surface);
+  color: var(--ink);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   resize: vertical;
 }
 
@@ -122,7 +122,7 @@
 
 .diary-month-heading h2 {
   margin: 0;
-  color: #263b53;
+  color: var(--ink);
   font-size: 16px;
 }
 
@@ -149,7 +149,7 @@
 
 .diary-month-entry {
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--r-lg);
 }
 
 .diary-month-entry summary {
@@ -163,13 +163,13 @@
 
 .diary-month-day {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
 .diary-month-entry-title {
   overflow: hidden;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -179,7 +179,7 @@
   margin: 0;
   padding: 0 12px 12px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.7;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -189,7 +189,7 @@
   margin: 0;
   padding: 18px 8px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   text-align: center;
 }
 
@@ -199,14 +199,14 @@
 
 .privacy-note-card h2 {
   margin: 0 0 10px;
-  color: #263b53;
+  color: var(--ink);
   font-size: 16px;
 }
 
 .privacy-note-card p {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.75;
 }
 
@@ -223,28 +223,28 @@
 }
 
 .friend-card-info strong {
-  color: #344a62;
-  font-size: 13px;
+  color: var(--accent-text);
+  font-size: 14px;
 }
 
 .friend-card-info span {
   margin-top: 3px;
-  color: #8392a5;
-  font-size: 11px;
+  color: var(--ink-3);
+  font-size: 12px;
 }
 
 .friend-close-toggle {
   display: flex;
   align-items: center;
   gap: 5px;
-  color: #64778d;
-  font-size: 11px;
+  color: var(--ink-2);
+  font-size: 12px;
   white-space: nowrap;
 }
 
 .entry-owner {
-  color: #8795a6;
-  font-size: 11px;
+  color: var(--ink-3);
+  font-size: 12px;
 }
 
 .entry-card-footer {
@@ -259,7 +259,7 @@
   display: grid;
   min-width: 100px;
   gap: 5px;
-  color: #7a8a9d;
+  color: var(--ink-3);
   font-size: 10px;
 }
 

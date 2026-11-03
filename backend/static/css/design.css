@@ -1,0 +1,1430 @@
+/* Layout and components of the "paper journal" look. Loaded last.
+   Colours, fonts and radii come from tokens.css. */
+
+/* ---------- Type ---------- */
+html {
+  overflow-x: clip;
+  text-autospace: normal;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--text-md);
+  line-height: 1.65;
+}
+
+h1,
+h2,
+.module-heading h1,
+.profile-username,
+.entry-card h3,
+.meetup-card-heading h3,
+.timeline-footprint-content h3,
+.trip-card h3,
+.brand > span:last-child {
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+h1,
+.module-heading h1 {
+  font-size: var(--text-display);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--text-xl);
+  line-height: 1.35;
+}
+
+.entry-card h3,
+.meetup-card-heading h3,
+.timeline-footprint-content h3,
+.trip-card h3 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--highlight);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+time,
+.entry-count,
+.profile-stat strong {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+/* ---------- Page and header ---------- */
+.page.app-shell {
+  width: min(calc(100% - 48px), 1120px);
+  padding-top: 0;
+  padding-bottom: 72px;
+}
+
+.floating-topbar {
+  position: sticky;
+  z-index: 1000;
+  top: 0;
+  display: flex;
+  min-height: 64px;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* The bar spans the window while its content keeps to the page width. */
+.floating-topbar::before {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  content: "";
+}
+
+.topbar-tools {
+  display: contents;
+}
+
+/* .topbar-tools is display: contents, so these all sit on one row. */
+.navigation { order: 1; }
+.account-search { order: 2; }
+.server-menu { order: 3; }
+.account-actions { order: 4; }
+
+.brand {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  flex: none;
+  gap: 8px;
+  font-size: var(--text-lg);
+  text-align: left;
+}
+
+.brand-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--on-accent);
+  font-size: 14px;
+}
+
+.navigation {
+  flex: none;
+  flex-wrap: nowrap;
+  gap: 2px;
+  margin-left: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.nav-link {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border-radius: var(--r-md);
+  color: var(--ink-2);
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+.nav-link svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.nav-link:hover {
+  background: var(--tint);
+  color: var(--ink);
+}
+
+.nav-link[aria-current="page"],
+.nav-link[aria-current="page"]:hover {
+  background: var(--accent-soft);
+  box-shadow: none;
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.account-search {
+  width: auto;
+  min-width: 150px;
+  flex: 0 1 220px;
+  margin-left: auto;
+}
+
+.account-search-form {
+  min-height: 38px;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.account-search-form:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.account-search-icon {
+  font-size: 19px;
+}
+
+.account-search-form input {
+  font-size: var(--text-sm);
+}
+
+.account-search-form > button {
+  min-height: 28px;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--accent-text);
+  font-size: var(--text-sm);
+}
+
+.account-search-form input::-webkit-search-cancel-button {
+  filter: grayscale(1);
+}
+
+.account-search-results {
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
+}
+
+/* Connection state is a quiet dot; the words stay available to screen readers and in the popover. */
+.server-menu {
+  flex: none;
+}
+
+.server-menu summary {
+  min-height: 38px;
+  gap: 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  box-shadow: none;
+}
+
+.server-menu summary:hover {
+  background: var(--tint);
+}
+
+.server-menu summary > #server-status-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.server-menu summary::after {
+  display: none;
+}
+
+.server-popover {
+  right: 0;
+  left: auto;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
+}
+
+.account-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.account-name {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.account-button,
+.account-logout {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: none;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.account-logout {
+  border-color: transparent;
+  background: transparent;
+}
+
+/* ---------- Buttons ---------- */
+button:not(:disabled):hover,
+button:not(:disabled):active {
+  transform: none;
+  box-shadow: none;
+}
+
+.primary-button,
+.map-google-navigation {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--on-accent);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.map-google-navigation {
+  min-height: 38px;
+  font-size: var(--text-sm);
+}
+
+.primary-button:hover,
+.map-google-navigation:hover {
+  transform: none;
+  background: var(--accent-hover);
+  box-shadow: none;
+  filter: none;
+}
+
+.secondary-button,
+.retry-button,
+.small-action,
+.profile-edit-button,
+.server-refresh,
+.map-pick-cancel {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.secondary-button:hover,
+.retry-button:hover,
+.small-action:hover,
+.profile-edit-button:hover,
+.server-refresh:hover,
+.map-pick-cancel:hover {
+  transform: none;
+  background: var(--tint);
+  box-shadow: none;
+}
+
+a.small-action,
+a.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.small-action.is-destructive,
+.entry-actions .small-action.is-destructive,
+.trip-actions .small-action.is-destructive {
+  border-color: var(--danger-line);
+  color: var(--danger);
+}
+
+.entry-actions .small-action {
+  min-height: 34px;
+  border-color: var(--line-strong);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+/* ---------- Surfaces ---------- */
+.module-card,
+.privacy-note-card,
+.entry-card,
+.meetup-card,
+.timeline-footprint-card,
+.trip-card,
+.map-sidebar,
+.social-user-row {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.entry-card:hover,
+.timeline-footprint-card:hover,
+.map-point-card:hover,
+.trip-card:hover,
+.profile-post-tile:hover {
+  transform: none;
+  border-color: var(--line-strong);
+  box-shadow: none;
+}
+
+.module-empty,
+.profile-empty,
+.empty-state {
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: var(--text-md);
+}
+
+.error-state {
+  border: 1px solid var(--danger-line);
+  border-radius: var(--r-lg);
+  background: var(--danger-soft);
+  box-shadow: none;
+  color: var(--danger);
+}
+
+.mood {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+/* ---------- Home ---------- */
+.page > #home-view > .hero,
+.hero {
+  display: flex;
+  min-height: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  margin-top: 0;
+  padding: clamp(28px, 5vw, 48px) 0 clamp(24px, 4vw, 36px);
+  overflow: visible;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.hero .eyebrow {
+  margin-bottom: 8px;
+}
+
+.hero-description {
+  max-width: 30em;
+  margin: 10px 0 22px;
+  color: var(--ink-2);
+  font-size: var(--text-lg);
+  line-height: 1.7;
+}
+
+.hero-art {
+  position: static;
+  width: clamp(220px, 30vw, 340px);
+  height: auto;
+  flex: none;
+  transform: none;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.hero-art::before,
+.hero-art::after {
+  display: none;
+}
+
+.hero-art svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.hero-contour {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+
+.hero-route {
+  fill: none;
+  stroke: var(--accent);
+  stroke-dasharray: 2 8;
+  stroke-linecap: round;
+  stroke-width: 2.5;
+}
+
+.hero-stop {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.hero-stop-now {
+  fill: var(--highlight);
+  stroke: var(--bg);
+  stroke-width: 3;
+}
+
+.entries-section {
+  margin-top: 36px;
+}
+
+.module-view {
+  margin-top: 28px;
+}
+
+.section-heading,
+.meetup-launcher {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.entry-count,
+.meetup-launcher .entry-count {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* The hero already holds the page's one solid button. */
+.meetup-launcher .primary-button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.meetup-launcher .primary-button:hover {
+  background: var(--tint);
+}
+
+.meetup-list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
+  gap: 14px;
+}
+
+.meetup-card {
+  padding: 18px;
+}
+
+.meetup-public-label {
+  color: var(--highlight);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.meetup-route {
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--sunken);
+}
+
+.timeline-footprint-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  gap: 14px;
+}
+
+.timeline-footprint-card {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  padding: 18px;
+}
+
+.timeline-footprint-icon {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--highlight-soft);
+  box-shadow: none;
+  color: var(--highlight);
+  font-size: 19px;
+}
+
+.timeline-footprint-meta time,
+.timeline-footprint-content > p {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* Stops and notes are read-only text, so they must not look like input fields. */
+.timeline-footprint-stops,
+.timeline-footprint-note {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.timeline-footprint-content > .timeline-footprint-note {
+  padding-left: 10px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--ink-2);
+}
+
+.timeline-footprint-card > .small-action {
+  grid-column: 2;
+  align-self: start;
+  justify-self: start;
+}
+
+.entry-privacy-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  white-space: nowrap;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.privacy-select {
+  min-height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+}
+
+/* ---------- Module pages ---------- */
+.module-heading {
+  margin-bottom: 22px;
+}
+
+.module-heading p {
+  margin-top: 4px;
+  color: var(--ink-2);
+  font-size: var(--text-md);
+}
+
+.ai-chat-messages {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--sunken);
+}
+
+.ai-chat-message.is-assistant {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg) var(--r-lg) var(--r-lg) 4px;
+  background: var(--surface);
+  box-shadow: none;
+  color: var(--ink);
+}
+
+.ai-chat-message.is-user {
+  border-radius: var(--r-lg) var(--r-lg) 4px var(--r-lg);
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.ai-chat-message.is-error {
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* ---------- Forms and dialogs ---------- */
+.field,
+.compact-field {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.field input,
+.field textarea,
+.field select,
+.compact-field input,
+.compact-field textarea,
+.compact-field select,
+.ai-chat-composer {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 400;
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus,
+.compact-field input:focus,
+.compact-field textarea:focus,
+.compact-field select:focus,
+.ai-chat-composer:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+::placeholder,
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-3);
+}
+
+dialog {
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  color: var(--ink);
+}
+
+dialog::backdrop,
+#avatar-viewer::backdrop {
+  background: var(--scrim);
+}
+
+#avatar-viewer {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.photo-picker,
+.photo-preview,
+.route-point-row,
+.map-point-photo-placeholder {
+  border-color: var(--line);
+  border-radius: var(--r-lg);
+  background: var(--sunken);
+}
+
+/* ---------- Profile ---------- */
+.profile-avatar-wrap {
+  border: 1px solid var(--line);
+  background: var(--accent-soft);
+  box-shadow: none;
+}
+
+.profile-avatar-wrap > span {
+  color: var(--accent-text);
+  font-family: var(--font-serif);
+}
+
+.social-avatar {
+  border-color: var(--line);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.profile-username {
+  font-size: var(--text-2xl);
+}
+
+.profile-post-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));
+  gap: 12px;
+}
+
+.profile-post-tile {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+/* A tile without a photo reads as a page of the journal, not a coloured placeholder. */
+.profile-post-toggle,
+.profile-post-tile:nth-child(3n + 2) .profile-post-toggle,
+.profile-post-tile:nth-child(3n) .profile-post-toggle,
+.profile-post-tile.is-expanded .profile-post-toggle {
+  /* The same fixed height open or closed, so only the details below it move. */
+  min-height: 168px;
+  aspect-ratio: auto;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* animateProfileTiles() moves the tiles. For that run they leave the grid flow, so the
+   tile's width, position and height can change together at one speed. */
+.profile-post-details {
+  transition: none;
+}
+
+.profile-post-grid {
+  position: relative;
+}
+
+.profile-post-tile.is-reflowing {
+  position: absolute;
+  margin: 0;
+  contain: layout;
+}
+
+.profile-post-tile.is-reflow-focus {
+  z-index: 1;
+}
+
+.profile-post-tile.is-closing .profile-post-details {
+  grid-template-rows: 1fr;
+}
+
+/* Keeps the details at their full width, so the text doesn't rewrap on every frame. */
+.profile-post-tile.is-reflowing .profile-post-details-content {
+  width: var(--reflow-content-width);
+}
+
+.profile-post-toggle:hover {
+  filter: none;
+}
+
+.profile-post-tile .profile-post-toggle:hover {
+  background: var(--sunken);
+}
+
+.profile-post-toggle.has-cover,
+.profile-post-tile:nth-child(3n + 2) .profile-post-toggle.has-cover,
+.profile-post-tile:nth-child(3n) .profile-post-toggle.has-cover,
+.profile-post-tile .profile-post-toggle.has-cover:hover {
+  background: var(--photo-scrim);
+  color: var(--on-photo);
+}
+
+.profile-post-art {
+  display: none;
+}
+
+.profile-post-toggle.has-cover .profile-post-art {
+  display: none;
+}
+
+.profile-post-type,
+.profile-post-privacy {
+  border: 0;
+  background: var(--sunken);
+  box-shadow: none;
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+}
+
+.profile-post-tile-title,
+.profile-post-title-block strong {
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.profile-post-toggle.has-cover .profile-post-title-block strong {
+  color: var(--on-photo);
+}
+
+.profile-post-section-heading,
+.profile-posts-heading,
+.profile-bio-name {
+  color: var(--ink);
+}
+
+.profile-post-section-count,
+.profile-post-date {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+/* The file input stays focusable; its label is the visible button. */
+.profile-cover-upload .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+/* ---------- Map ---------- */
+.footprint-marker.is-numbered {
+  background: var(--highlight);
+}
+
+/* Google's info window is always white, whatever the page theme is. */
+.footprint-popup {
+  color: #23261f;
+}
+
+.map-point-card {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.map-point-select {
+  background: transparent;
+}
+
+.map-point-card.is-expanded {
+  transform: none;
+}
+
+/* Keeps the cards from changing width when the list starts or stops overflowing. */
+.map-points {
+  grid-auto-rows: max-content; /* cards clip their overflow, so auto rows would squash them */
+  scrollbar-gutter: stable;
+}
+
+.map-point-details {
+  transition:
+    height 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding-bottom 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-top-width 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 320ms ease;
+}
+
+.map-point-card:not(.is-expanded) .map-point-details {
+  transition:
+    height 280ms cubic-bezier(0.4, 0, 0.2, 1),
+    padding-bottom 280ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-top-width 280ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 200ms ease;
+}
+
+.map-point-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.map-point-cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-top: 12px;
+  border-radius: var(--r-md);
+  background: var(--sunken);
+  object-fit: cover;
+}
+
+.map-point-thumb,
+.map-point-photo-placeholder {
+  border-radius: var(--r-md);
+}
+
+.map-add-button {
+  background: var(--accent);
+  box-shadow: 0 6px 16px rgb(var(--shadow-rgb) / 0.28);
+  color: var(--on-accent);
+}
+
+.map-add-button:hover {
+  transform: none;
+  background: var(--accent-hover);
+  box-shadow: 0 6px 16px rgb(var(--shadow-rgb) / 0.28);
+}
+
+.map-search,
+.map-suggestions,
+.map-results,
+.map-place,
+.map-directions,
+.map-pick-banner {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+}
+
+body.map-mode .page.app-shell {
+  padding-bottom: 0;
+}
+
+/* The map page stays full-bleed, so its header carries its own side padding. */
+body.map-mode .floating-topbar {
+  position: sticky;
+  margin: 0;
+  padding-inline: 16px;
+}
+
+body.map-mode .map-panel,
+body.map-mode .map-sidebar,
+.map-panel:fullscreen {
+  height: calc(100dvh - 64px);
+}
+
+.map-panel:fullscreen {
+  height: 100dvh;
+}
+
+/* ---------- Tablet: header drops the search width first ---------- */
+@media (max-width: 1040px) {
+  .account-name {
+    display: none;
+  }
+
+  .account-search {
+    min-width: 96px;
+  }
+
+  .navigation {
+    margin-left: 4px;
+  }
+
+  .nav-link {
+    padding: 0 9px;
+  }
+
+  .nav-link svg {
+    display: none;
+  }
+}
+
+/* ---------- Phone: top bar for identity, tab bar for navigation ---------- */
+@media (max-width: 760px) {
+  .page.app-shell {
+    width: calc(100% - 32px);
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+
+  .floating-topbar,
+  body.map-mode .floating-topbar {
+    display: flex;
+    min-height: 56px;
+    gap: 8px;
+    margin: 0;
+    padding: 8px 0;
+    border-radius: 0;
+  }
+
+  body.map-mode .floating-topbar {
+    padding-inline: 12px;
+  }
+
+  .brand > span:last-child {
+    display: none;
+  }
+
+  .floating-topbar .brand,
+  body.map-mode .floating-topbar .brand,
+  body.map-mode .floating-topbar .server-menu,
+  body.map-mode .floating-topbar .account-actions {
+    display: flex;
+  }
+
+  .floating-topbar .account-search,
+  body.map-mode .floating-topbar .account-search {
+    display: block;
+    order: 2;
+    width: auto;
+    min-width: 0;
+    flex: 1 1 0;
+    margin-left: 0;
+  }
+
+  .account-search-form > button {
+    display: none;
+  }
+
+  .account-search-results {
+    position: fixed;
+    top: 56px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
+
+  .server-menu summary {
+    padding: 0 4px;
+  }
+
+  .account-button,
+  .account-logout {
+    padding: 0 8px;
+  }
+
+  .navigation,
+  body.map-mode .floating-topbar .navigation {
+    position: fixed;
+    z-index: 1000;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    margin: 0;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    overflow: visible;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  .nav-link,
+  body.map-mode .floating-topbar .nav-link {
+    position: relative;
+    min-height: 52px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: 0;
+    color: var(--ink-3);
+    font-size: var(--text-xs);
+  }
+
+  .nav-link svg {
+    display: block;
+    width: 22px;
+    height: 22px;
+  }
+
+  .nav-link[aria-current="page"],
+  .nav-link[aria-current="page"]:hover {
+    background: transparent;
+    color: var(--accent-text);
+  }
+
+  .nav-badge {
+    position: absolute;
+    top: 4px;
+    left: calc(50% + 6px);
+    margin: 0;
+  }
+
+  .hero-art {
+    display: none;
+  }
+
+  .hero-description {
+    font-size: var(--text-md);
+  }
+
+  .section-heading,
+  .meetup-launcher {
+    align-items: center;
+  }
+
+  .profile-post-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-post-toggle,
+  .profile-post-tile:nth-child(3n + 2) .profile-post-toggle,
+  .profile-post-tile:nth-child(3n) .profile-post-toggle,
+  .profile-post-tile.is-expanded .profile-post-toggle {
+    min-height: 150px;
+  }
+
+  /* iOS zooms the page when a focused field is under 16px. */
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select,
+  .field input,
+  .field textarea,
+  .field select,
+  .compact-field input,
+  .compact-field textarea,
+  .compact-field select,
+  .ai-chat-composer,
+  .account-search-form input {
+    font-size: 16px;
+  }
+
+  body.map-mode .map-panel {
+    height: calc(100dvh - 56px - 61px - 96px);
+  }
+
+  body.map-mode .map-sidebar {
+    height: auto;
+    padding-bottom: calc(140px + env(safe-area-inset-bottom));
+  }
+
+  /* Clears the tab bar. */
+  body.map-mode .map-add-button {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+
+  .timeline-footprint-card {
+    padding: 16px;
+  }
+}
+
+/* ---------- Footprint form: checking where a stop lands ---------- */
+.route-point-check {
+  display: grid;
+  gap: 8px;
+}
+
+.route-point-check iframe {
+  display: block;
+  width: 100%;
+  height: 200px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.route-point-check .privacy-note {
+  margin: 0;
+}
+
+.route-point-candidates {
+  display: grid;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.route-point-candidate {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.route-point-candidate:last-child {
+  border-bottom: 0;
+}
+
+.route-point-candidate:hover,
+.route-point-candidate:focus-visible {
+  background: var(--accent-soft);
+}
+
+.route-point-candidate span {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.route-point-check-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+/* ---------- Meetup card: departure time with its route link ---------- */
+.meetup-start-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 13px 0;
+}
+
+.meetup-start-row .meetup-starts-at,
+.meetup-start-row .meetup-route-link {
+  margin: 0;
+}
+
+/* ---------- Saved footprints filed by county/city, then district ---------- */
+.map-region {
+  display: grid;
+  gap: 12px;
+}
+
+.map-region + .map-region {
+  margin-top: 16px;
+}
+
+.map-region > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.map-region-count,
+.map-district-name span {
+  color: var(--ink-3);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.map-district {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.map-district-name {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  color: var(--accent-text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.map-region > .privacy-note {
+  margin: 10px 0 0;
+}
+
+/* ---------- Filters: who an item is from, and where ---------- */
+.content-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 16px;
+}
+
+.content-filter .content-filter-region {
+  flex: 1 1 280px;
+  max-width: 420px;
+}
+
+/* In the narrow map sidebar the buttons sit beside the title. */
+.map-sidebar-heading .content-filter {
+  display: contents;
+}
+
+.map-sidebar-heading .content-filter .content-filter-region {
+  flex: 1 1 100%;
+  max-width: none;
+}
+
+.map-sidebar-heading {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.map-sidebar-heading .content-filter-who {
+  margin-left: auto;
+}
+
+.content-filter-who {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-md);
+  background: var(--sunken);
+}
+
+.map-sidebar-heading .entry-count {
+  flex: 1 1 100%;
+}
+
+.content-filter-region {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.content-filter-region select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2366695d' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 8px center;
+  background-repeat: no-repeat;
+  background-size: 14px;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.content-filter-region select:disabled {
+  color: var(--ink-3);
+  background-color: var(--sunken);
+}
+
+.content-filter-who button {
+  min-height: 34px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.content-filter-who button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--accent-text);
+  box-shadow: var(--shadow-1);
+}

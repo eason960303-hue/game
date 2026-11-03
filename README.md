@@ -15,7 +15,7 @@ python3 main.py
 ```
 backend/static/
 ├── index.html   頁面結構
-├── css/         依功能分開的樣式，reset.css 必須最後載入
+├── css/         tokens.css 集中定義顏色、字體與圓角（換風格改這裡），design.css 是最後載入的版面與元件層，其餘依功能分開
 └── js/          一般 script，共用全域範圍，index.html 裡的順序就是執行順序
 ```
 

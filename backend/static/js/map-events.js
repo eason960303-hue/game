@@ -78,18 +78,30 @@ mapPointForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const values = new FormData(mapPointForm);
   const status = document.querySelector("#map-form-status");
-  status.textContent = "";
-  const points = Array.from(
-    routePointList.querySelectorAll(".route-point-row"),
-    (row, index) => ({
+  status.textContent = "正在查詢地址…";
+  mapPointSaveButton.disabled = true;
+  try {
+    await Promise.all(routeRows().map((row) => offerRowPlaces(row)));
+    status.textContent = "";
+    // Only warns once: a stop can be right even if its address wasn't picked.
+    const unchecked = routeRows().filter(rowIsUnchecked);
+    const warning = unchecked.map((row) => rowRoutePoint(row).name).join("\n");
+    if (unchecked.length && warning !== uncheckedRouteWarning) {
+      uncheckedRouteWarning = warning;
+      const labels = unchecked.map(
+        (row) => row.querySelector("[data-route-point-label]").textContent,
+      );
+      status.textContent = `${labels.join("、")}還沒選地址，Google 可能找到同名的地方。請點選地址選項；不選的話再按一次儲存，會照你打的文字存。`;
+      return;
+    }
+    const points = routeRows().map((row, index) => ({
       name: row.querySelector("[data-route-name]").value.trim(),
       lat: row.dataset.lat ? Number(row.dataset.lat) : null,
       lng: row.dataset.lng ? Number(row.dataset.lng) : null,
+      city: row.dataset.city || null,
+      district: row.dataset.district || null,
       order: index + 1,
-    }),
-  );
-  mapPointSaveButton.disabled = true;
-  try {
+    }));
     const payload = {
         name: getFormText(values, "name"),
         note: getFormText(values, "note"),
@@ -110,6 +122,9 @@ mapPointForm.addEventListener("submit", async (event) => {
     editingMapPointId = null;
     stopMapPick();
     mapPointDialog.close();
+    // Any filter could hide what was just saved, and the card should show it.
+    mapPointsFilter.clearRegion();
+    if (mapPointsFilter.whoKey() !== "mine") mapPointsFilter.setWho("all");
     // Open the saved footprint so the map and card show the result right away.
     selectedMapPointId = saved.id;
     const addToTripForm = addingFootprintToTripForm;

@@ -3,10 +3,10 @@ dialog {
   max-height: min(88vh, 760px);
   padding: 0;
   overflow: auto;
-  border: 1px solid #e6edf5;
-  border-radius: 22px;
-  background: #fff;
-  box-shadow: 0 24px 80px #10243d40;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: 0 24px 80px rgb(var(--shadow-rgb) / 0.251);
 }
 
 dialog[open] {
@@ -14,8 +14,7 @@ dialog[open] {
 }
 
 dialog::backdrop {
-  background: #14283f88;
-  backdrop-filter: blur(3px);
+  background: var(--scrim);
   animation: backdrop-in 180ms ease-out both;
 }
 
@@ -32,12 +31,10 @@ dialog::backdrop {
 
 @keyframes backdrop-in {
   from {
-    background: #14283f00;
-    backdrop-filter: blur(0);
+    background: transparent;
   }
   to {
-    background: #14283f88;
-    backdrop-filter: blur(3px);
+    background: var(--scrim);
   }
 }
 
@@ -60,7 +57,7 @@ dialog::backdrop {
 .dialog-heading p {
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .icon-button {
@@ -69,10 +66,10 @@ dialog::backdrop {
   height: 36px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid #e6edf5;
-  border-radius: 12px;
-  background: #fff;
-  color: #6b7d93;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink-2);
   font-size: 20px;
 }
 
@@ -84,8 +81,8 @@ dialog::backdrop {
   display: grid;
   gap: 7px;
   margin-bottom: 15px;
-  color: #53667c;
-  font-size: 13px;
+  color: var(--ink-2);
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -93,11 +90,11 @@ dialog::backdrop {
 .field textarea {
   width: 100%;
   padding: 12px 13px;
-  border: 1px solid #dfe7f0;
-  border-radius: 12px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-md);
   outline: none;
-  color: #263b53;
-  font-size: 14px;
+  color: var(--ink);
+  font-size: 15px;
   font-weight: 400;
 }
 
@@ -118,22 +115,21 @@ dialog::backdrop {
   align-items: center;
   gap: 6px;
   padding: 0 11px;
-  border: 1px solid #e2e9f1;
-  border-radius: 12px;
-  background: #fff;
-  color: #687b91;
-  font-size: 13px;
-  transition:
-    background 150ms ease,
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 14px;
+  transition: background 150ms ease,
     border-color 150ms ease,
     color 150ms ease;
 }
 
 .mood-option[aria-pressed="true"] {
-  border-color: #9dc3ed;
-  background: #edf6ff;
-  color: #2868b4;
-  box-shadow: 0 0 0 2px #4386d512;
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  box-shadow: 0 0 0 2px rgb(var(--shadow-rgb) / 0.071);
 }
 
 .photo-picker {
@@ -141,17 +137,17 @@ dialog::backdrop {
   min-height: 100px;
   place-items: center;
   padding: 14px;
-  border: 1px dashed #cbd9e8;
-  border-radius: 15px;
-  background: #f8fbff;
-  color: #6c8097;
+  border: 1px dashed var(--accent-line);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  color: var(--ink-3);
   cursor: pointer;
   text-align: center;
 }
 
 .photo-picker:hover {
-  border-color: #8bb6e5;
-  background: #f2f8ff;
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
 }
 
 .photo-picker input {
@@ -167,14 +163,14 @@ dialog::backdrop {
 .photo-picker strong {
   display: block;
   margin-bottom: 5px;
-  color: #48627e;
-  font-size: 13px;
+  color: var(--ink-2);
+  font-size: 14px;
 }
 
 .photo-picker small,
 .photo-note {
-  color: #8797a9;
-  font-size: 11px;
+  color: var(--ink-3);
+  font-size: 12px;
 }
 
 .photo-preview {
@@ -185,23 +181,23 @@ dialog::backdrop {
   gap: 12px;
   margin-top: 9px;
   padding: 8px;
-  border: 1px solid #e6edf5;
-  border-radius: 12px;
-  background: #fff;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-md);
+  background: var(--surface);
 }
 
 .photo-preview img {
   width: 54px;
   height: 54px;
-  border-radius: 9px;
+  border-radius: var(--r-sm);
   object-fit: cover;
 }
 
 .photo-preview span {
   flex: 1;
   overflow: hidden;
-  color: #63768c;
-  font-size: 12px;
+  color: var(--ink-2);
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -210,14 +206,14 @@ dialog::backdrop {
   padding: 7px;
   border: 0;
   background: transparent;
-  color: #a64e58;
-  font-size: 12px;
+  color: var(--danger);
+  font-size: 13px;
 }
 
 .field input:focus,
 .field textarea:focus {
-  border-color: #7eafe5;
-  box-shadow: 0 0 0 3px #4386d51a;
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px rgb(var(--shadow-rgb) / 0.102);
 }
 
 .modal-actions {
@@ -229,17 +225,17 @@ dialog::backdrop {
 .secondary-button {
   min-height: 44px;
   padding: 0 16px;
-  border: 1px solid #dfe7f0;
-  border-radius: 12px;
-  background: #fff;
-  color: #617389;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink-2);
 }
 
 .status-message {
   min-height: 18px;
   margin: 10px 0 0;
-  color: #b04444;
-  font-size: 13px;
+  color: var(--danger);
+  font-size: 14px;
 }
 
 .field.field-plain {

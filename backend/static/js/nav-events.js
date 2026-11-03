@@ -61,6 +61,34 @@ function loadViewData(view) {
   else loadProfile();
 }
 
+const LAST_PAGE_KEY = "life-logger-last-page";
+
+// Storage can be blocked; the address still works as the page's memory then.
+function rememberPage() {
+  try {
+    localStorage.setItem(LAST_PAGE_KEY, window.location.hash);
+  } catch {}
+}
+
+function forgetPage() {
+  try {
+    localStorage.removeItem(LAST_PAGE_KEY);
+  } catch {}
+}
+
+// Reopening the site's plain link has no #page in it, so the page it was last on
+// comes from storage. Links with a query (email verification, password reset) open
+// their own dialog and are left alone.
+function restoreLastPage() {
+  if (!window.location.hash && !window.location.search) {
+    try {
+      const saved = localStorage.getItem(LAST_PAGE_KEY);
+      if (saved) window.history.replaceState(null, "", saved);
+    } catch {}
+  }
+  rememberPage();
+}
+
 function applyViewFromUrl() {
   const view = viewFromUrl();
   applyView(view, usernameFromUrl());
@@ -78,6 +106,7 @@ viewButtons.forEach((button) => {
     if (window.location.hash !== (view === "home" ? "" : url)) {
       window.history.pushState(null, "", url);
     }
+    rememberPage();
     loadViewData(view);
   });
 });
@@ -85,6 +114,7 @@ viewButtons.forEach((button) => {
 // Profile links are plain anchors, so the browser's back button just works.
 window.addEventListener("popstate", () => {
   if (avatarViewer.open) avatarViewer.close();
+  rememberPage();
   const view = applyViewFromUrl();
   window.scrollTo(0, 0);
   loadViewData(view);
@@ -126,8 +156,6 @@ document.querySelector("#retry-load").addEventListener("click", loadEntries);
 document.querySelector("#profile-retry").addEventListener("click", () => {
   loadViewData("profile");
 });
-entriesContainer.addEventListener("change", updatePrivacy);
-profileDiariesGrid.addEventListener("change", updatePrivacy);
 
 const AVATAR_SIZE = 1024;
 const profileAvatarInput = document.querySelector("#profile-edit-avatar-input");

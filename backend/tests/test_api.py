@@ -41,6 +41,19 @@ def new_user(email: str, name: str = "測試者") -> TestClient:
     return client
 
 
+REAL_REGION_AT = main.region_at
+REGION_LOOKUP_PATCH = mock.patch.object(main, "region_at", return_value=(None, None))
+
+
+def setUpModule() -> None:
+    # Saving a located stop looks up its region; tests must not reach the network.
+    REGION_LOOKUP_PATCH.start()
+
+
+def tearDownModule() -> None:
+    REGION_LOOKUP_PATCH.stop()
+
+
 class ApiTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -151,7 +164,7 @@ class EntryTests(ApiTestCase):
                 client.post("/api/entries", json=payload).status_code, 422
             )
 
-    def test_private_entries_stay_hidden_from_followers(self) -> None:
+    def test_entries_stay_hidden_from_followers_at_every_privacy_level(self) -> None:
         author = new_user("author@example.com")
         follower = new_user("follower@example.com")
         for privacy in ("private", "friends", "public"):
@@ -168,8 +181,7 @@ class EntryTests(ApiTestCase):
             if not entry["is_owner"]
         }
 
-        self.assertIn("public", titles)
-        self.assertFalse(titles & {"private", "friends"})
+        self.assertEqual(titles, set())
 
     def test_entry_read_and_privacy_routes_persist_to_sqlite(self) -> None:
         client = new_user("entry-read@example.com")
@@ -301,8 +313,13 @@ class SocialProfileTests(ApiTestCase):
         client = new_user(email, "私人作者")
         client.patch("/api/user/profile", json={"is_private": True})
         client.post(
-            "/api/entries",
-            json={"title": f"私帳貼文 {email}", "content": "內容", "privacy": "public"},
+            "/api/map-points",
+            json={
+                "name": f"私帳貼文 {email}",
+                "latitude": 22.6,
+                "longitude": 120.2,
+                "privacy": "public",
+            },
         )
         return client, client.get("/api/auth/me").json()["user"]["id"]
 
@@ -312,8 +329,8 @@ class SocialProfileTests(ApiTestCase):
         fan_id = fan.get("/api/auth/me").json()["user"]["id"]
 
         def sees() -> bool:
-            title = "私帳貼文 request-author@example.com"
-            return title in {e["title"] for e in fan.get("/api/entries").json()}
+            name = "私帳貼文 request-author@example.com"
+            return name in {p["name"] for p in fan.get("/api/map-points").json()}
 
         requested = fan.post(f"/api/users/{author_id}/follow").json()
         self.assertFalse(requested["is_following"])
@@ -397,20 +414,20 @@ class SocialProfileTests(ApiTestCase):
         author.post(f"/api/user/follow-requests/{fan_id}/accept")
         author.patch(f"/api/friends/{fan_id}", json={"is_close_friend": True})
         author.post(
-            "/api/entries",
-            json={"title": "摯友貼文", "content": "內容", "privacy": "friends"},
+            "/api/map-points",
+            json={"name": "摯友貼文", "latitude": 22.6, "longitude": 120.2, "privacy": "friends"},
         )
-        self.assertIn("摯友貼文", {e["title"] for e in fan.get("/api/entries").json()})
+        self.assertIn("摯友貼文", {p["name"] for p in fan.get("/api/map-points").json()})
 
         self.assertEqual(author.delete(f"/api/user/followers/{fan_id}").status_code, 204)
         self.assertEqual(author.delete(f"/api/user/followers/{fan_id}").status_code, 404)
 
-        titles = {e["title"] for e in fan.get("/api/entries").json()}
-        self.assertFalse(titles & {"摯友貼文", "私帳貼文 kick-author@example.com"})
+        names = {p["name"] for p in fan.get("/api/map-points").json()}
+        self.assertFalse(names & {"摯友貼文", "私帳貼文 kick-author@example.com"})
         # Coming back goes through approval and does not restore the star.
         self.assertTrue(fan.post(f"/api/users/{author_id}/follow").json()["is_requested"])
         author.post(f"/api/user/follow-requests/{fan_id}/accept")
-        self.assertNotIn("摯友貼文", {e["title"] for e in fan.get("/api/entries").json()})
+        self.assertNotIn("摯友貼文", {p["name"] for p in fan.get("/api/map-points").json()})
 
     def test_search_finds_an_exact_email_but_not_part_of_one(self) -> None:
         viewer = new_user("qqsearch-viewer@example.com")
@@ -429,12 +446,16 @@ class SocialProfileTests(ApiTestCase):
         viewer = new_user("page-viewer@example.com")
         target = new_user("page-target@example.com", "主頁")
         target.post(
-            "/api/entries",
-            json={"title": "看得到", "content": "內容", "privacy": "public"},
+            "/api/map-points",
+            json={"name": "看得到", "latitude": 22.6, "longitude": 120.2, "privacy": "public"},
+        )
+        target.post(
+            "/api/map-points",
+            json={"name": "看不到", "latitude": 22.6, "longitude": 120.2, "privacy": "private"},
         )
         target.post(
             "/api/entries",
-            json={"title": "看不到", "content": "內容", "privacy": "private"},
+            json={"title": "公開日記也看不到", "content": "內容", "privacy": "public"},
         )
 
         self.assertEqual(TestClient(main.app).get("/api/profiles/page_target").status_code, 401)
@@ -581,7 +602,10 @@ class SocialProfileTests(ApiTestCase):
         )
         self.assertEqual(profile.status_code, 200)
         self.assertEqual(profile.json()["profile"]["display_name"], "公開作者")
-        self.assertEqual([post["title"] for post in profile.json()["posts"]], ["public"])
+        self.assertEqual(profile.json()["posts"], [])
+        self.assertEqual(profile.json()["profile"]["posts_count"], 0)
+        for entry_id in entries.values():
+            self.assertEqual(follower.get(f"/api/entries/{entry_id}").status_code, 404)
 
         author.patch(
             f"/api/friends/{follower.get('/api/auth/me').json()['user']['id']}",
@@ -590,9 +614,13 @@ class SocialProfileTests(ApiTestCase):
         close_profile = follower.get(
             f"/api/users/{author.get('/api/auth/me').json()['user']['id']}/profile"
         )
+        self.assertEqual(close_profile.json()["posts"], [])
+        own_profile = author.get(
+            f"/api/users/{author.get('/api/auth/me').json()['user']['id']}/profile"
+        )
         self.assertEqual(
-            {post["title"] for post in close_profile.json()["posts"]},
-            {"public", "friends"},
+            {post["title"] for post in own_profile.json()["posts"]},
+            {"public", "friends", "private"},
         )
 
     def test_public_account_shows_public_posts_to_everyone_signed_in(self) -> None:
@@ -616,13 +644,10 @@ class SocialProfileTests(ApiTestCase):
 
         posts = stranger.get(f"/api/users/{author_id}/profile").json()["posts"]
 
-        self.assertEqual(
-            {post["title"] for post in posts}, {"entry-public", "point-public"}
-        )
+        self.assertEqual({post["title"] for post in posts}, {"point-public"})
         entry_titles = {item["title"] for item in stranger.get("/api/entries").json()}
         point_names = {item["name"] for item in stranger.get("/api/map-points").json()}
-        self.assertIn("entry-public", entry_titles)
-        self.assertFalse(entry_titles & {"entry-friends", "entry-private"})
+        self.assertEqual(entry_titles, set())
         self.assertIn("point-public", point_names)
         self.assertFalse(point_names & {"point-friends", "point-private"})
 
@@ -662,13 +687,16 @@ class SocialProfileTests(ApiTestCase):
                 client.get(f"/api/entries/{entry['id']}").status_code,
             )
 
-        self.assertEqual(sees(follower), (True, True, 2, 200))
+        self.assertEqual(sees(follower), (False, True, 1, 404))
         self.assertEqual(sees(stranger), (False, False, 0, 404))
         self.assertEqual(sees(author), (True, True, 2, 200))
 
         author.patch("/api/user/profile", json={"is_private": False})
         self.assertEqual(
-            stranger.get(f"/api/entries/{entry['id']}").status_code, 200
+            stranger.get(f"/api/entries/{entry['id']}").status_code, 404
+        )
+        self.assertEqual(
+            len(stranger.get(f"/api/users/{author_id}/profile").json()["posts"]), 1
         )
 
     def test_private_account_setting_rejects_null(self) -> None:
@@ -736,11 +764,11 @@ class SocialProfileTests(ApiTestCase):
             )
 
         both = {"public", "friends"}
-        self.assertEqual(visible(follower), (both, both))
-        self.assertEqual(visible(other), ({"public"}, {"public"}))
+        self.assertEqual(visible(follower), (set(), both))
+        self.assertEqual(visible(other), (set(), {"public"}))
 
         author.patch(f"/api/friends/{follower_id}", json={"is_close_friend": False})
-        self.assertEqual(visible(follower), ({"public"}, {"public"}))
+        self.assertEqual(visible(follower), (set(), {"public"}))
 
     def test_unfollowing_revokes_only_the_grant_from_that_author(self) -> None:
         author = new_user("revoke-author@example.com")
@@ -752,12 +780,12 @@ class SocialProfileTests(ApiTestCase):
         author.patch(f"/api/friends/{follower_id}", json={"is_close_friend": True})
         follower.patch(f"/api/friends/{author_id}", json={"is_close_friend": True})
         author.post(
-            "/api/entries",
-            json={"title": "author-friends", "content": "內容", "privacy": "friends"},
+            "/api/map-points",
+            json={"name": "author-friends", "latitude": 22.6, "longitude": 120.2, "privacy": "friends"},
         )
         follower.post(
-            "/api/entries",
-            json={"title": "follower-friends", "content": "內容", "privacy": "friends"},
+            "/api/map-points",
+            json={"name": "follower-friends", "latitude": 22.6, "longitude": 120.2, "privacy": "friends"},
         )
 
         self.assertEqual(follower.delete(f"/api/friends/{author_id}").status_code, 204)
@@ -765,11 +793,11 @@ class SocialProfileTests(ApiTestCase):
 
         self.assertNotIn(
             "author-friends",
-            {entry["title"] for entry in follower.get("/api/entries").json()},
+            {point["name"] for point in follower.get("/api/map-points").json()},
         )
         self.assertIn(
             "follower-friends",
-            {entry["title"] for entry in author.get("/api/entries").json()},
+            {point["name"] for point in author.get("/api/map-points").json()},
         )
 
     def test_following_again_keeps_the_close_friend_star(self) -> None:
@@ -2132,6 +2160,295 @@ class MapsProxyTests(ApiTestCase):
         ), mock.patch.object(main, "urlopen", urlopen):
             method, path, *body = request
             return client.request(method, path, json=body[0] if body else None)
+
+    def photon_lookup(self, client: TestClient, features: list, **body):
+        main.photon_search.cache_clear()
+        urlopen = self.google_replies(
+            {
+                "features": [
+                    {
+                        "properties": {"countrycode": "TW", **properties},
+                        "geometry": {"coordinates": [lng, lat]},
+                    }
+                    for properties, lat, lng in features
+                ]
+            }
+        )
+        with mock.patch.dict(
+            os.environ, {"GOOGLE_MAPS_SERVER_KEY": ""}
+        ), mock.patch.object(main, "urlopen", urlopen):
+            return client.post("/api/maps/lookup", json=body), urlopen
+
+    def test_lookup_picks_the_same_name_place_nearest_the_other_stops(self) -> None:
+        client = new_user("lookup-near@example.com")
+        response, _ = self.photon_lookup(
+            client,
+            [
+                ({"name": "中山公園", "city": "花蓮市"}, 23.98, 121.6),
+                ({"name": "中山公園", "city": "高雄市", "district": "鼓山區"}, 22.62, 120.27),
+            ],
+            query="中山公園",
+            center={"latitude": 22.6, "longitude": 120.3},
+        )
+        best = response.json()["places"][0]
+        self.assertEqual(response.json()["source"], "photon")
+        self.assertEqual(best["address"], "高雄市鼓山區")
+        self.assertTrue(best["matched"])
+
+    def test_lookup_writes_taiwan_addresses_from_county_down(self) -> None:
+        client = new_user("lookup-address@example.com")
+        response, _ = self.photon_lookup(
+            client,
+            [({"name": "中山公園", "city": "潮州鎮", "county": "屏東縣"}, 22.55, 120.54)],
+            query="中山公園",
+        )
+        self.assertEqual(response.json()["places"][0]["address"], "屏東縣潮州鎮")
+
+    def test_lookup_returns_the_county_and_district(self) -> None:
+        client = new_user("lookup-region@example.com")
+        response, _ = self.photon_lookup(
+            client,
+            [
+                ({"name": "中山公園", "city": "潮州鎮", "county": "屏東縣"}, 22.55, 120.54),
+                ({"name": "中山公園", "city": "臺北市", "district": "信義區"}, 25.04, 121.56),
+                ({"name": "中山公園", "city": "新竹市", "district": "南市里"}, 24.8, 120.97),
+            ],
+            query="中山公園",
+        )
+        regions = {(p["city"], p["district"]) for p in response.json()["places"]}
+        self.assertEqual(
+            regions,
+            {("屏東縣", "潮州鎮"), ("台北市", "信義區"), ("新竹市", None)},
+        )
+
+    def test_meetup_list_says_whose_followed(self) -> None:
+        host = new_user("filter-host@example.com")
+        host_id = host.get("/api/auth/me").json()["user"]["id"]
+        reader = new_user("filter-meetup-reader@example.com")
+        starts_at = (datetime.now() + timedelta(days=2)).astimezone().isoformat()
+        created = host.post(
+            "/api/meetups",
+            json={
+                "title": "好友揪團",
+                "starts_at": starts_at,
+                "departure_city": "新北市",
+                "departure_district": "板橋區",
+                "destinations": ["九份老街"],
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        self.addCleanup(host.delete, f"/api/meetups/{created.json()['id']}")
+
+        def listed(client):
+            return next(
+                meetup
+                for meetup in client.get("/api/meetups").json()
+                if meetup["id"] == created.json()["id"]
+            )
+
+        self.assertFalse(listed(reader)["is_following"])
+        self.assertFalse(listed(TestClient(main.app))["is_following"])
+        reader.post(f"/api/users/{host_id}/follow")
+        self.assertTrue(listed(reader)["is_following"])
+
+    def test_footprint_list_says_whose_followed(self) -> None:
+        author = new_user("filter-author@example.com")
+        author_id = author.get("/api/auth/me").json()["user"]["id"]
+        stranger = new_user("filter-stranger@example.com")
+        reader = new_user("filter-reader@example.com")
+        stop = {"name": "公園", "order": 1}
+        for client, name in ((author, "作者"), (stranger, "路人"), (reader, "自己")):
+            client.post(
+                "/api/map-points",
+                json={"name": name, "points": [stop], "privacy": "public"},
+            )
+        self.assertTrue(reader.post(f"/api/users/{author_id}/follow").json()["is_following"])
+        listed = {
+            point["name"]: (point["is_owner"], point["is_following"])
+            for point in reader.get("/api/map-points").json()
+        }
+        self.assertEqual(listed["作者"], (False, True))
+        self.assertEqual(listed["路人"], (False, False))
+        self.assertEqual(listed["自己"], (True, False))
+
+    def test_saved_stops_are_filed_by_region(self) -> None:
+        client = new_user("region-save@example.com")
+        located = self.google_replies(
+            {
+                "features": [
+                    {
+                        "properties": {
+                            "countrycode": "TW",
+                            "city": "高雄市",
+                            "district": "旗津區",
+                        }
+                    }
+                ]
+            }
+        )
+        with mock.patch.object(main, "region_at", REAL_REGION_AT), mock.patch.object(
+            main, "urlopen", located
+        ):
+            point = client.post(
+                "/api/map-points",
+                json={
+                    "name": "分類",
+                    "points": [
+                        {"name": "目前位置", "lat": 22.60123, "lng": 120.27456, "order": 1},
+                        {"name": "中山公園（臺北市信義區）", "order": 2},
+                        {"name": "士林夜市", "order": 3},
+                        {
+                            "name": "小店",
+                            "lat": 24.1,
+                            "lng": 120.6,
+                            "city": "台中市",
+                            "district": "西屯區",
+                            "order": 4,
+                        },
+                    ],
+                },
+            ).json()
+        self.assertEqual(
+            [(stop["city"], stop["district"]) for stop in point["points"]],
+            [
+                ("高雄市", "旗津區"),
+                ("台北市", "信義區"),
+                (None, None),
+                ("台中市", "西屯區"),
+            ],
+        )
+        located.assert_called_once()
+        self.assertIn("lat=22.601&lon=120.275", located.call_args.args[0].full_url)
+
+    def test_a_failed_region_lookup_still_saves_the_footprint(self) -> None:
+        client = new_user("region-down@example.com")
+        with mock.patch.object(main, "region_at", REAL_REGION_AT), mock.patch.object(
+            main, "urlopen", mock.MagicMock(side_effect=main.URLError("down"))
+        ):
+            response = client.post(
+                "/api/map-points",
+                json={
+                    "name": "離線",
+                    "points": [{"name": "這裡", "lat": 22.6, "lng": 120.2, "order": 1}],
+                },
+            )
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(response.json()["points"][0]["city"])
+
+    def test_district_names_are_not_cut_at_their_first_suffix(self) -> None:
+        for text, expected in (
+            ("高雄市前鎮區", ("高雄市", "前鎮區")),
+            ("桃園市平鎮區", ("桃園市", "平鎮區")),
+            ("臺南市新市區", ("台南市", "新市區")),
+            ("彰化縣鹿港鎮", ("彰化縣", "鹿港鎮")),
+            ("苗栗縣頭份市", ("苗栗縣", "頭份市")),
+            ("新竹市東區", ("新竹市", "東區")),
+            ("台北市信義路五段", ("台北市", None)),
+            ("士林夜市", (None, None)),
+        ):
+            self.assertEqual(main.region_from_text(text), expected, text)
+
+    def test_only_the_first_stop_looks_up_its_region(self) -> None:
+        client = new_user("region-first@example.com")
+        with mock.patch.object(main, "region_at", return_value=("高雄市", "旗津區")) as found:
+            point = client.post(
+                "/api/map-points",
+                json={
+                    "name": "兩站",
+                    "points": [
+                        {"name": "甲", "lat": 22.6, "lng": 120.2, "order": 1},
+                        {"name": "乙", "lat": 25.0, "lng": 121.5, "order": 2},
+                    ],
+                },
+            ).json()
+        found.assert_called_once()
+        self.assertEqual(point["points"][0]["city"], "高雄市")
+        self.assertIsNone(point["points"][1]["city"])
+
+    def test_lookup_uses_the_area_in_the_keyword(self) -> None:
+        client = new_user("lookup-area@example.com")
+        response, _ = self.photon_lookup(
+            client,
+            [
+                ({"name": "中山公園", "city": "花蓮市"}, 23.98, 121.6),
+                ({"name": "中山公園", "city": "高雄市"}, 22.62, 120.27),
+            ],
+            query="高雄中山公園",
+            center={"latitude": 23.98, "longitude": 121.6},
+        )
+        self.assertEqual(response.json()["places"][0]["address"], "高雄市")
+
+    def test_lookup_does_not_trust_a_different_place(self) -> None:
+        client = new_user("lookup-miss@example.com")
+        response, _ = self.photon_lookup(
+            client,
+            [
+                (
+                    {
+                        "name": "高雄市旗津區旗津國民小學",
+                        "city": "高雄市",
+                        "district": "旗津區",
+                        "street": "中洲三路",
+                        "housenumber": "623",
+                    },
+                    22.59,
+                    120.28,
+                )
+            ],
+            query="高雄市旗津區旗津三路",
+        )
+        place = response.json()["places"][0]
+        self.assertEqual(place["address"], "高雄市旗津區中洲三路623號")
+        self.assertFalse(place["matched"])
+
+    def test_lookup_tolerates_a_typo_and_merges_duplicates(self) -> None:
+        client = new_user("lookup-typo@example.com")
+        response, _ = self.photon_lookup(
+            client,
+            [
+                ({"name": "旗津海岸公園", "city": "高雄市"}, 22.61, 120.27),
+                ({"name": "旗津海岸公園", "city": "高雄市"}, 22.61, 120.27),
+            ],
+            query="旗津海岸公圓",
+        )
+        places = response.json()["places"]
+        self.assertEqual(len(places), 1)
+        self.assertTrue(places[0]["matched"])
+
+    def test_lookup_requires_login_and_reports_an_outage(self) -> None:
+        anonymous = TestClient(main.app)
+        self.assertEqual(
+            anonymous.post("/api/maps/lookup", json={"query": "公園"}).status_code, 401
+        )
+        client = new_user("lookup-down@example.com")
+        main.photon_search.cache_clear()
+        with mock.patch.dict(
+            os.environ, {"GOOGLE_MAPS_SERVER_KEY": ""}
+        ), mock.patch.object(
+            main, "urlopen", mock.MagicMock(side_effect=main.URLError("down"))
+        ):
+            response = client.post("/api/maps/lookup", json={"query": "公園"})
+        self.assertEqual(response.status_code, 502)
+
+    def test_lookup_prefers_google_when_a_key_is_set(self) -> None:
+        client = new_user("lookup-google@example.com")
+        urlopen = self.google_replies(
+            {
+                "places": [
+                    {
+                        "id": "abc",
+                        "displayName": {"text": "旗津海岸公園"},
+                        "formattedAddress": "805台灣高雄市旗津區旗津三路990號",
+                        "location": {"latitude": 22.61, "longitude": 120.27},
+                    }
+                ]
+            }
+        )
+        response = self.call_google(
+            client, urlopen, "POST", "/api/maps/lookup", {"query": "高雄旗津海岸公園"}
+        )
+        self.assertEqual(response.json()["source"], "google")
+        self.assertTrue(response.json()["places"][0]["matched"])
 
     def test_requires_login_and_a_configured_key(self) -> None:
         anonymous = TestClient(main.app)

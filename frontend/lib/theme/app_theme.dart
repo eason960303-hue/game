@@ -3,23 +3,23 @@ import 'package:flutter/material.dart';
 class AppColors {
   const AppColors._();
 
-  static const background = Color(0xFF071B2E);
-  static const card = Color(0xFF0C2340);
-  static const field = Color(0xFF11263F);
+  static const background = Color(0xFF131613);
+  static const card = Color(0xFF1C201C);
+  static const field = Color(0xFF232823);
   static const outline = Color(0x14FFFFFF);
 
-  static const primary = Color(0xFF2B7BB9);
-  static const accent = Color(0xFF7FC7FF);
-  static const accentSoft = Color(0xFF9AD0FF);
-  static const accentStrong = Color(0xFF4AA3FF);
-  static const selected = Color(0xFF28618B);
+  static const primary = Color(0xFF24795F);
+  static const accent = Color(0xFF74C9AB);
+  static const accentSoft = Color(0xFF8ED6BC);
+  static const accentStrong = Color(0xFF4FAE8D);
+  static const selected = Color(0xFF2B5E4D);
 
-  static const textSecondary = Color(0xFFB8D5F2);
-  static const textMuted = Color(0xFF9AB6D1);
-  static const textBody = Color(0xC7FFFFFF);
+  static const textSecondary = Color(0xFFC0C1B6);
+  static const textMuted = Color(0xFF9A9C90);
+  static const textBody = Color(0xD9ECEAE1);
 
-  static const error = Color(0xFFE57373);
-  static const errorSurface = Color(0xFF9D3D52);
+  static const error = Color(0xFFF0978E);
+  static const errorSurface = Color(0xFF8A3B33);
 
   static const actionGradient = LinearGradient(
     colors: [accent, accentStrong],
@@ -27,19 +27,19 @@ class AppColors {
   static const heroGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF0F2A43), Color(0xFF113D5C), Color(0xFF1D5F8F)],
+    colors: [Color(0xFF1C201C), Color(0xFF1F362D), Color(0xFF24503F)],
   );
   static const mapGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF0B1A2B), Color(0xFF153A57), Color(0xFF0C2B4B)],
+    colors: [Color(0xFF171A17), Color(0xFF1F362D), Color(0xFF1C2C26)],
   );
 }
 
 class AppTheme {
   const AppTheme._();
 
-  static const _fontFamily = 'SF Pro Display';
+  static const _fontFamily = 'PingFang TC';
   static const _fieldRadius = BorderRadius.all(Radius.circular(14));
 
   static const cardDecoration = BoxDecoration(
