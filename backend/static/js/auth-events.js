@@ -174,7 +174,7 @@ logoutButton.addEventListener("click", async () => {
   try {
     await apiRequest("/auth/logout", { method: "POST" });
   } catch (error) {
-    serverStatusDetail.textContent = `登出失敗：${error.message}`;
+    showToast(`登出失敗：${error.message}`);
     return;
   }
   forgetPage();
@@ -202,7 +202,7 @@ logoutButton.addEventListener("click", async () => {
   resetMeetupForm();
   stopMapPick();
   aiChatMessages.innerHTML =
-    '<div class="ai-chat-message is-assistant">嗨！告訴我今天發生了什麼，我會幫你整理成一篇日記。</div>';
+    '<div class="ai-chat-message is-assistant">嗨！告訴我今天發生了什麼，我會幫你記下來，並加上標題和心情。</div>';
   aiProviderStatus.textContent = "登入後檢查 AI 服務設定。";
   profileBio.textContent = "請登入以查看個人簡介。";
   profileDiariesCount.textContent = "0 篇";

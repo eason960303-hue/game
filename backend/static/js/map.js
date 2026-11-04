@@ -516,7 +516,7 @@ function loadGoogleMaps() {
     (config) =>
       new Promise((resolve, reject) => {
         if (!config.api_key) {
-          reject(new Error("地圖尚未設定 GOOGLE_MAPS_API_KEY。"));
+          reject(new Error("地圖暫時無法使用。"));
           return;
         }
         window.onGoogleMapsReady = () => resolve(config);
@@ -825,6 +825,33 @@ function openNewMapPointDialog(addToTripForm = false) {
   showMapPointDialog();
 }
 
+// Deletes straight from the card, without opening the editor first.
+async function deleteFootprint(pointId) {
+  const point = mapPoints.find(
+    (item) => item.id === pointId && item.is_owner,
+  );
+  if (!point) return;
+  if (
+    !window.confirm(
+      `確定要刪除「${point.name}」嗎？也會從行程包中移除，刪除後無法復原。`,
+    )
+  ) {
+    return;
+  }
+  try {
+    await apiRequest(`/map-points/${pointId}`, { method: "DELETE" });
+    privacyDrafts.delete(pointId);
+    if (selectedMapPointId === pointId) selectedMapPointId = null;
+    if (editingMapPointId === pointId) {
+      editingMapPointId = null;
+      mapPointDialog.close();
+    }
+    await loadMapPoints();
+  } catch (error) {
+    showToast(`刪除足跡失敗：${error.message}`);
+  }
+}
+
 function openMapPointEditor(pointId) {
   const point = mapPoints.find(
     (item) => item.id === pointId && item.is_owner,
@@ -864,6 +891,11 @@ mapPointsContainer.addEventListener("click", (event) => {
   const editButton = event.target.closest("[data-edit-map-point]");
   if (editButton) {
     openMapPointEditor(Number(editButton.dataset.editMapPoint));
+    return;
+  }
+  const deleteButton = event.target.closest("[data-delete-map-point]");
+  if (deleteButton) {
+    deleteFootprint(Number(deleteButton.dataset.deleteMapPoint));
     return;
   }
   const removeCoverButton = event.target.closest("[data-remove-map-cover]");
@@ -940,7 +972,7 @@ function mapPointCardHtml(point) {
       </ol>
       <button class="secondary-button map-point-directions" type="button" data-google-route-navigation="${Number(point.id)}">前往 Google 導航</button>
       <div class="map-point-top">
-        <span class="mood" data-privacy-badge="point:${Number(point.id)}">${privacyLabel(point.privacy)}</span>
+        <span class="mood is-${escapeHtml(point.privacy)}" data-privacy-badge="point:${Number(point.id)}">${privacyLabel(point.privacy)}</span>
         ${ownerLink(point, "我的足跡")}
       </div>
       ${footprintReactionsHtml(point)}
@@ -948,6 +980,7 @@ function mapPointCardHtml(point) {
         point.is_owner
           ? `<div class="map-point-actions">
               <button class="secondary-button" type="button" data-edit-map-point="${point.id}">編輯這趟足跡</button>
+              <button class="small-action is-destructive" type="button" data-delete-map-point="${point.id}">刪除</button>
               <label class="compact-field">隱私層級
                 ${privacySelectHtml(point.id, point.name, point.privacy)}
               </label>
@@ -1095,7 +1128,7 @@ function renderMapPoints() {
           <label>
             <input type="checkbox" value="${point.id}" data-trip-point>
             ${escapeHtml(point.name)}
-            <span class="mood" data-privacy-badge="point:${Number(point.id)}">${privacyLabel(point.privacy)}</span>
+            <span class="mood is-${escapeHtml(point.privacy)}" data-privacy-badge="point:${Number(point.id)}">${privacyLabel(point.privacy)}</span>
           </label>
         `,
           )
@@ -1198,6 +1231,11 @@ async function loadMapPoints() {
 }
 
 timelineFootprints.addEventListener("click", (event) => {
+  if (event.target.closest("[data-timeline-show-more]")) {
+    timelineFootprintsShown += FOOTPRINT_PAGE_SIZE;
+    renderTimelineFootprints();
+    return;
+  }
   const button = event.target.closest("[data-timeline-map-point]");
   if (button) {
     selectedMapPointId = Number(button.dataset.timelineMapPoint);

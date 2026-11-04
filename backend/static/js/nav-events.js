@@ -62,9 +62,11 @@ function loadViewData(view) {
 }
 
 const LAST_PAGE_KEY = "life-logger-last-page";
+let shownPageUrl = window.location.href;
 
 // Storage can be blocked; the address still works as the page's memory then.
 function rememberPage() {
+  shownPageUrl = window.location.href;
   try {
     localStorage.setItem(LAST_PAGE_KEY, window.location.hash);
   } catch {}
@@ -111,9 +113,35 @@ viewButtons.forEach((button) => {
   });
 });
 
+function dismissTopDialog(top) {
+  if (top === dialog) closeEntryDialog();
+  else if (top === meetupDialog) closeMeetupDialog();
+  else if (top === mapPointDialog) closeMapPointDialog();
+  else top.close();
+}
+
+function hasUnsavedForm() {
+  return (
+    (dialog.open && entryFormSnapshot() !== savedEntryForm) ||
+    (meetupDialog.open && meetupFormSnapshot() !== savedMeetupForm) ||
+    (mapPointDialog.open && mapPointFormSnapshot() !== savedMapPointForm)
+  );
+}
+
+// There is no earlier page to catch "back" on when the site was just opened.
+window.addEventListener("beforeunload", (event) => {
+  if (hasUnsavedForm()) event.preventDefault();
+});
+
 // Profile links are plain anchors, so the browser's back button just works.
 window.addEventListener("popstate", () => {
-  if (avatarViewer.open) avatarViewer.close();
+  // On a phone, back means "close this": put the page back and dismiss the dialog.
+  const openDialogs = document.querySelectorAll("dialog[open]");
+  if (openDialogs.length > 0) {
+    window.history.pushState(null, "", shownPageUrl);
+    dismissTopDialog(openDialogs[openDialogs.length - 1]);
+    return;
+  }
   rememberPage();
   const view = applyViewFromUrl();
   window.scrollTo(0, 0);
@@ -148,7 +176,7 @@ profileFollowButton.addEventListener("click", async () => {
     ]);
   } catch (error) {
     profileFollowButton.disabled = false;
-    window.alert(`更新追蹤狀態失敗：${error.message}`);
+    showToast(`更新追蹤狀態失敗：${error.message}`);
   }
 });
 

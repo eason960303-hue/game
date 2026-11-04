@@ -19,18 +19,23 @@ function updateAccountUi() {
   accountName.hidden = Boolean(currentUser);
   loginOpenButton.hidden = Boolean(currentUser);
   logoutButton.hidden = !currentUser;
+  document.querySelector("#recent-entries-section").hidden = !currentUser;
+}
+
+// A sign-in option that can't work isn't offered at all.
+function showOAuthProviders(providers) {
+  document.querySelector("#google-login").hidden = !providers.google;
+  document.querySelector("#apple-login").hidden = !providers.apple;
+  const anyProvider = Boolean(providers.google || providers.apple);
+  document.querySelector(".provider-buttons").hidden = !anyProvider;
+  document.querySelector(".auth-divider").hidden = !anyProvider;
 }
 
 async function loadOAuthProviders() {
   try {
-    const providers = await apiRequest("/auth/providers");
-    document.querySelector("#google-login").disabled = !providers.google;
-    document.querySelector("#apple-login").disabled = !providers.apple;
-    oauthSetupNote.hidden = Boolean(providers.google && providers.apple);
+    showOAuthProviders(await apiRequest("/auth/providers"));
   } catch {
-    document.querySelector("#google-login").disabled = true;
-    document.querySelector("#apple-login").disabled = true;
-    oauthSetupNote.hidden = false;
+    showOAuthProviders({});
   }
 }
 

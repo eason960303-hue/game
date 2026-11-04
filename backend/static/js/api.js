@@ -1,12 +1,12 @@
+// Only a static preview needs a separate API; a backend on any other PORT serves its own.
 const localHosts = new Set(["localhost", "127.0.0.1"]);
+const livePreviewPorts = new Set(["5500", "5501"]);
 const isFilePreview = window.location.protocol === "file:";
-const isAlternateLocalServer =
+const isLivePreview =
   localHosts.has(window.location.hostname) &&
-  window.location.port !== "8000";
+  livePreviewPorts.has(window.location.port);
 const apiBaseUrl =
-  isFilePreview || isAlternateLocalServer
-    ? "http://127.0.0.1:8000/api"
-    : "/api";
+  isFilePreview || isLivePreview ? "http://127.0.0.1:8000/api" : "/api";
 
 function apiUrl(path) {
   return `${apiBaseUrl}${path}`;
@@ -27,11 +27,17 @@ async function apiRequest(path, options = {}) {
   if (options.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  const response = await fetch(apiUrl(path), {
-    ...options,
-    headers,
-    credentials: "include",
-  });
+  let response;
+  try {
+    response = await fetch(apiUrl(path), {
+      ...options,
+      headers,
+      credentials: "include",
+    });
+  } catch {
+    // Stays a TypeError, which is how callers recognise a lost connection.
+    throw new TypeError("目前連不上伺服器，請確認網路後再試一次。");
+  }
   if (response.status === 204) return null;
   const contentType = response.headers.get("content-type") || "";
   const result = contentType.includes("application/json")

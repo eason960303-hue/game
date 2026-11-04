@@ -2,28 +2,23 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta
       name="description"
       content="把日常的風景、心情與足跡，收藏成自己的生活記錄。"
     />
-    <meta name="theme-color" content="#f6f3ec" />
+    <meta name="theme-color" content="#f3f0e8" />
     <title>我的生活記錄</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Life Logger" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="css/tokens.css" />
-    <link rel="stylesheet" href="css/base.css" />
-    <link rel="stylesheet" href="css/home.css" />
-    <link rel="stylesheet" href="css/profile.css" />
-    <link rel="stylesheet" href="css/modules.css" />
-    <link rel="stylesheet" href="css/ai-friends.css" />
-    <link rel="stylesheet" href="css/map-trips.css" />
-    <link rel="stylesheet" href="css/dialogs.css" />
-    <link rel="stylesheet" href="css/responsive.css" />
-    <link rel="stylesheet" href="css/reset.css" />
-    <link rel="stylesheet" href="css/apple-theme.css" />
-    <link rel="stylesheet" href="css/map-tools.css" />
-    <link rel="stylesheet" href="css/design.css" />
+    <link rel="stylesheet" href="css/app.css" />
     <script src="js/theme.js"></script>
   </head>
   <body>
@@ -50,16 +45,16 @@
             <button class="nav-link" type="button" data-view="trips" aria-label="行程包"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="7.5" width="17" height="12" rx="2"/><path d="M9 7.5V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v1.5M3.5 13h17"/></svg><span>行程</span></button>
             <button class="nav-link" type="button" data-view="profile" aria-label="個人檔案"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1-4 4-6 7.5-6s6.500 2 7.500 6"/></svg><span>我的</span><span class="nav-badge" id="nav-requests-badge" hidden></span></button>
           </nav>
-          <details class="server-menu" id="server-menu">
+          <details class="server-menu" id="server-menu" hidden>
             <summary aria-label="伺服器連線狀態與設定">
               <span class="status-dot" id="server-status-dot" aria-hidden="true"></span>
-              <span id="server-status-label">正在連線伺服器…</span>
+              <span id="server-status-label"></span>
             </summary>
             <div class="server-popover">
               <strong>伺服器狀態</strong>
-              <p id="server-status-detail">正在檢查後端服務連線。</p>
+              <p id="server-status-detail"></p>
               <button class="server-refresh" id="refresh-server-status" type="button">
-                重新檢查連線
+                重新連線
               </button>
             </div>
           </details>
@@ -72,13 +67,15 @@
       </header>
 
       <div class="app-view" id="home-view">
+        <aside class="install-banner" id="install-banner" hidden>
+          <p id="install-banner-text"></p>
+          <button class="primary-button" id="install-accept" type="button" hidden>安裝</button>
+          <button class="icon-button" id="install-dismiss" type="button" aria-label="不再顯示安裝提示">×</button>
+        </aside>
         <section class="hero" aria-labelledby="page-title">
           <div class="hero-copy">
             <p class="eyebrow" id="hero-date">今天</p>
             <h1 id="page-title">我的生活記錄</h1>
-            <p class="hero-description">
-              每一段日常都值得被記住。寫下今天的心情，留住走過的風景。
-            </p>
             <button class="primary-button" id="open-entry" type="button">
               <span aria-hidden="true">＋</span>
               新增記錄
@@ -117,8 +114,11 @@
 
         <section class="entries-section" id="recent-entries-section" aria-labelledby="entries-title" hidden>
           <div class="section-heading">
-            <h2 id="entries-title">最近的日子</h2>
-            <span class="entry-count" id="entry-count">載入中…</span>
+            <div>
+              <h2 id="entries-title">最近的日子</h2>
+              <span class="entry-count" id="entry-count">載入中…</span>
+            </div>
+            <button class="secondary-button" type="button" data-view="ai-diary">查看全部</button>
           </div>
           <div class="entries" id="entries" aria-live="polite">
             <div class="empty-state">正在整理你的生活片段…</div>
@@ -156,6 +156,7 @@
                 <h1 class="profile-username" id="profile-page-title">個人檔案</h1>
                 <button class="profile-edit-button" id="profile-edit-open" type="button">編輯個人檔案</button>
                 <button class="profile-edit-button" id="theme-toggle" type="button">深色模式</button>
+                <button class="profile-edit-button" id="pwa-install" type="button" hidden>安裝 App</button>
                 <button class="profile-edit-button" id="profile-follow" type="button" hidden>追蹤</button>
               </div>
               <div class="profile-stats" aria-label="個人檔案統計">
@@ -205,7 +206,7 @@
       <section class="app-view module-view" id="ai-diary-view" hidden aria-labelledby="ai-diary-title">
         <div class="module-heading">
           <h1 id="ai-diary-title">AI 聊天日記</h1>
-          <p>像聊天一樣說說今天發生的事，AI 會整理成日記並自動儲存。</p>
+          <p>像聊天一樣說說今天發生的事，AI 會原文保存成日記，並加上標題、心情和標籤。</p>
         </div>
         <div class="ai-diary-layout">
           <section class="module-card ai-chat-card" aria-label="AI 日記對話">
@@ -215,7 +216,7 @@
               <p class="ai-provider-status" id="ai-provider-status" role="status">正在檢查 AI 服務設定…</p>
             </div>
             <div class="ai-chat-messages" id="ai-chat-messages" role="log" aria-live="polite">
-              <div class="ai-chat-message is-assistant">嗨！告訴我今天發生了什麼，我會幫你整理成一篇日記。</div>
+              <div class="ai-chat-message is-assistant">嗨！告訴我今天發生了什麼，我會幫你記下來，並加上標題和心情。</div>
             </div>
             <form class="ai-chat-form" id="ai-chat-form">
               <label class="compact-field" for="ai-chat-input">今天想記下什麼？</label>
@@ -228,7 +229,7 @@
           <div class="ai-diary-side">
             <aside class="module-card privacy-note-card">
               <h2>日記隱私說明</h2>
-              <p>AI 會收到你提交的這段文字，用來整理標題、內容、心情與標籤。日記只有你自己看得到；AI 服務尚未設定時，不會儲存未完成解析的訊息。</p>
+              <p>AI 會收到你提交的這段文字，用來產生標題、心情與標籤，日記內容會保存你的原文。日記只有你自己看得到；AI 服務尚未設定時，不會儲存未完成解析的訊息。</p>
             </aside>
             <section class="module-card diary-month-card" aria-labelledby="diary-month-title">
               <div class="diary-month-heading">
@@ -363,6 +364,12 @@
           <p>把足跡整理成專屬行程，收藏或分享旅途清單。</p>
         </div>
         <div class="trip-layout">
+          <div>
+            <h2 class="points-heading">我的行程包</h2>
+            <div class="trip-list" id="trip-list" aria-live="polite">
+              <div class="module-empty">登入後載入你的行程。</div>
+            </div>
+          </div>
           <form class="module-card trip-form" id="trip-form">
             <h2 id="trip-form-title">建立行程包</h2>
             <label class="compact-field">行程名稱
@@ -382,19 +389,13 @@
               <input name="is_public" type="checkbox" />
               建立公開分享清單
             </label>
-            <p class="privacy-note">公開行程分享 API 只會列出公開足跡，請勿在公開清單加入敏感地點。</p>
+            <p class="privacy-note">公開分享時只會列出設為公開的足跡，請勿加入敏感地點。</p>
             <div class="trip-form-actions">
               <button class="primary-button" id="trip-submit" type="submit">建立行程包</button>
               <button class="secondary-button" id="trip-cancel-edit" type="button" hidden>取消編輯</button>
             </div>
             <p class="status-message" id="trip-form-status" role="status"></p>
           </form>
-          <div>
-            <h2 class="points-heading">我的行程包</h2>
-            <div class="trip-list" id="trip-list" aria-live="polite">
-              <div class="module-empty">登入後載入你的行程。</div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -452,6 +453,11 @@
           <label class="compact-field">揪團名稱
             <input name="title" maxlength="160" required placeholder="例如：週末去九份走走" />
           </label>
+          <label class="compact-field">出發縣市
+            <select name="departure_city" id="meetup-departure-city" required>
+              <option value="" selected disabled>請選擇縣市</option>
+            </select>
+          </label>
           <div class="compact-field meetup-start-field">
             <span>出發日期與時間</span>
             <div class="meetup-time-modes" role="group" aria-label="選擇出發日期時間的方式">
@@ -476,15 +482,13 @@
             </div>
             <span class="privacy-note">可使用手機時間選擇器，或手動輸入日期（YYYY-MM-DD）與時間（24 小時制）。</span>
           </div>
-          <label class="compact-field">出發縣市
-            <input name="departure_city" maxlength="40" required placeholder="例如：新北市" />
-          </label>
-          <label class="compact-field">出發區
-            <input name="departure_district" maxlength="50" required placeholder="例如：板橋區" />
+          <label class="compact-field">起點
+            <input name="origin" maxlength="160" required placeholder="例如：板橋車站" />
+            <span class="privacy-note">輸入出發的地點，送出後會自動定位，當成路線起點。</span>
           </label>
           <label class="compact-field meetup-destinations">目的地與途經點
-            <textarea name="destinations" rows="3" maxlength="2000" required placeholder="每行輸入一個地點，依序顯示路線，例如：&#10;板橋車站&#10;十分老街&#10;九份老街"></textarea>
-            <span class="privacy-note">每行一個地點，其他人可查看順序並開啟 Google 地圖預覽路線。</span>
+            <textarea name="destinations" rows="3" maxlength="2000" required placeholder="直接打一句話或每行一個地點都可以，例如：&#10;淡水老街再到沙崙海灘&#10;或&#10;十分老街&#10;九份老街"></textarea>
+            <span class="privacy-note">可以直接輸入一句話（例如「淡水老街再到沙崙海灘」），AI 會自動拆成依序排列的地點並定位；也可以每行一個地點。</span>
           </label>
         </div>
         <p class="status-message" id="meetup-form-status" role="status"></p>
@@ -607,7 +611,7 @@
             <span id="photo-file-name"></span>
             <button class="photo-remove" id="remove-photo" type="button">移除</button>
           </div>
-          <span class="photo-note">目前後端尚未提供照片儲存功能；所選照片僅供本次預覽，不會上傳或保存。</span>
+          <span class="photo-note">照片會縮小後儲存，並移除拍攝位置等資訊，只有你看得到。</span>
         </div>
         <input name="tags" type="hidden" value="" />
         <p class="status-message" id="form-status" role="status"></p>
@@ -630,7 +634,6 @@
         <div class="provider-buttons">
           <button class="provider-button" id="google-login" type="button">Google 快速登入</button>
           <button class="provider-button" id="apple-login" type="button">Apple ID 快速登入</button>
-          <p class="privacy-note" id="oauth-setup-note" hidden>第三方登入尚未設定，請由管理者設定 OAuth 環境變數。</p>
         </div>
         <div class="auth-divider">或使用電子郵件</div>
         <label class="field" id="display-name-field" hidden>
@@ -659,7 +662,7 @@
         <div class="dialog-heading">
           <div>
             <h2 id="forgot-password-title">重設密碼</h2>
-            <p>輸入註冊的電子郵件，我們會寄送一次性重設連結。</p>
+            <p>輸入註冊的電子郵件，我們會寄送一次性重設連結。信件可能被分到垃圾郵件匣，記得一併查看。</p>
           </div>
           <button class="icon-button" id="forgot-password-dismiss" type="button" aria-label="關閉重設密碼視窗">×</button>
         </div>
@@ -700,6 +703,8 @@
       </form>
     </dialog>
 
+    <div class="toast" id="toast" role="status" aria-live="polite" popover="manual" hidden></div>
+
     <script src="js/state.js"></script>
     <script src="js/api.js"></script>
     <script src="js/content-filter.js"></script>
@@ -708,6 +713,7 @@
     <script src="js/map.js"></script>
     <script src="js/map-tools.js"></script>
     <script src="js/trips.js"></script>
+    <script src="js/tw-regions.js"></script>
     <script src="js/meetups.js"></script>
     <script src="js/diary-month.js"></script>
     <script src="js/session.js"></script>
@@ -718,6 +724,7 @@
     <script src="js/social-events.js"></script>
     <script src="js/meetup-events.js"></script>
     <script src="js/entry-events.js"></script>
+    <script src="js/pwa.js"></script>
     <script src="js/main.js"></script>
   </body>
 </html>

@@ -1,10 +1,33 @@
+const HOME_ENTRY_LIMIT = 3;
+const TOAST_MIN_MS = 3200;
+const TOAST_MS_PER_CHARACTER = 120;
+const FOOTPRINT_PAGE_SIZE = 6;
+let toastTimer = null;
+let timelineFootprintsShown = FOOTPRINT_PAGE_SIZE;
+
+function showToast(message) {
+  const toast = document.querySelector("#toast");
+  toast.textContent = message;
+  toast.hidden = false;
+  // A popover is the only way to appear above a dialog that is open. Reopening puts it on top.
+  if (toast.matches(":popover-open")) toast.hidePopover();
+  toast.showPopover();
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.hidePopover();
+    toast.hidden = true;
+  }, Math.max(TOAST_MIN_MS, message.length * TOAST_MS_PER_CHARACTER));
+}
+
+// Home keeps the newest few; the rest live under AI 日記 and the profile page.
 function renderEntries(entries) {
   loadError.hidden = true;
   entriesContainer.hidden = false;
   entryCount.textContent = `${entries.length} 筆記錄`;
   const cards = entries.length === 0
-    ? '<div class="empty-state">還沒有生活記錄，透過 AI 聊天日記留下第一段回憶吧。</div>'
+    ? '<div class="empty-state">還沒有生活記錄，按上方「新增記錄」留下第一段回憶吧。</div>'
     : entries
+        .slice(0, HOME_ENTRY_LIMIT)
         .map(
           (entry) => {
             const entryActions = `
@@ -15,15 +38,15 @@ function renderEntries(entries) {
               `;
             return `
         <article class="entry-card">
-          <span class="mood">${escapeHtml(entry.mood || "生活")}</span>
+          ${entryPhotoHtml(entry)}
+          <div class="entry-meta">
+            <span class="mood">${escapeHtml(entry.mood || "生活")}</span>
+            <time>${escapeHtml(formatDate(entry.created_at))}</time>
+          </div>
           <h3>${escapeHtml(entry.title)}</h3>
           <p>${escapeHtml(entry.content)}</p>
-          <div class="entry-meta">
-            <time>${escapeHtml(formatDate(entry.created_at))}</time>
-            <span class="entry-location">${escapeHtml(entry.location || "未記錄地點")}</span>
-          </div>
           <div class="entry-card-footer">
-            ${ownerLink(entry, "我的日記")}
+            ${entry.location ? `<span class="entry-location">${escapeHtml(entry.location)}</span>` : "<span></span>"}
             ${entryActions}
           </div>
         </article>
@@ -42,13 +65,22 @@ function entryCanBeEdited(createdAt) {
   return Number.isFinite(timestamp) && Date.now() - timestamp <= 24 * 60 * 60 * 1000;
 }
 
+// Each open meetup already has its card on home, so its route footprint would repeat it.
+function timelinePoints() {
+  const meetupPointIds = new Set(meetups.map((meetup) => meetup.map_point_id));
+  return mapPoints.filter((point) => !meetupPointIds.has(point.id));
+}
+
 const timelineFilter = createContentFilter({
   rootId: "timeline-filter",
   label: "篩選足跡",
-  items: () => mapPoints,
+  items: timelinePoints,
   regionOf: (point) => mapPointRegion(point),
   who: FOOTPRINT_WHO,
-  onChange: () => renderTimelineFootprints(),
+  onChange() {
+    timelineFootprintsShown = FOOTPRINT_PAGE_SIZE;
+    renderTimelineFootprints();
+  },
 });
 
 function footprintReactionsHtml(point) {
@@ -70,7 +102,12 @@ function footprintReactionsHtml(point) {
 
 function renderTimelineFootprints() {
   timelineFilter.refresh();
-  if (mapPoints.length === 0) {
+  if (!currentUser) {
+    timelineFootprints.innerHTML =
+      '<div class="module-empty">登入後載入你與好友分享的足跡。</div>';
+    return;
+  }
+  if (timelinePoints().length === 0) {
     timelineFootprints.innerHTML =
       '<div class="module-empty">目前還沒有可顯示的足跡，新增一趟旅程或追蹤好友後就會出現在這裡。</div>';
     return;
@@ -80,7 +117,12 @@ function renderTimelineFootprints() {
     timelineFootprints.innerHTML = `<div class="module-empty">${timelineFilter.emptyMessage()}</div>`;
     return;
   }
+  const hiddenCount = visible.length - timelineFootprintsShown;
+  const showMore = hiddenCount > 0
+    ? `<button class="secondary-button timeline-show-more" type="button" data-timeline-show-more>再顯示 ${Math.min(hiddenCount, FOOTPRINT_PAGE_SIZE)} 趟（還有 ${hiddenCount} 趟）</button>`
+    : "";
   timelineFootprints.innerHTML = visible
+    .slice(0, timelineFootprintsShown)
     .map((point) => {
       const stops = Array.isArray(point.points) ? point.points : [];
       const stopSummary = stops
@@ -90,27 +132,28 @@ function renderTimelineFootprints() {
       const remainingStops = stops.length > 3 ? ` 等 ${stops.length} 個地點` : "";
       return `
         <article class="timeline-footprint-card">
-          <div class="timeline-footprint-icon" aria-hidden="true">⌖</div>
           <div class="timeline-footprint-content">
             <div class="timeline-footprint-meta">
               <time datetime="${escapeHtml(point.created_at || "")}">${escapeHtml(formatDate(point.created_at))}</time>
               ${
                 point.is_owner
-                  ? `<label class="entry-privacy-field">足跡隱私${privacySelectHtml(point.id, point.name, point.privacy)}</label>`
-                  : `<span class="mood">${privacyLabel(point.privacy)}</span>`
+                  ? privacySelectHtml(point.id, point.name, point.privacy)
+                  : privacyChipHtml(point.privacy)
               }
             </div>
             <h3>${escapeHtml(point.name)}</h3>
-            <p>${ownerLink(point, "我的足跡")} · ${stops.length} 個途經點</p>
+            <p class="timeline-footprint-owner">${ownerLink(point, "我的足跡")} · ${stops.length} 個途經點</p>
             <p class="timeline-footprint-stops">${stopSummary || "尚未新增途經點"}${remainingStops}</p>
             ${point.note ? `<p class="timeline-footprint-note">${escapeHtml(point.note)}</p>` : ""}
-            ${footprintReactionsHtml(point)}
           </div>
-          <button class="small-action" type="button" data-timeline-map-point="${Number(point.id)}">在地圖查看</button>
+          <div class="timeline-footprint-actions">
+            ${footprintReactionsHtml(point)}
+            <button class="small-action" type="button" data-timeline-map-point="${Number(point.id)}">在地圖查看</button>
+          </div>
         </article>
       `;
     })
-    .join("");
+    .join("") + showMore;
 }
 
 function profileHref(username) {
@@ -134,6 +177,10 @@ function ownerLink(item, fallback) {
     return `<span class="entry-owner">${escapeHtml(name)}</span>`;
   }
   return `<a class="entry-owner owner-link" href="${escapeHtml(profileHref(item.owner_username))}">${avatarHtml(item.owner_avatar_url, name, "social-avatar-small")}<span>${escapeHtml(name)}</span></a>`;
+}
+
+function privacyChipHtml(privacy, label = privacyLabel(privacy)) {
+  return `<span class="mood is-${escapeHtml(privacy)}">${label}</span>`;
 }
 
 function privacySelectHtml(id, title, privacy) {
@@ -239,6 +286,7 @@ function renderProfilePostCard(post, type, expandedId) {
       `
     : `
         <p class="profile-post-content">${escapeHtml(post.content || "這篇日記尚無內容。")}</p>
+        ${entryPhotoHtml(post)}
         ${post.location ? `<p>地點：${escapeHtml(post.location)}</p>` : ""}
         ${post.tags ? `<p>標籤：${escapeHtml(post.tags)}</p>` : ""}
       `;
@@ -751,6 +799,42 @@ async function cropImageToJpeg(file, width, height, quality) {
   }
 }
 
+const ENTRY_PHOTO_MAX_EDGE = 1600;
+
+// Keeps the photo's shape; phones shoot far more pixels, and bytes, than a diary shows.
+async function entryPhotoBlob(file) {
+  if (file.size > MAX_IMAGE_SOURCE_BYTES) {
+    throw new Error("圖片太大，請選擇 25 MB 以下的檔案。");
+  }
+  let blob;
+  try {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.src = url;
+    await image.decode().finally(() => URL.revokeObjectURL(url));
+    const scale = Math.min(
+      1,
+      ENTRY_PHOTO_MAX_EDGE / Math.max(image.naturalWidth, image.naturalHeight),
+    );
+    blob = await cropImageToJpeg(
+      file,
+      Math.round(image.naturalWidth * scale),
+      Math.round(image.naturalHeight * scale),
+      0.85,
+    );
+  } catch {
+    blob = null;
+  }
+  if (!blob) throw new Error("無法讀取這張圖片，請改用 JPG、PNG 或 WebP。");
+  return blob;
+}
+
+function entryPhotoHtml(entry) {
+  return entry.photo_url
+    ? `<img class="entry-photo" src="${escapeHtml(mediaUrl(entry.photo_url))}" alt="${escapeHtml(entry.title)}的照片" loading="lazy" decoding="async" />`
+    : "";
+}
+
 async function landscapeFootprintCoverBlob(file) {
   if (file.size > MAX_IMAGE_SOURCE_BYTES) {
     throw new Error("圖片太大，請選擇 25 MB 以下的檔案。");
@@ -864,9 +948,9 @@ async function loadEntries() {
       error.status === 401
         ? "請先登入，登入後即可查看與新增生活記錄。"
         : error.status === 404
-          ? "找不到日記 API（404）。請確認後端路由已啟動。"
+          ? "目前無法載入日記，請稍後再試。"
           : error instanceof TypeError
-            ? "目前連不上生活記錄服務，請確認後端已啟動，再重新整理。"
+            ? "目前連不上伺服器，請確認網路後再試一次。"
             : error.message || "發生未知錯誤，請重新整理再試一次。";
     loadErrorMessage.textContent = errorMessage;
     loadError.hidden = false;

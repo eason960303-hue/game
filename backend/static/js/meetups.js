@@ -12,21 +12,36 @@ function meetupDateLabel(value) {
       }).format(date);
 }
 
+// Stops may be legacy name strings or located {name, lat, lng, …} objects.
+function meetupStopName(stop) {
+  if (!stop) return "";
+  return typeof stop === "string" ? stop : stop.name || "";
+}
+
+// A located stop routes by exact coordinates; otherwise fall back to its name.
+function meetupStopQuery(stop) {
+  return stop && stop.lat != null && stop.lng != null
+    ? `${stop.lat},${stop.lng}`
+    : meetupStopName(stop);
+}
+
+// Older responses have no typed origin; fall back to the departure city.
+function meetupOrigin(meetup) {
+  return meetup.origin || meetup.departure_city;
+}
+
 function meetupDirectionsUrl(meetup) {
   const url = new URL("https://www.google.com/maps/dir/");
   url.searchParams.set("api", "1");
-  url.searchParams.set(
-    "origin",
-    `${meetup.departure_city}${meetup.departure_district}`,
-  );
+  url.searchParams.set("origin", meetupStopQuery(meetupOrigin(meetup)));
   url.searchParams.set(
     "destination",
-    meetup.destinations[meetup.destinations.length - 1],
+    meetupStopQuery(meetup.destinations[meetup.destinations.length - 1]),
   );
   if (meetup.destinations.length > 1) {
     url.searchParams.set(
       "waypoints",
-      meetup.destinations.slice(0, -1).join("|"),
+      meetup.destinations.slice(0, -1).map(meetupStopQuery).join("|"),
     );
   }
   return url.toString();
@@ -57,7 +72,7 @@ const meetupFilter = createContentFilter({
   items: () => meetups,
   regionOf: (meetup) => ({
     city: meetup.departure_city.replace("臺", "台"),
-    district: meetup.departure_district,
+    district: meetup.origin && meetup.origin.district ? meetup.origin.district : "",
   }),
   who: MEETUP_WHO,
   onChange: renderMeetups,
@@ -77,20 +92,13 @@ function renderMeetups() {
   meetupList.innerHTML = visible
     .map((meetup) => {
       const full = meetup.participant_count >= meetup.participant_limit;
-      const destinations = meetup.destinations
-        .map(
-          (destination, index) => `
-            <li><span>${index + 1}</span>${escapeHtml(destination)}</li>
-          `,
-        )
+      const route = [meetupOrigin(meetup), ...meetup.destinations]
+        .map((stop) => `<li>${escapeHtml(meetupStopName(stop))}</li>`)
         .join("");
       const action = meetup.is_owner
         ? `
-          <div class="meetup-card-actions">
-            <span class="meetup-host-badge">你是揪團者</span>
-            <button class="small-action" type="button" data-edit-meetup="${meetup.id}">編輯邀請</button>
-            <button class="small-action is-destructive" type="button" data-delete-meetup="${meetup.id}">取消揪團</button>
-          </div>
+          <button class="small-action" type="button" data-edit-meetup="${meetup.id}">編輯</button>
+          <button class="small-action is-destructive" type="button" data-delete-meetup="${meetup.id}">取消揪團</button>
         `
         : currentUser
           ? meetup.is_participating
@@ -100,23 +108,14 @@ function renderMeetups() {
       return `
         <article class="meetup-card">
           <div class="meetup-card-heading">
-            <div>
-              <span class="meetup-public-label">公開邀請</span>
-              <h3>${escapeHtml(meetup.title)}</h3>
-            </div>
+            <h3>${escapeHtml(meetup.title)}</h3>
             <span class="meetup-participants">${meetup.participant_count} / ${meetup.participant_limit} 人</span>
           </div>
-          <div class="meetup-start-row">
-            <p class="meetup-starts-at">${escapeHtml(meetupDateLabel(meetup.starts_at))} 出發</p>
-            <a class="small-action meetup-route-link" href="${escapeHtml(meetupDirectionsUrl(meetup))}" target="_blank" rel="noopener noreferrer">查看 Google 地圖路線</a>
-          </div>
-          <div class="meetup-route">
-            <strong>預計路線</strong>
-            <ol>${destinations}</ol>
-          </div>
+          <p class="meetup-starts-at">${escapeHtml(meetupDateLabel(meetup.starts_at))} 從${escapeHtml(meetup.departure_city)}出發</p>
+          <ol class="meetup-route" aria-label="預計路線">${route}</ol>
           <div class="meetup-card-footer">
-            <span class="meetup-inviter">邀請者：${escapeHtml(meetup.host_name)}</span>
-            <span class="meetup-departure">${escapeHtml(meetup.departure_city)}${escapeHtml(meetup.departure_district)}</span>
+            <span class="meetup-inviter">${meetup.is_owner ? "你發起的" : `${escapeHtml(meetup.host_name)} 發起`}</span>
+            <a class="meetup-route-link" href="${escapeHtml(meetupDirectionsUrl(meetup))}" target="_blank" rel="noopener noreferrer">在 Google 地圖看路線</a>
           </div>
           <div class="meetup-card-actions">${action}</div>
         </article>
@@ -125,17 +124,34 @@ function renderMeetups() {
     .join("");
 }
 
-async function loadMeetups() {
+async function loadMeetups({ background = false } = {}) {
   meetupLoadError.hidden = true;
   try {
     const loadedMeetups = await apiRequest("/meetups");
     if (!Array.isArray(loadedMeetups)) {
       throw new Error("伺服器回傳的揪團資料格式不正確。");
     }
+    // A background refresh that found nothing new must not disturb the open list.
+    if (background && JSON.stringify(loadedMeetups) === JSON.stringify(meetups)) return;
     meetups = loadedMeetups;
     renderMeetups();
+    renderTimelineFootprints();
   } catch (error) {
+    meetupCount.textContent = "載入失敗";
     meetupLoadErrorMessage.textContent = error.message;
     meetupLoadError.hidden = false;
   }
 }
+
+const MEETUP_REFRESH_MS = 30000;
+
+// Keeps head counts current, and lets a dropped connection recover by itself.
+function refreshHomeInBackground() {
+  if (document.hidden) return;
+  if (serverOffline) refreshServerStatus();
+  if (homeView.hidden || document.querySelector("dialog[open]")) return;
+  loadMeetups({ background: true });
+}
+
+setInterval(refreshHomeInBackground, MEETUP_REFRESH_MS);
+document.addEventListener("visibilitychange", refreshHomeInBackground);

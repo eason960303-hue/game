@@ -1,6 +1,22 @@
+const meetupCitySelect = document.querySelector("#meetup-departure-city");
+
+function populateCityOptions() {
+  if (meetupCitySelect.options.length > 1) return;
+  const fragment = document.createDocumentFragment();
+  for (const city of Object.keys(TW_REGIONS)) {
+    const option = document.createElement("option");
+    option.value = city;
+    option.textContent = city;
+    fragment.appendChild(option);
+  }
+  meetupCitySelect.appendChild(fragment);
+}
+
 function resetMeetupForm() {
   meetupForm.reset();
   setMeetupTimeMode("picker", false);
+  populateCityOptions();
+  meetupCitySelect.value = "";
   editingMeetupId = null;
   meetupFormTitle.textContent = "發起公開邀請";
   meetupSubmitButton.textContent = "發起邀請";
@@ -75,9 +91,15 @@ function editMeetup(meetup) {
     fields.querySelector(".meetup-start-date").value = startDate || "";
     fields.querySelector(".meetup-start-time").value = startTime || "";
   }
-  meetupForm.elements.departure_city.value = meetup.departure_city;
-  meetupForm.elements.departure_district.value = meetup.departure_district;
-  meetupForm.elements.destinations.value = meetup.destinations.join("\n");
+  populateCityOptions();
+  // Older meetups may store the 臺 form, but the options use 台.
+  meetupCitySelect.value = meetup.departure_city.replace("臺", "台");
+  meetupForm.elements.origin.value = meetup.origin ? meetup.origin.name : "";
+  meetupForm.elements.destinations.value = meetup.destinations
+    .map((destination) =>
+      typeof destination === "string" ? destination : destination.name,
+    )
+    .join("\n");
   showMeetupDialog();
 }
 
@@ -100,7 +122,7 @@ meetupForm.addEventListener("submit", async (event) => {
       title: getFormText(values, "title"),
       starts_at: startsAt,
       departure_city: getFormText(values, "departure_city"),
-      departure_district: getFormText(values, "departure_district"),
+      origin: getFormText(values, "origin"),
       destinations,
     };
     const wasEditing = editingMeetupId !== null;
@@ -175,7 +197,7 @@ meetupList.addEventListener("click", async (event) => {
       await apiRequest(`/meetups/${meetupId}`, { method: "DELETE" });
       await loadMeetups();
     } catch (error) {
-      window.alert(`取消揪團失敗：${error.message}`);
+      showToast(`取消揪團失敗：${error.message}`);
       deleteButton.disabled = false;
     }
     return;
@@ -198,7 +220,7 @@ meetupList.addEventListener("click", async (event) => {
     );
     renderMeetups();
   } catch (error) {
-    window.alert(
+    showToast(
       joinButton
         ? `參加失敗：${error.message}`
         : `退出揪團失敗：${error.message}`,

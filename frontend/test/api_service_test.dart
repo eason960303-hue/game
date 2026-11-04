@@ -41,6 +41,35 @@ void main() {
     await ApiService.login(email: 'a@example.com', password: 'password1');
   }
 
+  test('normalizeServerUrl accepts what people actually type', () {
+    expect(
+      ApiService.normalizeServerUrl(' abc.trycloudflare.com/ '),
+      'https://abc.trycloudflare.com/api',
+    );
+    expect(
+      ApiService.normalizeServerUrl('http://192.168.1.5:8000'),
+      'http://192.168.1.5:8000/api',
+    );
+    expect(
+      ApiService.normalizeServerUrl('https://example.com/api'),
+      'https://example.com/api',
+    );
+    expect(ApiService.normalizeServerUrl('   '), isNull);
+    expect(ApiService.normalizeServerUrl('ftp://example.com'), isNull);
+  });
+
+  test('setServerUrl signs out and survives a restart', () async {
+    await signIn();
+    await ApiService.setServerUrl('https://example.com/api');
+    expect(ApiService.currentUser.value, isNull);
+
+    await ApiService.restoreSession();
+    expect(ApiService.baseUrl, 'https://example.com/api');
+
+    await ApiService.setServerUrl(null);
+    expect(ApiService.savedServerUrl, '');
+  });
+
   test('login stores the session and sends it on later requests', () async {
     await signIn();
     expect(ApiService.currentUser.value?.displayName, '小明');

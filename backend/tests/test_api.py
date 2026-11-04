@@ -958,6 +958,107 @@ class AvatarTests(ApiTestCase):
 
 
 class MapPointTests(ApiTestCase):
+    def entry_with_photo(self, client: TestClient, image: bytes):
+        entry = client.post(
+            "/api/entries", json={"title": "有照片", "content": "夕陽"}
+        ).json()
+        uploaded = client.post(
+            f"/api/entries/{entry['id']}/photo",
+            content=image,
+            headers={"Content-Type": "image/jpeg"},
+        )
+        self.assertEqual(uploaded.status_code, 200)
+        return entry["id"], uploaded.json()["photo_url"]
+
+    def test_entry_photo_is_saved_and_visible_to_its_owner_only(self) -> None:
+        owner = new_user("entry-photo@example.com")
+        image = b"\xff\xd8\xfftest-entry-photo"
+        entry_id, photo_url = self.entry_with_photo(owner, image)
+        self.assertEqual(owner.get(photo_url).content, image)
+        self.assertEqual(owner.get(f"/api/entries/{entry_id}").json()["photo_url"], photo_url)
+        listed = {entry["id"]: entry for entry in owner.get("/api/entries").json()}
+        self.assertEqual(listed[entry_id]["photo_url"], photo_url)
+        posts = owner.get("/api/user/posts").json()
+        post = next(p for p in posts if p["type"] == "entry" and p["id"] == entry_id)
+        self.assertEqual(post["photo_url"], photo_url)
+
+        other = new_user("entry-photo-viewer@example.com")
+        self.assertEqual(other.get(photo_url).status_code, 404)
+        self.assertEqual(
+            other.post(
+                f"/api/entries/{entry_id}/photo",
+                content=image,
+                headers={"Content-Type": "image/jpeg"},
+            ).status_code,
+            404,
+        )
+        self.assertEqual(other.delete(f"/api/entries/{entry_id}/photo").status_code, 404)
+
+    def test_entry_photo_rejects_non_images(self) -> None:
+        owner = new_user("entry-photo-svg@example.com")
+        entry = owner.post("/api/entries", json={"title": "t", "content": "c"}).json()
+        self.assertEqual(
+            owner.post(
+                f"/api/entries/{entry['id']}/photo",
+                content=b"<svg onload=alert(1)>",
+                headers={"Content-Type": "image/jpeg"},
+            ).status_code,
+            415,
+        )
+
+    def test_entry_photo_files_go_when_replaced_removed_or_deleted(self) -> None:
+        owner = new_user("entry-photo-cleanup@example.com")
+        entry_id, first_url = self.entry_with_photo(owner, b"\xff\xd8\xfffirst")
+        stored = lambda url: main.ENTRY_PHOTO_DIR / url.rsplit("/", 1)[1]
+        self.assertTrue(stored(first_url).is_file())
+
+        second_url = owner.post(
+            f"/api/entries/{entry_id}/photo",
+            content=b"\xff\xd8\xffsecond",
+            headers={"Content-Type": "image/jpeg"},
+        ).json()["photo_url"]
+        self.assertFalse(stored(first_url).exists())
+
+        self.assertEqual(owner.delete(f"/api/entries/{entry_id}/photo").status_code, 204)
+        self.assertFalse(stored(second_url).exists())
+        self.assertIsNone(owner.get(f"/api/entries/{entry_id}").json()["photo_url"])
+
+        entry_id, third_url = self.entry_with_photo(owner, b"\xff\xd8\xffthird")
+        self.assertEqual(owner.delete(f"/api/entries/{entry_id}").status_code, 204)
+        self.assertFalse(stored(third_url).exists())
+
+    def test_entry_photo_follows_the_edit_window(self) -> None:
+        owner = new_user("entry-photo-locked@example.com")
+        entry_id, photo_url = self.entry_with_photo(owner, b"\xff\xd8\xffold")
+        with main.get_connection() as conn:
+            conn.execute(
+                "UPDATE entries SET created_at = '2020-01-01 00:00:00' WHERE id = ?",
+                (entry_id,),
+            )
+            conn.commit()
+        self.assertEqual(owner.delete(f"/api/entries/{entry_id}/photo").status_code, 403)
+        self.assertEqual(
+            owner.post(
+                f"/api/entries/{entry_id}/photo",
+                content=b"\xff\xd8\xffnew",
+                headers={"Content-Type": "image/jpeg"},
+            ).status_code,
+            403,
+        )
+        self.assertEqual(owner.get(photo_url).status_code, 200)
+
+    def test_installable_app_files_are_served(self) -> None:
+        client = TestClient(main.app)
+        manifest = client.get("/manifest.webmanifest")
+        self.assertEqual(manifest.status_code, 200)
+        self.assertIn("application/manifest+json", manifest.headers["content-type"])
+        for icon in manifest.json()["icons"]:
+            self.assertEqual(client.get(f"/{icon['src']}").status_code, 200)
+        worker = client.get("/sw.js")
+        self.assertIn("javascript", worker.headers["content-type"])
+        self.assertEqual(worker.headers["cache-control"], "no-cache")
+        self.assertIn("worker-src 'self'", worker.headers["content-security-policy"])
+
     def test_footprint_cover_upload_is_private_and_can_be_removed(self) -> None:
         owner = new_user("footprint-cover@example.com")
         point = owner.post(
@@ -1491,7 +1592,7 @@ class MeetupTests(ApiTestCase):
                 .replace(microsecond=0)
                 .isoformat(),
                 "departure_city": "新北市",
-                "departure_district": "板橋區",
+                "origin": "板橋車站",
                 "destinations": ["十分老街", "九份老街"],
             }
             return {**payload, **overrides}
@@ -1502,10 +1603,21 @@ class MeetupTests(ApiTestCase):
             created = host.post("/api/meetups", json=self.meetup_payload())
             self.assertEqual(created.status_code, 201)
             meetup = created.json()
+            self.addCleanup(host.delete, f"/api/meetups/{meetup['id']}")
             self.assertEqual(meetup["host_name"], "揪團者")
             self.assertEqual(meetup["departure_city"], "新北市")
-            self.assertEqual(meetup["departure_district"], "板橋區")
-            self.assertEqual(meetup["destinations"], ["十分老街", "九份老街"])
+            self.assertEqual(meetup["origin"]["name"], "板橋車站")
+            self.assertEqual(
+                [stop["name"] for stop in meetup["destinations"]],
+                ["十分老街", "九份老街"],
+            )
+            # Without a Google key the stops stay unlocated but keep every field.
+            for stop in [meetup["origin"], *meetup["destinations"]]:
+                self.assertEqual(
+                    set(stop), {"name", "lat", "lng", "city", "district"}
+                )
+                self.assertIsNone(stop["lat"])
+                self.assertIsNone(stop["lng"])
             self.assertEqual(meetup["participant_count"], 1)
             self.assertTrue(meetup["is_owner"])
             self.assertTrue(meetup["is_participating"])
@@ -1576,13 +1688,99 @@ class MeetupTests(ApiTestCase):
             self.assertEqual(updated.status_code, 200)
             self.assertEqual(updated.json()["title"], "週末路線更新")
             self.assertEqual(
-                updated.json()["destinations"],
+                [stop["name"] for stop in updated.json()["destinations"]],
                 ["十分瀑布", "九份老街", "基隆夜市"],
             )
             self.assertEqual(updated.json()["participant_count"], 10)
 
             self.assertEqual(host.delete(f"/api/meetups/{meetup_id}").status_code, 204)
             self.assertEqual(host.get("/api/meetups").json(), [])
+
+    def test_legacy_string_destinations_are_normalized(self) -> None:
+            # Meetups created before located stops stored plain name strings.
+            host = new_user("meetup-legacy@example.com")
+            created = host.post("/api/meetups", json=self.meetup_payload())
+            meetup_id = created.json()["id"]
+            with main.get_connection() as conn:
+                # A pre-origin row: name strings, empty origin, a departure district.
+                conn.execute(
+                    "UPDATE meetups SET destinations_json = ?, origin_json = '{}', "
+                    "departure_district = ? WHERE id = ?",
+                    (json.dumps(["十分老街", "九份老街"]), "板橋區", meetup_id),
+                )
+                conn.commit()
+            meetup = host.get("/api/meetups").json()[0]
+            stops = meetup["destinations"]
+            self.assertEqual([stop["name"] for stop in stops], ["十分老街", "九份老街"])
+            for stop in stops:
+                self.assertEqual(set(stop), {"name", "lat", "lng", "city", "district"})
+                self.assertIsNone(stop["lat"])
+            # With no stored origin, it falls back to the old departure area.
+            self.assertEqual(meetup["origin"]["name"], "新北市板橋區")
+            self.assertEqual(host.delete(f"/api/meetups/{meetup_id}").status_code, 204)
+
+    def test_meetup_creates_and_removes_public_footprint(self) -> None:
+            host = new_user("meetup-footprint@example.com", "揪團者")
+            viewer = new_user("meetup-footprint-viewer@example.com")
+            created = host.post(
+                "/api/meetups", json=self.meetup_payload(title="九份一日遊")
+            )
+            self.assertEqual(created.status_code, 201)
+            meetup_id = created.json()["id"]
+
+            def footprint_for(client):
+                return next(
+                    (
+                        point
+                        for point in client.get("/api/map-points").json()
+                        if point["name"] == "九份一日遊"
+                    ),
+                    None,
+                )
+
+            point = footprint_for(host)
+            self.assertIsNotNone(point)
+            self.assertEqual(point["privacy"], "public")
+            # The route is the typed start point followed by every destination.
+            self.assertEqual(
+                [stop["name"] for stop in point["points"]],
+                ["板橋車站", "十分老街", "九份老街"],
+            )
+            # Being public, it is visible to other people too.
+            self.assertIsNotNone(footprint_for(viewer))
+
+            # Editing the meetup updates the same footprint, not a new one.
+            host.put(
+                f"/api/meetups/{meetup_id}",
+                json=self.meetup_payload(title="九份一日遊", destinations=["菁桐老街"]),
+            )
+            point = footprint_for(host)
+            self.assertEqual(
+                [stop["name"] for stop in point["points"]],
+                ["板橋車站", "菁桐老街"],
+            )
+
+            # Cancelling the meetup removes its footprint.
+            self.assertEqual(
+                host.delete(f"/api/meetups/{meetup_id}").status_code, 204
+            )
+            self.assertIsNone(footprint_for(host))
+
+    def test_validation_message_reads_as_plain_language(self) -> None:
+        client = new_user("meetup-message@example.com")
+        response = client.post(
+            "/api/meetups",
+            json=self.meetup_payload(starts_at="2020-01-01T09:00:00+08:00"),
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["detail"][0]["msg"], "出發時間需晚於現在")
+
+    def test_meetup_says_which_footprint_is_its_route(self) -> None:
+        client = new_user("meetup-footprint-id@example.com")
+        created = client.post("/api/meetups", json=self.meetup_payload()).json()
+        self.addCleanup(client.delete, f"/api/meetups/{created['id']}")
+        points = client.get("/api/map-points").json()
+        self.assertIn(created["map_point_id"], [point["id"] for point in points])
 
     def test_meetup_requires_future_time_and_route(self) -> None:
             host = new_user("meetup-validation@example.com")
@@ -1621,7 +1819,7 @@ class DiaryChatTests(ApiTestCase):
                         "content": json.dumps(
                             {
                                 "title": "河岸的晚霞",
-                                "content": "下班後沿河散步，看見晚霞。",
+                                "content": "AI 改寫後漏字的內容",
                                 "mood": "放鬆",
                                 "tags": ["散步", "#晚霞"],
                                 "reply": "這段黃昏聽起來很療癒。",
@@ -1836,7 +2034,7 @@ class EmailVerificationTests(ApiTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.json(),
-            {"message": "若帳號存在且郵件服務已設定，重設連結會寄到該信箱。"},
+            {"message": "若帳號存在，重設連結會寄到該信箱，請一併查看垃圾郵件匣。"},
         )
         self.assertEqual(self.mail.messages[-1]["To"], email)
         token = self.mail.reset_token()
@@ -2195,6 +2393,29 @@ class MapsProxyTests(ApiTestCase):
         self.assertEqual(best["address"], "高雄市鼓山區")
         self.assertTrue(best["matched"])
 
+    def test_lookup_drops_far_namesakes_when_a_nearby_place_exists(self) -> None:
+        client = new_user("lookup-nearby@example.com")
+        response, _ = self.photon_lookup(
+            client,
+            [
+                ({"name": "淡水二街", "city": "广州市"}, 23.13, 113.26),
+                ({"name": "淡水老街", "city": "新北市"}, 25.17, 121.44),
+            ],
+            query="淡水老街",
+        )
+        self.assertEqual(
+            [place["name"] for place in response.json()["places"]], ["淡水老街"]
+        )
+
+    def test_lookup_keeps_far_places_when_nothing_is_nearby(self) -> None:
+        client = new_user("lookup-overseas@example.com")
+        response, _ = self.photon_lookup(
+            client,
+            [({"name": "東京鐵塔", "city": "東京都"}, 35.66, 139.75)],
+            query="東京鐵塔",
+        )
+        self.assertEqual(response.json()["places"][0]["name"], "東京鐵塔")
+
     def test_lookup_writes_taiwan_addresses_from_county_down(self) -> None:
         client = new_user("lookup-address@example.com")
         response, _ = self.photon_lookup(
@@ -2232,7 +2453,7 @@ class MapsProxyTests(ApiTestCase):
                 "title": "好友揪團",
                 "starts_at": starts_at,
                 "departure_city": "新北市",
-                "departure_district": "板橋區",
+                "origin": "板橋車站",
                 "destinations": ["九份老街"],
             },
         )

@@ -1,20 +1,22 @@
 async function refreshServerStatus() {
-  serverStatusLabel.textContent = "正在檢查伺服器…";
-  serverStatusDetail.textContent = "正在檢查後端服務連線。";
-  serverStatusDot.classList.remove("is-offline");
+  // Only a problem is worth showing; a healthy connection needs no indicator.
+  const serverMenu = document.querySelector("#server-menu");
   try {
     const health = await apiRequest("/health");
     if (health.status !== "ok") {
-      throw new Error("後端服務目前尚未就緒。");
+      throw new Error("服務暫時無法使用，請稍後再試。");
     }
-    serverStatusLabel.textContent = "已連線至 Mac mini 伺服器";
-    serverStatusDetail.textContent = "連線正常，生活記錄服務已就緒。";
+    serverMenu.hidden = true;
+    serverMenu.open = false;
+    serverOffline = false;
   } catch (error) {
+    serverOffline = true;
+    serverMenu.hidden = false;
     serverStatusDot.classList.add("is-offline");
-    serverStatusLabel.textContent = "伺服器未連線";
+    serverStatusLabel.textContent = "連線中斷";
     serverStatusDetail.textContent =
       error instanceof TypeError
-        ? "目前連不上後端，請確認 FastAPI 伺服器已啟動。"
+        ? "目前連不上伺服器，請確認網路後再試一次。"
         : error.message;
   }
 }
@@ -33,8 +35,8 @@ async function loadAiDiaryStatus() {
   try {
     const result = await apiRequest("/ai/status");
     aiProviderStatus.textContent = result.configured
-      ? `AI 日記已就緒${result.model ? ` · ${result.model}` : ""}。提交內容會傳送至已設定的 AI 服務。`
-      : "AI 服務尚未設定。請在後端設定 AI_API_KEY，並重啟服務後使用。";
+      ? `AI 日記已就緒。提交內容會傳送至已設定的 AI 服務。`
+      : "AI 日記暫時無法使用，可以先在首頁用「新增記錄」手動寫日記。";
   } catch (error) {
     aiProviderStatus.textContent = `無法檢查 AI 服務：${error.message}`;
   }
@@ -261,7 +263,7 @@ async function updateCloseFriend(event) {
     );
   } catch (error) {
     checkbox.checked = !checkbox.checked;
-    window.alert(`更新摯友名單失敗：${error.message}`);
+    showToast(`更新摯友名單失敗：${error.message}`);
   }
 }
 
@@ -288,7 +290,7 @@ async function handleSocialAction(event) {
       });
     }
   } catch (error) {
-    window.alert(error.message);
+    showToast(error.message);
   }
   await Promise.all([openProfileRelations(currentSocialRelation), loadProfile()]);
 }
@@ -320,6 +322,9 @@ function showPrivacy(id, privacy) {
     .querySelectorAll(`[data-privacy-badge="point:${id}"]`)
     .forEach((element) => {
       element.textContent = privacyLabel(privacy);
+      if (element.classList.contains("mood")) {
+        element.className = `mood is-${privacy}`;
+      }
     });
   const point = mapPoints.find((item) => item.id === id);
   if (point) point.privacy = privacy;
@@ -361,7 +366,7 @@ async function runPrivacySave(id, save) {
     });
   } catch (error) {
     showPrivacy(id, save.confirmed);
-    window.alert(`更新隱私設定失敗：${error.message}`);
+    showToast(`更新隱私設定失敗：${error.message}`);
   } finally {
     privacySaves.delete(id);
   }

@@ -1194,7 +1194,7 @@ document.addEventListener("click", (event) => {
       Number.isFinite(lng) &&
       !openGoogleNavigation({ lat, lng })
     ) {
-      window.alert("無法開啟新分頁，請允許彈出視窗後重試。");
+      showToast("無法開啟新分頁，請允許彈出視窗後重試。");
     }
     return;
   }
@@ -1204,13 +1204,13 @@ document.addEventListener("click", (event) => {
     (point) => point.id === Number(routeButton.dataset.googleRouteNavigation),
   );
   if (!route) {
-    window.alert("找不到這趟足跡的途經點，請重新載入地圖後重試。");
+    showToast("找不到這趟足跡的途經點，請重新載入地圖後重試。");
     return;
   }
   const url = footprintDirectionsUrl(footprintRoutePoints(route));
   const opened = url && window.open(url, "_blank");
   if (!opened) {
-    window.alert("無法開啟新分頁，請允許彈出視窗後重試。");
+    showToast("無法開啟新分頁，請允許彈出視窗後重試。");
     return;
   }
   opened.opener = null;
@@ -1270,7 +1270,7 @@ document.querySelector("#map-my-location").addEventListener("click", async (even
     map.panTo(position);
     map.setZoom(16);
   } catch (error) {
-    window.alert(error.message);
+    showToast(error.message);
   } finally {
     button.disabled = false;
   }

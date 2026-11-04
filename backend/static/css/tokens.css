@@ -1,22 +1,21 @@
 /* Design tokens: the single source of colour, type, radius and shadow.
    Change the look of the whole site here. Dark values live in the media query so
    theme.js can retarget it for the manual light/dark toggle. */
+
 :root {
   color-scheme: light dark;
-
   /* Paper and surfaces */
-  --bg: #f6f3ec;
-  --surface: #fffdf8;
+  --bg: #f3f0e8;
+  --surface: #fffefa;
   --sunken: #f3efe6;
   --tint: rgba(58, 62, 48, 0.07);
   --line: #e2dccd;
   --line-strong: #c9c2b0;
-
+  --field-line: #8e8a7b;
   /* Ink */
   --ink: #23261f;
   --ink-2: #51564a;
   --ink-3: #66695d;
-
   /* Pine: primary action and links */
   --accent: #1f6b57;
   --accent-hover: #185646;
@@ -24,11 +23,9 @@
   --accent-soft: #e1eee7;
   --accent-line: #a9cdbd;
   --on-accent: #ffffff;
-
   /* Persimmon: small warm highlights only */
   --highlight: #af4526;
   --highlight-soft: #fbe9e1;
-
   /* Status */
   --danger: #b3352b;
   --danger-soft: #fbeae7;
@@ -37,13 +34,11 @@
   --success-soft: #e3f1e8;
   --warn: #93600a;
   --warn-soft: #f8efd9;
-
   /* Shadow */
   --shadow-rgb: 58 48 28;
   --shadow-1: 0 1px 2px rgb(var(--shadow-rgb) / 0.05), 0 6px 18px rgb(var(--shadow-rgb) / 0.05);
   --shadow-2: 0 2px 6px rgb(var(--shadow-rgb) / 0.06), 0 18px 44px rgb(var(--shadow-rgb) / 0.12);
   --scrim: rgba(35, 34, 26, 0.42);
-
   /* Type */
   --font-sans:
     -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC",
@@ -57,40 +52,16 @@
   --text-xl: 21px;
   --text-2xl: 28px;
   --text-display: clamp(30px, 4.2vw, 42px);
-
   /* Shape */
   --r-sm: 8px;
   --r-md: 10px;
   --r-lg: 14px;
   --r-xl: 18px;
   --r-pill: 999px;
-
-  /* Legacy names still used by the feature stylesheets */
-  --blue: var(--accent);
-  --blue-dark: var(--accent-text);
-  --muted: var(--ink-3);
-  --surface-text: var(--ink);
-  --surface-fill: var(--surface);
-  --glass-fill: var(--surface);
-  --glass-fill-strong: var(--surface);
-  --glass-border: var(--line);
-  --glass-shadow: var(--shadow-1);
-  --map-surface: var(--surface);
-  --map-text: var(--ink);
-  --map-text-2: var(--ink-2);
-  --map-text-3: var(--ink-3);
-  --map-hover: var(--sunken);
-  --map-line: var(--line);
-  --map-accent: var(--accent-text);
-  --map-accent-soft: var(--accent-soft);
-  --map-green: var(--success);
-  --map-amber: var(--warn);
-
   /* Text over photos stays light in both themes */
   --on-photo: #ffffff;
   --photo-scrim: rgba(18, 20, 16, 0.62);
   --photo-scrim-soft: rgba(18, 20, 16, 0.12);
-
   font-family: var(--font-sans);
   color: var(--ink);
   background: var(--bg);
@@ -101,27 +72,24 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #131613;
-    --surface: #1c201c;
+    --bg: #111411;
+    --surface: #1b1f1b;
     --sunken: #171a17;
     --tint: rgba(236, 233, 224, 0.08);
     --line: #2e342e;
     --line-strong: #454c45;
-
+    --field-line: #6f776f;
     --ink: #eceae1;
     --ink-2: #c0c1b6;
     --ink-3: #9a9c90;
-
     --accent: #74c9ab;
     --accent-hover: #8ed6bc;
     --accent-text: #8ed6bc;
     --accent-soft: #1f362d;
     --accent-line: #35594a;
     --on-accent: #0d2a21;
-
     --highlight: #ec9076;
     --highlight-soft: #3a241c;
-
     --danger: #f0978e;
     --danger-soft: #3a211e;
     --danger-line: #6a3a35;
@@ -129,7 +97,6 @@
     --success-soft: #1d3326;
     --warn: #e0b35f;
     --warn-soft: #372c15;
-
     --shadow-rgb: 0 0 0;
     --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
     --shadow-2: 0 18px 44px rgb(0 0 0 / 0.45);

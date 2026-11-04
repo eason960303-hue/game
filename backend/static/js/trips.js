@@ -15,7 +15,7 @@ function setCheckedTripPoints(pointIds) {
 function renderTrips() {
   if (trips.length === 0) {
     tripList.innerHTML =
-      '<div class="module-empty">尚未建立行程包，從左側表單開始規劃。</div>';
+      '<div class="module-empty">尚未建立行程包，填寫表單開始規劃。</div>';
     return;
   }
   tripList.innerHTML = trips
@@ -27,7 +27,7 @@ function renderTrips() {
               <h3>${escapeHtml(trip.title)}</h3>
               <p>${escapeHtml(trip.description || "尚未新增行程簡介")} · ${trip.points.length} 個足跡</p>
             </div>
-            <span class="mood">${trip.is_public ? "公開分享" : "私人行程"}</span>
+            ${trip.is_public ? privacyChipHtml("public", "公開分享") : privacyChipHtml("private", "私人行程")}
           </div>
           <ol class="trip-points">
             ${trip.points.map((point) => `<li>${escapeHtml(point.name)} · ${privacyLabel(point.privacy)}</li>`).join("") || "<li>尚未加入足跡</li>"}

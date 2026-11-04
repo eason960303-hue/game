@@ -62,6 +62,10 @@ function renderDiaryMonth() {
                 <span class="diary-month-entry-title">${escapeHtml(entry.title)}</span>
               </summary>
               <p>${escapeHtml(entry.content)}</p>
+              ${entryPhotoHtml(entry)}
+              <div class="diary-month-entry-actions">
+                <button class="small-action is-destructive" type="button" data-delete-entry="${Number(entry.id)}" aria-label="刪除日記：${escapeHtml(entry.title)}">刪除</button>
+              </div>
             </details>
           `;
         })

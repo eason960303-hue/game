@@ -1,0 +1,21 @@
+{
+  "id": "/",
+  "name": "Life Logger 生活記錄",
+  "short_name": "Life Logger",
+  "description": "把日常的風景、心情與足跡，收藏成自己的生活記錄。",
+  "lang": "zh-Hant",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f0e8",
+  "theme_color": "#f3f0e8",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "AI 日記", "url": "/#ai-diary" },
+    { "name": "足跡地圖", "url": "/#map" }
+  ]
+}

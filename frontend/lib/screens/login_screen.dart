@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:life_logger/services/api_service.dart';
 import 'package:life_logger/theme/app_theme.dart';
+import 'package:life_logger/widgets/server_url_dialog.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -313,6 +314,17 @@ class _LoginScreenState extends State<LoginScreen> {
                           label: const Text('使用 Apple 登入'),
                         ),
                       ],
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: _isSubmitting
+                            ? null
+                            : () async {
+                                if (await showServerUrlDialog(context)) {
+                                  _loadProviders();
+                                }
+                              },
+                        child: const Text('伺服器位址'),
+                      ),
                     ],
                   ),
                 ),

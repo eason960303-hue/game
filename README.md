@@ -15,9 +15,17 @@ python3 main.py
 ```
 backend/static/
 ├── index.html   頁面結構
-├── css/         tokens.css 集中定義顏色、字體與圓角（換風格改這裡），design.css 是最後載入的版面與元件層，其餘依功能分開
+├── css/         tokens.css 集中定義顏色、字體與圓角（換風格改這裡），app.css 是版面與元件，由上而下依序覆蓋
 └── js/          一般 script，共用全域範圍，index.html 裡的順序就是執行順序
 ```
+
+### 手機安裝（PWA）
+
+網頁版可以加到手機主畫面，像 App 一樣全螢幕開啟：Android 的 Chrome 會在首頁和「我的」顯示安裝按鈕，iPhone 則用 Safari 的分享按鈕選「加入主畫面」。這需要 HTTPS，`127.0.0.1` 除外。
+
+- 離線時仍能開啟介面，但日記等內容不會存在手機上，要連線才看得到。`backend/static/sw.js` 不會快取任何 `/api/` 回應。
+- 介面檔案會先向伺服器取得最新版，3 秒內沒有回應才用手機上的版本，所以修改 `backend/static` 後重新開啟就會生效。
+- 安裝後的圖示綁定當時的網址。`trycloudflare.com` 的網址每次重開通道都會變，舊圖示就會失效，長期使用請改用固定網域。
 
 ### 環境變數
 
@@ -74,7 +82,7 @@ flutter run
 
 需要完整的 Xcode（iOS、macOS）或 Android Studio（Android）。
 
-- 預設連到本機後端，Android 模擬器會自動改用 `10.0.2.2`。其他位址用 `--dart-define=API_BASE_URL=https://<host>/api` 指定。
+- 預設連到本機後端，Android 模擬器會自動改用 `10.0.2.2`。其他位址用 `--dart-define=API_BASE_URL=https://<host>/api` 指定，或在 App 登入畫面按「伺服器位址」輸入，例如 cloudflared 的網址。
 - 正式版 Android 只允許 HTTPS，HTTP 僅開放給 debug 版。
 - App 的第三方登入會開啟系統瀏覽器，再透過 `lifelogger://auth` 回到 App。模擬器和實機都必須連得到 `PUBLIC_BASE_URL`，所以實務上需要公開的 HTTPS 網址。
 - macOS 版未加入 Keychain 權限，因為那需要 Apple 開發者簽章。App 可以正常登入，但關閉後要重新登入。要保存登入狀態，請設定簽章並加入 `keychain-access-groups`。

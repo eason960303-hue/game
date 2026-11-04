@@ -4,6 +4,7 @@ import 'package:life_logger/screens/home_screen.dart';
 import 'package:life_logger/screens/login_screen.dart';
 import 'package:life_logger/services/api_service.dart';
 import 'package:life_logger/theme/app_theme.dart';
+import 'package:life_logger/widgets/server_url_dialog.dart';
 
 void main() {
   runApp(const LifeLoggerApp());
@@ -81,6 +82,14 @@ class _AuthGateState extends State<AuthGate> {
                 FilledButton(
                   onPressed: _restoreSession,
                   child: const Text('重試'),
+                ),
+                const SizedBox(height: 8),
+                // A saved address can go stale, and this screen is the only way out.
+                TextButton(
+                  onPressed: () async {
+                    if (await showServerUrlDialog(context)) _restoreSession();
+                  },
+                  child: const Text('更改伺服器位址'),
                 ),
               ],
             ),

@@ -13,6 +13,7 @@ backend/data/*.sqlite3
 tset.txt
 backend/data/avatars/
 backend/data/footprint-covers/
+backend/data/entry-photos/
 
 # Local AI model files (about 2 GB)
 ollama-models/

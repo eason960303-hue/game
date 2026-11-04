@@ -6,18 +6,16 @@ document.querySelector("#open-entry").addEventListener("click", () => {
   openEntryEditor();
 });
 
-document.querySelector("#close-dialog").addEventListener("click", () => {
-  dialog.close();
-  resetEntryEditor();
-});
+document.querySelector("#close-dialog").addEventListener("click", closeEntryDialog);
+document.querySelector("#dismiss-dialog").addEventListener("click", closeEntryDialog);
 
-document.querySelector("#dismiss-dialog").addEventListener("click", () => {
-  dialog.close();
-  resetEntryEditor();
+dialog.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeEntryDialog();
 });
 
 dialog.addEventListener("click", (event) => {
-  if (event.target === dialog) dialog.close();
+  if (event.target === dialog) closeEntryDialog();
 });
 
 document.querySelector("#refresh-server-status").addEventListener(
@@ -205,7 +203,7 @@ async function toggleFootprintReaction(event) {
       Object.assign(current, before);
       showFootprintReactions(current);
     }
-    window.alert(error.message || "操作失敗，請稍後再試。");
+    showToast(error.message || "操作失敗，請稍後再試。");
   } finally {
     footprintReactionsPending.delete(key);
   }

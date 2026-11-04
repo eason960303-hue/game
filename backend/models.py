@@ -27,6 +27,7 @@ class EntryOut(BaseModel):
     location: Optional[str] = None
     privacy: str
     tags: Optional[str] = None
+    photo_url: Optional[str] = None
     created_at: str
     owner_name: Optional[str] = None
     owner_username: Optional[str] = None

@@ -86,7 +86,7 @@ tripList.addEventListener("click", async (event) => {
       renderTrips();
     } catch (error) {
       deleteButton.disabled = false;
-      window.alert(`刪除行程包失敗：${error.message}`);
+      showToast(`刪除行程包失敗：${error.message}`);
     }
     return;
   }

@@ -28,6 +28,9 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Entry> _entries = [];
   List<LocationPoint> _locations = [];
   UserProfile? _profile;
+  bool _hasLoadedData = false;
+  // Tabs are built on first visit, then kept so they hold their scroll and map.
+  final Set<int> _visitedTabs = {0};
 
   @override
   void initState() {
@@ -35,36 +38,49 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadData();
   }
 
+  // Each part loads on its own: one failure leaves the others on screen.
   Future<void> _loadData() async {
-    try {
-      final results = await Future.wait<Object>([
-        ApiService.fetchDashboard(),
-        ApiService.fetchEntries(),
-        ApiService.fetchLocations(),
-        ApiService.fetchProfile(),
-      ]);
-
-      if (!mounted) return;
-      setState(() {
-        _dashboard = results[0] as Map<String, dynamic>;
-        _entries = (results[1] as List<dynamic>)
-            .map((e) => Entry.fromJson(e))
-            .toList();
-        _locations = (results[2] as List<dynamic>)
-            .map((l) => LocationPoint.fromJson(l))
-            .toList();
-        _profile = results[3] as UserProfile;
-        _error = null;
-        _isLoading = false;
-      });
-    } catch (error) {
-      debugPrint('Failed to load data: $error');
-      if (!mounted) return;
-      setState(() {
-        _error = error is ApiException ? error.message : '伺服器回傳的資料無法讀取';
-        _isLoading = false;
-      });
+    String? firstError;
+    Future<T?> attempt<T>(Future<T> Function() load) async {
+      try {
+        return await load();
+      } catch (error) {
+        debugPrint('Failed to load data: $error');
+        firstError ??= error is ApiException ? error.message : '伺服器回傳的資料無法讀取';
+        return null;
+      }
     }
+
+    final dashboardLoad = attempt(ApiService.fetchDashboard);
+    final entriesLoad = attempt(() async {
+      final items = await ApiService.fetchEntries();
+      return items.map((e) => Entry.fromJson(e)).toList();
+    });
+    final locationsLoad = attempt(() async {
+      final items = await ApiService.fetchLocations();
+      return items.map((l) => LocationPoint.fromJson(l)).toList();
+    });
+    final profileLoad = attempt(ApiService.fetchProfile);
+
+    final dashboard = await dashboardLoad;
+    final entries = await entriesLoad;
+    final locations = await locationsLoad;
+    final profile = await profileLoad;
+
+    if (!mounted) return;
+    setState(() {
+      _dashboard = dashboard ?? _dashboard;
+      _entries = entries ?? _entries;
+      _locations = locations ?? _locations;
+      _profile = profile ?? _profile;
+      _hasLoadedData = _hasLoadedData ||
+          dashboard != null ||
+          entries != null ||
+          locations != null ||
+          profile != null;
+      _error = firstError;
+      _isLoading = false;
+    });
   }
 
   Future<void> _retry() async {
@@ -130,7 +146,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: BottomNavigationBar(
           currentIndex: _selectedIndex,
-          onTap: (index) => setState(() => _selectedIndex = index),
+          onTap: (index) => setState(() {
+            _selectedIndex = index;
+            _visitedTabs.add(index);
+          }),
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: '日記'),
             BottomNavigationBarItem(icon: Icon(Icons.map_rounded), label: '足跡'),
@@ -146,14 +165,17 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     // Keep already loaded data on screen when only a later refresh failed.
-    if (_error != null && _profile == null) {
+    if (_error != null && !_hasLoadedData) {
       return _LoadErrorView(message: _error!, onRetry: _retry);
     }
-    return switch (_selectedIndex) {
-      0 => _buildHomeTab(),
-      1 => _buildJourneyTab(),
-      _ => _buildProfileTab(),
-    };
+    return IndexedStack(
+      index: _selectedIndex,
+      children: [
+        _buildHomeTab(),
+        if (_visitedTabs.contains(1)) _buildJourneyTab() else const SizedBox.shrink(),
+        if (_visitedTabs.contains(2)) _buildProfileTab() else const SizedBox.shrink(),
+      ],
+    );
   }
 
   Widget _buildTabList({required List<Widget> children}) {

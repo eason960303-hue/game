@@ -26,6 +26,7 @@ class ApiService {
   static const _configuredBaseUrl = String.fromEnvironment('API_BASE_URL');
   static const _sessionCookieName = 'life_logger_session';
   static const _sessionStorageKey = 'session_token';
+  static const _serverUrlStorageKey = 'server_url';
   static const _requestTimeout = Duration(seconds: 20);
   static const _storage = FlutterSecureStorage();
 
@@ -43,8 +44,13 @@ class ApiService {
   static final currentUser = ValueNotifier<AppUser?>(null);
 
   static String? _sessionToken;
+  static String? _savedBaseUrl;
+
+  /// What the person typed in the server dialog, or empty for the default.
+  static String get savedServerUrl => _savedBaseUrl ?? '';
 
   static String get baseUrl {
+    if (_savedBaseUrl != null) return _savedBaseUrl!;
     if (_configuredBaseUrl.isNotEmpty) return _configuredBaseUrl;
     // The Android emulator reaches the host machine through this alias.
     final host =
@@ -52,8 +58,37 @@ class ApiService {
     return 'http://$host:8000/api';
   }
 
+  /// Turns what someone types ("abc.trycloudflare.com") into an API base URL.
+  /// Returns null when it can't be a server address.
+  static String? normalizeServerUrl(String input) {
+    var url = input.trim().replaceFirst(RegExp(r'/+$'), '');
+    if (url.isEmpty) return null;
+    if (!url.contains('://')) url = 'https://$url';
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty) return null;
+    if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+    return url.endsWith('/api') ? url : '$url/api';
+  }
+
+  /// Points the app at another server; empty goes back to the default. A session
+  /// belongs to the server that issued it, so this also signs out.
+  static Future<void> setServerUrl(String? baseUrl) async {
+    _savedBaseUrl = baseUrl;
+    await _clearSession();
+    try {
+      if (baseUrl == null) {
+        await _storage.delete(key: _serverUrlStorageKey);
+      } else {
+        await _storage.write(key: _serverUrlStorageKey, value: baseUrl);
+      }
+    } on PlatformException catch (error) {
+      debugPrint('Failed to store server address: $error');
+    }
+  }
+
   static Future<void> restoreSession() async {
     try {
+      _savedBaseUrl = await _storage.read(key: _serverUrlStorageKey);
       _sessionToken = await _storage.read(key: _sessionStorageKey);
     } on PlatformException catch (error) {
       debugPrint('Failed to read stored session: $error');
@@ -300,7 +335,7 @@ class ApiService {
     } on TimeoutException {
       throw const ApiException('伺服器回應逾時，請稍後再試');
     } on http.ClientException {
-      throw const ApiException('無法連線到伺服器，請確認網路與後端服務');
+      throw const ApiException('無法連線到伺服器，請確認網路與伺服器位址');
     }
 
     final decoded = _decodeBody(response);

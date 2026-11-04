@@ -1,7 +1,7 @@
 // Runs from <head>, right after the stylesheets, so a saved theme applies before the first paint.
 const THEME_STORAGE_KEY = "life-logger-theme";
 const systemDarkTheme = window.matchMedia("(prefers-color-scheme: dark)");
-const THEME_BAR_COLORS = { light: "#f6f3ec", dark: "#131613" };
+const THEME_BAR_COLORS = { light: "#f3f0e8", dark: "#111411" };
 
 // Dark styles live in media queries, so a manual choice retargets those queries
 // instead of keeping a second copy of every dark rule.
