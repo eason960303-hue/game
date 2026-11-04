@@ -253,21 +253,17 @@ textarea {
 }
 
 .meetup-card {
-  display: flex;
   height: 100%;
-  flex-direction: column;
   min-width: 0;
 }
 
 .meetup-card-heading {
   display: flex;
-  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
 .meetup-card-heading h3 {
-  margin: 6px 0 0;
   overflow-wrap: anywhere;
 }
 
@@ -289,19 +285,12 @@ textarea {
 }
 
 .meetup-starts-at {
-  margin: 13px 0;
-  color: var(--ink-2);
-  font-size: 14px;
   font-weight: 600;
 }
 
 .meetup-route {
-  display: flex;
-  flex: 1;
   flex-direction: column;
   min-height: 0;
-  padding: 14px;
-  color: var(--accent-text);
 }
 
 .meetup-route > strong {
@@ -319,10 +308,8 @@ textarea {
 }
 
 .meetup-route li {
-  display: flex;
   align-items: baseline;
   gap: 9px;
-  color: var(--ink-2);
   font-size: 14px;
   overflow-wrap: anywhere;
 }
@@ -342,17 +329,11 @@ textarea {
 
 .meetup-route-link {
   display: inline-flex;
-  text-decoration: none;
 }
 
 .meetup-card-footer {
-  display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   margin: 15px 0;
-  color: var(--ink-3);
-  font-size: 13px;
 }
 
 .meetup-inviter {
@@ -367,14 +348,6 @@ textarea {
   font-weight: 600;
 }
 
-.meetup-card-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  margin-top: auto;
-  gap: 8px;
-}
-
 .meetup-card-actions .primary-button,
 .meetup-card-actions .secondary-button {
   min-height: 38px;
@@ -385,21 +358,14 @@ textarea {
 .entries {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 15px;
 }
 
 .entry-card {
   min-width: 0;
-  padding: 21px 22px;
-}
-
-.entry-card h3 {
-  margin: 12px 0 8px;
 }
 
 .entry-card p {
   display: -webkit-box;
-  margin: 0;
   overflow: hidden;
   font-size: 15px;
   line-height: 1.7;
@@ -417,7 +383,6 @@ textarea {
 
 .entry-location {
   overflow: hidden;
-  color: var(--ink-3);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -656,11 +621,6 @@ textarea {
 .profile-footprint-cover-actions .privacy-note {
   flex-basis: 100%;
   margin: 0;
-}
-
-.profile-post-toggle:focus-visible {
-  outline: 3px solid var(--accent-line);
-  outline-offset: -4px;
 }
 
 .profile-post-tile-top,
@@ -1347,7 +1307,6 @@ a.friend-profile-link {
 .diary-month-controls {
   display: grid;
   grid-template-columns: auto minmax(0, 1.2fr) minmax(0, 1fr) auto;
-  align-items: end;
   gap: 8px;
 }
 
@@ -1458,10 +1417,8 @@ a.friend-profile-link {
 
 .entry-card-footer {
   display: flex;
-  align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 12px;
 }
 
 .entry-privacy-field {
@@ -1663,7 +1620,6 @@ a.friend-profile-link {
 
 .trip-points {
   margin: 10px 0 0;
-  padding-left: 20px;
   color: var(--ink-2);
   font-size: 13px;
   line-height: 1.8;
@@ -2476,7 +2432,6 @@ dialog {
 }
 
 .timeline-footprint-card {
-  display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
 }
@@ -2496,14 +2451,7 @@ dialog {
 }
 
 .timeline-footprint-meta {
-  display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.timeline-footprint-content h3 {
-  margin: 8px 0 4px;
 }
 
 .timeline-footprint-stops,
@@ -4636,10 +4584,6 @@ a.secondary-button {
   stroke-width: 3;
 }
 
-.entries-section {
-  margin-top: 36px;
-}
-
 .module-view {
   margin-top: 28px;
 }
@@ -4647,7 +4591,6 @@ a.secondary-button {
 .section-heading,
 .meetup-launcher {
   display: flex;
-  align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 14px;
@@ -4682,11 +4625,6 @@ a.secondary-button {
 
 .meetup-list {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
-  gap: 14px;
-}
-
-.meetup-card {
-  padding: 18px;
 }
 
 .meetup-public-label {
@@ -4697,19 +4635,14 @@ a.secondary-button {
 
 .meetup-route {
   border: 0;
-  border-radius: var(--r-md);
-  background: var(--sunken);
 }
 
 .timeline-footprint-grid {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
-  gap: 14px;
 }
 
 .timeline-footprint-card {
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 14px;
-  padding: 18px;
 }
 
 .timeline-footprint-icon {
@@ -5314,12 +5247,7 @@ body.map-mode .map-sidebar,
     font-size: 16px;
   }
 
-  body.map-mode .map-panel {
-    height: calc(100dvh - 56px - 61px - 96px);
-  }
-
   body.map-mode .map-sidebar {
-    height: auto;
     padding-bottom: calc(140px + env(safe-area-inset-bottom));
   }
 
@@ -5654,9 +5582,11 @@ body.map-mode .map-sidebar,
 /* ---------- Toast: confirms what a closing dialog just did ---------- */
 
 .toast {
+  /* Replaces the browser's centred popover position. */
+  inset: auto auto 24px 50%;
+  margin: 0;
+  border: 0;
   position: fixed;
-  left: 50%;
-  bottom: 24px;
   z-index: 40;
   max-width: calc(100vw - 32px);
   padding: 10px 18px;
@@ -5734,6 +5664,7 @@ body.map-mode .map-sidebar,
 /* ========== Layout and colour pass ========== */
 
 /* Fields: a visible edge on every input */
+
 .field input,
 .field textarea,
 .field select,
@@ -5744,6 +5675,7 @@ body.map-mode .map-sidebar,
 }
 
 /* Privacy chips */
+
 .mood.is-public {
   background: var(--accent-soft);
   color: var(--accent-text);
@@ -5765,6 +5697,7 @@ body.map-mode .map-sidebar,
 }
 
 /* Hero: heading and action no longer touch */
+
 .hero {
   padding-block: 28px 32px;
 }
@@ -5787,6 +5720,7 @@ body.map-mode .map-sidebar,
 }
 
 /* Meetup cards */
+
 .meetup-list {
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 14px;
@@ -5869,6 +5803,7 @@ body.map-mode .map-sidebar,
 }
 
 /* Diary cards */
+
 .entries {
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 14px;
@@ -5924,6 +5859,7 @@ body.map-mode .map-sidebar,
 }
 
 /* Footprint cards */
+
 .timeline-footprint-grid {
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 14px;
@@ -5982,6 +5918,7 @@ body.map-mode .map-sidebar,
 }
 
 /* Profile */
+
 .profile-post-tile-bottom {
   display: grid;
   gap: 2px;
@@ -5994,6 +5931,7 @@ body.map-mode .map-sidebar,
 }
 
 /* Trips: your trips lead, the form sits beside them */
+
 .trip-layout {
   grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
   align-items: start;
@@ -6010,6 +5948,7 @@ body.map-mode .map-sidebar,
 }
 
 /* Monthly diary */
+
 .diary-month-controls {
   align-items: end;
 }
@@ -6029,6 +5968,7 @@ body.map-mode .map-sidebar,
   }
 
   /* One meetup at a time, swiped sideways, so the page below stays reachable */
+
   .meetup-list {
     display: grid;
     grid-auto-columns: 86%;
@@ -6053,6 +5993,7 @@ body.map-mode .map-sidebar,
   }
 
   /* Identity first, then a tidy row of actions */
+
   .profile-username-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -6068,6 +6009,7 @@ body.map-mode .map-sidebar,
   }
 
   /* The map holds the top of the screen; the sheet grows with its list and the page scrolls. */
+
   body.map-mode .map-workspace {
     height: auto;
     min-height: 0;
@@ -6092,6 +6034,7 @@ body.map-mode .map-sidebar,
   }
 
   /* Title and head count share a line even on a narrow card */
+
   .meetup-card-heading {
     flex-direction: row;
     justify-content: space-between;
