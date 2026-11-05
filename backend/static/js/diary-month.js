@@ -18,6 +18,7 @@ diaryMonthSelect.innerHTML = Array.from(
 
 function setDiaryEntries(entries) {
   diaryEntries = entries.filter((entry) => entry.is_owner);
+  renderWelcomeCard();
   const lastYear = diaryMonthToday.getFullYear();
   const firstYear = Math.min(
     lastYear - DIARY_YEARS_BACK,

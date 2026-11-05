@@ -20,6 +20,122 @@ function viewFromUrl() {
     : "home";
 }
 
+const navigationBar = document.querySelector(".navigation");
+const navIndicator = document.querySelector("#nav-indicator");
+const navigationLinks = [...navigationBar.querySelectorAll(".nav-link")];
+const NAV_DRAG_START_PX = 8;
+let navDrag = null;
+let ignoreNavClick = false;
+
+function moveNavIndicator(left, link) {
+  navIndicator.style.setProperty("--nav-indicator-x", `${left}px`);
+  navIndicator.style.setProperty("--nav-indicator-y", `${link.offsetTop}px`);
+  navIndicator.style.setProperty("--nav-indicator-width", `${link.offsetWidth}px`);
+  navIndicator.style.setProperty("--nav-indicator-height", `${link.offsetHeight}px`);
+}
+
+// Someone else's profile selects no tab, so the capsule fades out in place.
+function placeNavIndicator(animate) {
+  // Appearing for the first time, it has no earlier tab to slide from.
+  const wasPlaced = navIndicator.classList.contains("is-placed");
+  navigationBar.classList.toggle("is-animated", animate && wasPlaced);
+  const current = navigationBar.querySelector('.nav-link[aria-current="page"]');
+  navIndicator.classList.toggle("is-placed", Boolean(current));
+  if (current) moveNavIndicator(current.offsetLeft, current);
+}
+
+// Covers the first paint, web fonts arriving, and the bar changing shape between layouts.
+new ResizeObserver(() => {
+  if (!navDrag?.active) placeNavIndicator(false);
+}).observe(navigationBar);
+
+function nearestNavLink(x) {
+  const distance = (link) => Math.abs(link.offsetLeft + link.offsetWidth / 2 - x);
+  return navigationLinks.reduce((best, link) =>
+    distance(link) < distance(best) ? link : best,
+  );
+}
+
+function followNavDrag(clientX) {
+  const x = clientX - navigationBar.getBoundingClientRect().left - navigationBar.clientLeft;
+  const link = nearestNavLink(x);
+  const last = navigationLinks.at(-1);
+  const left = Math.min(
+    Math.max(x - link.offsetWidth / 2, navigationLinks[0].offsetLeft),
+    last.offsetLeft + last.offsetWidth - link.offsetWidth,
+  );
+  moveNavIndicator(left, link);
+  navDrag.target?.classList.remove("is-drag-target");
+  link.classList.add("is-drag-target");
+  navDrag.target = link;
+}
+
+function endNavDrag() {
+  const { target } = navDrag;
+  navDrag = null;
+  target?.classList.remove("is-drag-target");
+  navigationBar.classList.remove("is-dragging");
+  return target;
+}
+
+navigationBar.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) return;
+  ignoreNavClick = false;
+  navDrag = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    active: false,
+    target: null,
+  };
+});
+
+navigationBar.addEventListener("pointermove", (event) => {
+  if (navDrag?.pointerId !== event.pointerId) return;
+  if (!navDrag.active) {
+    const dx = Math.abs(event.clientX - navDrag.startX);
+    const dy = Math.abs(event.clientY - navDrag.startY);
+    if (dx < NAV_DRAG_START_PX) {
+      if (dy >= NAV_DRAG_START_PX) navDrag = null;
+      return;
+    }
+    navDrag.active = true;
+    navigationBar.setPointerCapture(event.pointerId);
+    navigationBar.classList.add("is-dragging");
+    navIndicator.classList.add("is-placed");
+  }
+  followNavDrag(event.clientX);
+});
+
+navigationBar.addEventListener("pointerup", (event) => {
+  if (navDrag?.pointerId !== event.pointerId) return;
+  const wasDragging = navDrag.active;
+  const target = endNavDrag();
+  if (!wasDragging) return;
+  // Released on the tab already open: there is nothing to switch, so it just settles back.
+  if (target.getAttribute("aria-current") === "page") placeNavIndicator(true);
+  else target.click();
+  // A mouse still sends a click once a drag ends; only the switch above should count.
+  ignoreNavClick = true;
+  setTimeout(() => {
+    ignoreNavClick = false;
+  }, 100);
+});
+
+navigationBar.addEventListener("pointercancel", (event) => {
+  if (navDrag?.pointerId !== event.pointerId) return;
+  endNavDrag();
+  placeNavIndicator(true);
+});
+
+navigationBar.addEventListener(
+  "click",
+  (event) => {
+    if (ignoreNavClick) event.stopPropagation();
+  },
+  true,
+);
+
 function applyView(view, username = null) {
   flushPrivacyDrafts();
   viewedUsername = username;
@@ -42,6 +158,7 @@ function applyView(view, username = null) {
   tripsView.hidden = view !== "trips";
   // Leaving mid-pick must not lose the form that is waiting behind the map.
   if (leftMapPick) mapPointDialog.showModal();
+  placeNavIndicator(true);
 }
 
 function loadViewData(view) {
@@ -82,7 +199,7 @@ function forgetPage() {
 // comes from storage. Links with a query (email verification, password reset) open
 // their own dialog and are left alone.
 function restoreLastPage() {
-  if (!window.location.hash && !window.location.search) {
+  if (appSetting("startPage") === "last" && !window.location.hash && !window.location.search) {
     try {
       const saved = localStorage.getItem(LAST_PAGE_KEY);
       if (saved) window.history.replaceState(null, "", saved);
@@ -124,7 +241,8 @@ function hasUnsavedForm() {
   return (
     (dialog.open && entryFormSnapshot() !== savedEntryForm) ||
     (meetupDialog.open && meetupFormSnapshot() !== savedMeetupForm) ||
-    (mapPointDialog.open && mapPointFormSnapshot() !== savedMapPointForm)
+    (mapPointDialog.open && mapPointFormSnapshot() !== savedMapPointForm) ||
+    [...footprintPhotoDrafts.values()].some(footprintPhotoDraftHasChanges)
   );
 }
 

@@ -542,7 +542,7 @@ textarea {
   box-shadow: 0 12px 30px rgb(var(--shadow-rgb) / 0.078);
 }
 
-.profile-post-tile.is-expanded {
+.profile-post-tile.is-expanded:not(.is-diary) {
   grid-column: 1 / -1;
 }
 
@@ -744,12 +744,6 @@ textarea {
 .profile-route-name {
   color: var(--accent-text);
   font-weight: 700;
-}
-
-.profile-route-coordinates {
-  display: block;
-  color: var(--ink-3);
-  font-size: 12px;
 }
 
 .profile-footprint-actions {
@@ -1252,6 +1246,13 @@ a.friend-profile-link {
   align-self: flex-end;
 }
 
+.ai-chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .ai-chat-form {
   display: grid;
   gap: 11px;
@@ -1510,6 +1511,13 @@ a.friend-profile-link {
   margin: 4px 0 0;
   color: var(--ink-3);
   font-size: 13px;
+}
+
+/* Beside the card's button, not inside it: a link can't sit within a button. */
+
+.map-point-author {
+  padding: 0 13px 12px 98px;
+  margin-top: -8px;
 }
 
 .map-point-chevron {
@@ -4951,7 +4959,8 @@ dialog::backdrop,
 
 /* The file input stays focusable; its label is the visible button. */
 
-.profile-cover-upload .visually-hidden {
+.profile-cover-upload .visually-hidden,
+.footprint-photo-add .visually-hidden {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -5925,6 +5934,236 @@ body.map-mode .map-sidebar,
   justify-items: start;
 }
 
+/* An open footprint reads like a post: the trip beside its photos, stacked when there's no room. */
+
+.footprint-post {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  align-items: start;
+  gap: 24px;
+}
+
+.footprint-post-main {
+  min-width: 0;
+}
+
+.footprint-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.footprint-photo,
+.footprint-photo-add {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--r-md);
+}
+
+.footprint-photo:first-child {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.footprint-photo:only-child,
+.footprint-photo-add:only-child {
+  grid-column: 1 / -1;
+  aspect-ratio: 4 / 3;
+}
+
+.footprint-photo > button:first-child {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: var(--sunken);
+  cursor: zoom-in;
+}
+
+.footprint-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.footprint-photo-delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--photo-scrim);
+  color: var(--on-photo);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.footprint-photo-add {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 2px;
+  border: 1px dashed var(--field-line);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.footprint-photo-add:hover {
+  background: var(--sunken);
+}
+
+.footprint-photo-add:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.footprint-photo-add:has(input:disabled) {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.footprint-photos .privacy-note {
+  margin: 8px 0 0;
+}
+
+.footprint-photo-tag {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  padding: 2px 6px;
+  border-radius: var(--r-md);
+  background: var(--photo-scrim);
+  color: var(--on-photo);
+  font-size: var(--text-xs);
+  pointer-events: none;
+}
+
+.footprint-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+#photo-viewer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: rgb(0 0 0 / 0.88);
+  box-shadow: none;
+}
+
+#photo-viewer::backdrop {
+  background: rgb(0 0 0 / 0.88);
+}
+
+#photo-viewer[open] {
+  display: grid;
+  place-items: center;
+}
+
+#photo-viewer-image {
+  display: block;
+  max-width: 100vw;
+  max-height: 100dvh;
+  object-fit: contain;
+}
+
+#photo-viewer-close {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: 16px;
+}
+
+.photo-viewer-step {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+#photo-viewer-prev {
+  left: 12px;
+}
+
+#photo-viewer-next {
+  right: 12px;
+}
+
+.photo-viewer-step[hidden] {
+  display: none;
+}
+
+#photo-viewer-count {
+  position: absolute;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  margin: 0;
+  color: #fff;
+  font-size: var(--text-xs);
+  transform: translateX(-50%);
+}
+
+/* A diary has no photo to show, so its tile only needs room for its text. */
+
+.profile-post-tile.is-diary .profile-post-toggle {
+  min-height: 0;
+  gap: 8px;
+  padding: 12px;
+}
+
+/* One line for the title, then the mood and date side by side. Opening shows the whole title. */
+
+.is-diary .profile-post-tile-bottom {
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  justify-items: stretch;
+}
+
+.is-diary .profile-post-title-block {
+  display: contents;
+}
+
+.is-diary .profile-post-tile-title {
+  grid-column: 1 / -1;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+
+.is-diary.is-expanded .profile-post-tile-title {
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
+.is-diary .profile-post-title-block .profile-post-date {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A diary keeps its width while it opens, so its details just fill the tile. */
+
+.profile-post-tile.is-diary.is-reflowing .profile-post-details-content {
+  width: auto;
+}
+
 .profile-post-toggle:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
@@ -6039,4 +6278,523 @@ body.map-mode .map-sidebar,
     flex-direction: row;
     justify-content: space-between;
   }
+}
+
+/* Kept apart from 取消 / 儲存 so a destructive action is never hit by accident. */
+.modal-actions .account-delete-open {
+  margin-right: auto;
+  border-color: var(--danger-line);
+  color: var(--danger);
+}
+
+.account-delete-submit,
+.account-delete-submit:hover {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+
+.account-delete-password[hidden] {
+  display: none;
+}
+
+/* ---------- Settings ---------- */
+
+.settings-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+}
+
+.settings-open svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.settings-section {
+  display: grid;
+  gap: 10px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+
+.settings-section:first-of-type {
+  border-top: 0;
+}
+
+.settings-section h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.settings-section .secondary-button {
+  justify-self: start;
+}
+
+.palette-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+}
+
+.palette-option {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.palette-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.palette-option:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.palette-option:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.palette-swatches {
+  display: grid;
+  overflow: hidden;
+  height: 24px;
+  grid-template-columns: repeat(6, 1fr);
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.settings-section select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--field-line);
+  border-radius: var(--r-md);
+  background-color: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+
+/* ---------- Tab bar: a capsule that slides on tap and follows a drag ---------- */
+
+.navigation {
+  /* Sideways drags belong to the bar; scrolling the page up and down still works. */
+  touch-action: pan-y;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (min-width: 761px) {
+  .navigation {
+    position: relative;
+  }
+}
+
+.nav-link {
+  position: relative;
+  z-index: 1;
+}
+
+.nav-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  width: var(--nav-indicator-width, 0);
+  height: var(--nav-indicator-height, 0);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(var(--nav-indicator-x, 0), var(--nav-indicator-y, 0));
+}
+
+.nav-indicator.is-placed {
+  opacity: 1;
+}
+
+.navigation.is-animated .nav-indicator {
+  transition:
+    transform 320ms cubic-bezier(0.34, 1.2, 0.64, 1),
+    width 320ms cubic-bezier(0.34, 1.2, 0.64, 1),
+    height 320ms ease,
+    opacity 200ms ease;
+}
+
+/* It stays under the finger, and only eases when tabs of different widths swap. */
+.navigation.is-dragging {
+  cursor: grabbing;
+}
+
+.navigation.is-dragging .nav-indicator {
+  transition: width 120ms ease;
+}
+
+.nav-link[aria-current="page"],
+.nav-link[aria-current="page"]:hover {
+  background: transparent;
+}
+
+.navigation.is-dragging .nav-link[aria-current="page"] {
+  color: var(--ink-2);
+}
+
+.navigation .nav-link.is-drag-target {
+  color: var(--accent-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navigation.is-animated .nav-indicator,
+  .navigation.is-dragging .nav-indicator {
+    transition: none;
+  }
+}
+
+/* ---------- First-time guidance ---------- */
+
+.welcome-card {
+  display: grid;
+  gap: 12px;
+  margin: 8px 0 20px;
+  padding: 18px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.welcome-card h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.welcome-card p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.welcome-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.welcome-heading .icon-button {
+  margin-left: auto;
+}
+
+.welcome-features {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  list-style: none;
+}
+
+.welcome-features strong {
+  color: var(--ink);
+}
+
+.welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.welcome-steps {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.welcome-step {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.welcome-step strong {
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+
+.welcome-step-mark {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--on-accent);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.welcome-step.is-done .welcome-step-mark {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.welcome-step.is-done strong {
+  color: var(--ink-3);
+  font-weight: 500;
+  text-decoration: line-through;
+}
+
+.empty-with-action {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+
+.empty-with-action p {
+  margin: 0;
+}
+
+/* ---------- Plainer screens on a phone and everywhere ---------- */
+
+.ai-provider-status:empty {
+  display: none;
+}
+
+.ai-chat-messages {
+  min-height: 120px;
+}
+
+.privacy-note-card summary {
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.privacy-note-card p {
+  margin: 10px 0 0;
+}
+
+.trip-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.trip-list-heading .points-heading {
+  margin: 0;
+}
+
+.trip-layout:has(> .trip-form[hidden]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.route-point-add {
+  width: 100%;
+}
+
+/* With a single stop there is nothing to remove or reorder yet. */
+[data-route-remove]:disabled,
+.route-point-row:only-child .route-point-move {
+  display: none;
+}
+
+.map-sidebar .map-add-button {
+  display: inline-flex;
+  width: auto;
+  height: 48px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 18px;
+  border-radius: var(--r-pill);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+/* Home's recent diaries, when Settings asks for no photos or for titles only. */
+:root[data-home-diaries="no-photo"] #entries .entry-photo {
+  display: none;
+}
+
+:root[data-home-diaries="compact"] #entries {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+:root[data-home-diaries="compact"] #entries .entry-card {
+  min-height: 0;
+  padding: 12px 14px;
+}
+
+:root[data-home-diaries="compact"] #entries .entry-card > :not(h3) {
+  display: none;
+}
+
+:root[data-home-diaries="compact"] #entries .entry-card h3 {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Meetup form: one column, name, then when, then where ---------- */
+
+.meetup-form-fields {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
+/* The way of entering the date comes first with the heading to its right; the fields sit below both. */
+.meetup-start-field {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+  gap: 8px 12px;
+}
+
+.meetup-start-field > span:first-child {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+}
+
+.meetup-start-field > .meetup-date-time-fields {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.meetup-start-field > .meetup-time-modes {
+  grid-column: 1;
+  grid-row: 1;
+  padding: 2px;
+}
+
+.meetup-start-field .meetup-time-mode {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: var(--text-xs);
+}
+
+.meetup-start-field input {
+  width: 100%;
+  min-width: 0;
+  padding-inline: 10px;
+}
+
+.meetup-destinations .privacy-note {
+  display: block;
+  margin: 6px 0 0;
+}
+
+.meetup-form-actions {
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 560px) {
+  .meetup-form-actions {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+  }
+}
+
+@media (max-width: 360px) {
+  /* Too narrow for a heading beside the fields, so it gets its own line. */
+  .meetup-start-field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .meetup-start-field > span:first-child,
+  .meetup-start-field > .meetup-date-time-fields,
+  .meetup-start-field > .meetup-time-modes {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+/* ---------- Open dialogs hold the page still behind them ---------- */
+
+html:has(dialog[open]) {
+  overflow: hidden;
+}
+
+dialog,
+dialog .dialog-content {
+  overscroll-behavior: contain;
+}
+
+/* ---------- A new meetup folds into a paper plane and flies away ---------- */
+
+.paper-plane {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.paper-plane svg {
+  position: absolute;
+  overflow: visible;
+  filter: drop-shadow(0 6px 10px rgb(var(--shadow-rgb) / 0.3));
+  transform-origin: center;
+  will-change: transform;
+}
+
+.plane-sheet {
+  fill: var(--surface);
+}
+
+.plane-flap {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-linejoin: round;
+  stroke-width: 1.2;
+}
+
+/* The paper takes the window's place; the dimmed page behind stays until takeoff. */
+#meetup-dialog.is-folding {
+  /* The opening animation would otherwise keep holding its final opacity. */
+  animation: none;
+  opacity: 0;
+  transition: opacity 300ms ease;
 }

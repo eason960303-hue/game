@@ -2,7 +2,7 @@ const INSTALL_DISMISSED_KEY = "life-logger-install-dismissed";
 const installBanner = document.querySelector("#install-banner");
 const installBannerText = document.querySelector("#install-banner-text");
 const installAcceptButton = document.querySelector("#install-accept");
-const profileInstallButton = document.querySelector("#pwa-install");
+const settingsInstallSection = document.querySelector("#settings-install");
 const IOS_INSTALL_HINT = "點瀏覽器的分享按鈕，再選「加入主畫面」，就能像 App 一樣開啟。";
 
 const isInstalledApp =
@@ -24,7 +24,7 @@ function installDismissed() {
 
 function showInstallOptions() {
   const canInstall = !isInstalledApp && (Boolean(installPrompt) || isIos);
-  profileInstallButton.hidden = !canInstall;
+  settingsInstallSection.hidden = !canInstall;
   installBanner.hidden = !canInstall || installDismissed();
   installAcceptButton.hidden = !installPrompt;
   installBannerText.textContent = installPrompt
@@ -53,11 +53,11 @@ window.addEventListener("beforeinstallprompt", (event) => {
 window.addEventListener("appinstalled", () => {
   installPrompt = null;
   installBanner.hidden = true;
-  profileInstallButton.hidden = true;
+  settingsInstallSection.hidden = true;
 });
 
 installAcceptButton.addEventListener("click", askToInstall);
-profileInstallButton.addEventListener("click", askToInstall);
+document.querySelector("#pwa-install").addEventListener("click", askToInstall);
 document.querySelector("#install-dismiss").addEventListener("click", () => {
   installBanner.hidden = true;
   try {

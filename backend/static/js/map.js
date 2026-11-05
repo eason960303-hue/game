@@ -325,11 +325,11 @@ function placePendingRoutePoint(latlng, placeName = "") {
     lng: latlng.lng.toFixed(6),
   });
   const nameInput = pendingMapPickRow.querySelector("[data-route-name]");
-  if (!nameInput.value.trim()) nameInput.value = placeName || "地圖途經點";
+  if (!nameInput.value.trim()) nameInput.value = placeName || "地圖上的地點";
   resumeMapPointForm();
   nameInput.focus();
   document.querySelector("#map-form-status").textContent =
-    "已將地圖座標加入所選途經點。";
+    "已將地圖座標加入這一站。";
 }
 
 resetRoutePoints();
@@ -771,10 +771,10 @@ function selectMapPoint(pointId) {
 }
 
 function setMapPointDialogMode(isEditing) {
-  mapPointDialogTitle.textContent = isEditing ? "編輯足跡行程" : "新增足跡行程";
+  mapPointDialogTitle.textContent = isEditing ? "編輯足跡" : "新增足跡";
   document.querySelector("#map-point-dialog-description").textContent = isEditing
     ? "修改內容、調整站點順序，或刪除這趟足跡。"
-    : "新增多個途經點，並依照站序記錄旅遊動線。";
+    : "照順序記下這趟走過的地方，一站也可以。";
   mapPointSaveButton.textContent = isEditing ? "儲存變更" : "儲存足跡";
   document.querySelector("#map-point-delete").hidden = !isEditing;
 }
@@ -818,6 +818,7 @@ function openNewMapPointDialog(addToTripForm = false) {
   }
   addingFootprintToTripForm = addToTripForm;
   mapPointForm.reset();
+  mapPointForm.elements.privacy.value = appSetting("footprintPrivacy");
   resetRoutePoints();
   editingMapPointId = null;
   setMapPointDialogMode(false);
@@ -833,7 +834,7 @@ async function deleteFootprint(pointId) {
   if (!point) return;
   if (
     !window.confirm(
-      `確定要刪除「${point.name}」嗎？也會從行程包中移除，刪除後無法復原。`,
+      `確定要刪除「${point.name}」嗎？也會從行程中移除，刪除後無法復原。`,
     )
   ) {
     return;
@@ -951,10 +952,11 @@ function mapPointCardHtml(point) {
       <span class="map-point-summary">
         <time datetime="${escapeHtml(point.created_at || "")}">${escapeHtml(formatDate(point.created_at))}</time>
         <h3>${escapeHtml(point.name)}</h3>
-        <p>${escapeHtml(point.owner_name || "我的足跡")} · ${routePoints.length} 個途經點</p>
+        <p>${routePoints.length} 站</p>
       </span>
       <span class="map-point-chevron" aria-hidden="true">⌄</span>
     </button>
+    <div class="map-point-author">${ownerLink(point, "其他使用者")}</div>
     <div class="map-point-details" id="map-point-details-${point.id}"${isSelected ? "" : " hidden"}>
       ${mapPointCoverHtml(point)}
               <p>${escapeHtml(point.note || "尚未新增小記")}</p>
@@ -964,7 +966,6 @@ function mapPointCardHtml(point) {
             (routePoint) => `
               <li>
                 <strong>第 ${routePoint.order} 站：${escapeHtml(routePoint.name)}</strong>
-                ${hasCoordinates(routePoint) ? `<span> · ${routePoint.lat.toFixed(5)}, ${routePoint.lng.toFixed(5)}</span>` : ""}
               </li>
             `,
           )
@@ -973,7 +974,6 @@ function mapPointCardHtml(point) {
       <button class="secondary-button map-point-directions" type="button" data-google-route-navigation="${Number(point.id)}">前往 Google 導航</button>
       <div class="map-point-top">
         <span class="mood is-${escapeHtml(point.privacy)}" data-privacy-badge="point:${Number(point.id)}">${privacyLabel(point.privacy)}</span>
-        ${ownerLink(point, "我的足跡")}
       </div>
       ${footprintReactionsHtml(point)}
       ${
@@ -1107,14 +1107,19 @@ mapPointsContainer.addEventListener(
 );
 
 function renderMapPoints() {
+  renderWelcomeCard();
   mapPointsFilter.refresh();
   mapPointCount.textContent = `${mapPointsFilter.visible().length} 趟足跡`;
   if (mapPoints.length === 0) {
     selectedMapPointId = null;
-    mapPointsContainer.innerHTML =
-      '<div class="module-empty">還沒有足跡行程，按下「＋」開始新增並加入途經點。</div>';
+    mapPointsContainer.innerHTML = emptyStateHtml(
+      "module-empty",
+      "還沒有足跡，記下你的第一趟出遊吧。",
+      "新增足跡",
+      "new-footprint",
+    );
     tripPointOptions.innerHTML =
-      '<span class="privacy-note">新增足跡後即可加入行程包。</span>';
+      '<span class="privacy-note">新增足跡後即可加入行程。</span>';
   } else {
     mapPointsContainer.innerHTML =
       mapPointGroupsHtml() ||
@@ -1133,7 +1138,7 @@ function renderMapPoints() {
         `,
           )
           .join("")
-      : '<span class="privacy-note">新增自己的足跡後即可加入行程包。</span>';
+      : '<span class="privacy-note">新增自己的足跡後即可加入行程。</span>';
     setCheckedTripPoints(checkedPointIds);
   }
 

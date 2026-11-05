@@ -1,24 +1,44 @@
+function openTripForm() {
+  if (!currentUser) {
+    openLoginDialog();
+    return;
+  }
+  setTripFormMode();
+  showTripForm();
+  tripForm.elements.title.focus();
+}
+
+function showTripForm() {
+  tripForm.hidden = false;
+  tripFormOpenButton.hidden = true;
+  tripForm.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+tripFormOpenButton.addEventListener("click", openTripForm);
+
 function setTripFormMode(trip = null) {
   editingTripId = trip?.id ?? null;
-  tripFormTitle.textContent = trip ? "編輯行程包" : "建立行程包";
-  tripSubmitButton.textContent = trip ? "儲存變更" : "建立行程包";
-  tripCancelEditButton.hidden = !trip;
+  tripFormTitle.textContent = trip ? "編輯行程" : "建立行程";
+  tripSubmitButton.textContent = trip ? "儲存變更" : "建立行程";
+  document.querySelector("#trip-form-status").textContent = "";
   if (!trip) {
     tripForm.reset();
+    tripForm.hidden = true;
+    tripFormOpenButton.hidden = trips.length === 0;
     return;
   }
   tripForm.elements.title.value = trip.title;
   tripForm.elements.description.value = trip.description || "";
   tripForm.elements.is_public.checked = trip.is_public;
   setCheckedTripPoints(trip.points.map((point) => point.id));
-  tripForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  showTripForm();
 }
 
 tripAddFootprintButton.addEventListener("click", () => {
   openNewMapPointDialog(true);
   mapPointDialogTitle.textContent = "新增足跡";
   document.querySelector("#map-point-dialog-description").textContent =
-    "儲存後會自動勾選加入行程包，你也可以再調整足跡清單。";
+    "儲存後會自動勾選加入行程，你也可以再調整足跡清單。";
 });
 
 tripForm.addEventListener("submit", async (event) => {
@@ -39,7 +59,7 @@ tripForm.addEventListener("submit", async (event) => {
       jsonOptions(wasEditing ? "PUT" : "POST", payload),
     );
     setTripFormMode();
-    status.textContent = wasEditing ? "行程包已更新。" : "行程包已建立。";
+    showToast(wasEditing ? "行程已更新。" : "行程已建立。");
     trips = wasEditing
       ? trips.map((trip) => (trip.id === saved.id ? saved : trip))
       : [saved, ...trips];
@@ -73,7 +93,7 @@ tripList.addEventListener("click", async (event) => {
     if (
       !trip ||
       !window.confirm(
-        `確定要刪除行程包「${trip.title}」嗎？裡面的足跡會保留，分享連結會失效，刪除後無法復原。`,
+        `確定要刪除行程「${trip.title}」嗎？裡面的足跡會保留，分享連結會失效，刪除後無法復原。`,
       )
     ) {
       return;
@@ -86,7 +106,7 @@ tripList.addEventListener("click", async (event) => {
       renderTrips();
     } catch (error) {
       deleteButton.disabled = false;
-      showToast(`刪除行程包失敗：${error.message}`);
+      showToast(`刪除行程失敗：${error.message}`);
     }
     return;
   }

@@ -13,9 +13,9 @@ const FOOTPRINT_WHO = {
     empty: "還沒有公開的足跡。",
   },
   mine: {
-    label: "個人",
+    label: "我的",
     matches: (point) => point.is_owner,
-    empty: "你還沒有足跡，按下「＋」開始新增。",
+    empty: "你還沒有足跡，按下「新增足跡」開始記錄。",
   },
   saved: {
     label: "收藏",

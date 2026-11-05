@@ -177,13 +177,126 @@ logoutButton.addEventListener("click", async () => {
     showToast(`登出失敗：${error.message}`);
     return;
   }
+  await showSignedOutState();
+});
+
+const accountDeleteDialog = document.querySelector("#account-delete-dialog");
+const accountDeleteForm = document.querySelector("#account-delete-form");
+const accountDeleteInput = document.querySelector("#account-delete-input");
+const accountDeleteStatus = document.querySelector("#account-delete-status");
+const accountDeleteSubmit = document.querySelector("#account-delete-submit");
+
+let accountHasPassword = false;
+
+document.querySelector("#account-delete-open").addEventListener("click", async () => {
+  // Asked fresh: the page's profile is empty if it failed to load, and the wrong
+  // form would leave someone with no way to confirm.
+  try {
+    accountHasPassword = (await apiRequest("/user/profile")).has_password;
+  } catch (error) {
+    profileEditStatus.textContent = error.message;
+    return;
+  }
+  document.querySelector("#account-delete-email-note").hidden = accountHasPassword;
+  document.querySelector("#account-delete-password").hidden = !accountHasPassword;
+  accountDeleteInput.required = accountHasPassword;
+  accountDeleteSubmit.textContent = accountHasPassword ? "永久刪除帳號" : "寄確認信";
+  accountDeleteForm.reset();
+  accountDeleteStatus.textContent = "";
+  accountDeleteDialog.showModal();
+  if (accountHasPassword) accountDeleteInput.focus();
+});
+
+for (const id of ["#account-delete-dismiss", "#account-delete-cancel"]) {
+  document
+    .querySelector(id)
+    .addEventListener("click", () => accountDeleteDialog.close());
+}
+
+async function deleteAccountWithPassword() {
+  await flushPrivacyDrafts();
+  await apiRequest(
+    "/user/delete",
+    jsonOptions("POST", { password: accountDeleteInput.value }),
+  );
+  accountDeleteDialog.close();
+  profileEditDialog.close();
+  await showSignedOutState();
+  showToast("帳號已刪除");
+}
+
+async function sendAccountDeletionEmail() {
+  const { email } = await apiRequest("/user/delete/request", { method: "POST" });
+  accountDeleteDialog.close();
+  showToast(`確認信已寄到 ${email}，請在 30 分鐘內開啟信中的連結。`);
+}
+
+accountDeleteForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  accountDeleteStatus.textContent = "";
+  accountDeleteSubmit.disabled = true;
+  try {
+    await (accountHasPassword ? deleteAccountWithPassword() : sendAccountDeletionEmail());
+  } catch (error) {
+    accountDeleteStatus.textContent = error.message;
+  } finally {
+    accountDeleteSubmit.disabled = false;
+  }
+});
+
+const accountDeleteLinkDialog = document.querySelector("#account-delete-link-dialog");
+const accountDeleteLinkStatus = document.querySelector("#account-delete-link-status");
+const accountDeleteLinkSubmit = document.querySelector("#account-delete-link-submit");
+let pendingAccountDeletionToken = null;
+
+// Opening the link never deletes anything: mail scanners open links too.
+function openAccountDeletionLinkDialog(token) {
+  pendingAccountDeletionToken = token;
+  accountDeleteLinkStatus.textContent = "";
+  accountDeleteLinkDialog.showModal();
+}
+
+document
+  .querySelector("#account-delete-link-cancel")
+  .addEventListener("click", () => accountDeleteLinkDialog.close());
+
+document
+  .querySelector("#account-delete-link-form")
+  .addEventListener("submit", async (event) => {
+    event.preventDefault();
+    accountDeleteLinkStatus.textContent = "";
+    accountDeleteLinkSubmit.disabled = true;
+    try {
+      await apiRequest(
+        "/user/delete/confirm",
+        jsonOptions("POST", { token: pendingAccountDeletionToken }),
+      );
+    } catch (error) {
+      accountDeleteLinkStatus.textContent = error.message;
+      return;
+    } finally {
+      accountDeleteLinkSubmit.disabled = false;
+    }
+    accountDeleteLinkDialog.close();
+    // This browser may be signed in to a different account, which stays signed in.
+    try {
+      await apiRequest("/auth/me");
+    } catch {
+      await showSignedOutState();
+    }
+    showToast("帳號已刪除");
+  });
+
+async function showSignedOutState() {
   forgetPage();
   currentUser = null;
+  sessionDataLoaded = false;
   currentProfile = null;
   resetListLoads();
   mapPoints = [];
   trips = [];
   profilePosts = [];
+  discardFootprintPhotoDrafts();
   renderMeetups();
   setDiaryEntries([]);
   expandedProfileDiaryId = null;
@@ -202,8 +315,8 @@ logoutButton.addEventListener("click", async () => {
   resetMeetupForm();
   stopMapPick();
   aiChatMessages.innerHTML =
-    '<div class="ai-chat-message is-assistant">嗨！告訴我今天發生了什麼，我會幫你記下來，並加上標題和心情。</div>';
-  aiProviderStatus.textContent = "登入後檢查 AI 服務設定。";
+    '<div class="ai-chat-message is-assistant">嗨！今天發生了什麼？直接打字告訴我就好。</div>';
+  aiProviderStatus.textContent = "";
   profileBio.textContent = "請登入以查看個人簡介。";
   profileDiariesCount.textContent = "0 篇";
   profileFootprintsCount.textContent = "0 趟";
@@ -214,4 +327,4 @@ logoutButton.addEventListener("click", async () => {
   renderMapPoints();
   renderTrips();
   await loadEntries();
-});
+}

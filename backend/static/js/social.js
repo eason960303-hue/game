@@ -31,12 +31,12 @@ function appendAiChatMessage(message, type = "assistant") {
 }
 
 async function loadAiDiaryStatus() {
-  aiProviderStatus.textContent = "正在檢查 AI 服務設定…";
+  aiProviderStatus.textContent = "";
   try {
     const result = await apiRequest("/ai/status");
     aiProviderStatus.textContent = result.configured
-      ? `AI 日記已就緒。提交內容會傳送至已設定的 AI 服務。`
-      : "AI 日記暫時無法使用，可以先在首頁用「新增記錄」手動寫日記。";
+      ? ""
+      : "AI 日記暫時無法使用，可以先到首頁按「寫日記」手動記錄。";
   } catch (error) {
     aiProviderStatus.textContent = `無法檢查 AI 服務：${error.message}`;
   }

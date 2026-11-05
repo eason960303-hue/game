@@ -657,7 +657,7 @@ function handleMapContextMenu(event) {
     [
       "加入足跡",
       () =>
-        addCurrentPlaceToFootprint({ name: "地圖途經點", location }),
+        addCurrentPlaceToFootprint({ name: "地圖上的地點", location }),
     ],
     [
       "測量距離",
@@ -1204,7 +1204,7 @@ document.addEventListener("click", (event) => {
     (point) => point.id === Number(routeButton.dataset.googleRouteNavigation),
   );
   if (!route) {
-    showToast("找不到這趟足跡的途經點，請重新載入地圖後重試。");
+    showToast("找不到這趟足跡的站點，請重新載入地圖後重試。");
     return;
   }
   const url = footprintDirectionsUrl(footprintRoutePoints(route));

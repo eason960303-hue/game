@@ -1,25 +1,9 @@
-const meetupCitySelect = document.querySelector("#meetup-departure-city");
-
-function populateCityOptions() {
-  if (meetupCitySelect.options.length > 1) return;
-  const fragment = document.createDocumentFragment();
-  for (const city of Object.keys(TW_REGIONS)) {
-    const option = document.createElement("option");
-    option.value = city;
-    option.textContent = city;
-    fragment.appendChild(option);
-  }
-  meetupCitySelect.appendChild(fragment);
-}
-
 function resetMeetupForm() {
   meetupForm.reset();
   setMeetupTimeMode("picker", false);
-  populateCityOptions();
-  meetupCitySelect.value = "";
   editingMeetupId = null;
-  meetupFormTitle.textContent = "發起公開邀請";
-  meetupSubmitButton.textContent = "發起邀請";
+  meetupFormTitle.textContent = "發起揪團";
+  meetupSubmitButton.textContent = "發起揪團";
 }
 
 function meetupFormSnapshot() {
@@ -60,6 +44,8 @@ function showMeetupDialog() {
 }
 
 function closeMeetupDialog() {
+  // The form is on its way out; it comes back by itself if sending fails.
+  if (meetupSending) return;
   if (
     meetupFormSnapshot() !== savedMeetupForm &&
     !window.confirm("要放棄尚未儲存的內容嗎？")
@@ -80,7 +66,7 @@ function localDateTimeValue(value) {
 function editMeetup(meetup) {
   resetMeetupForm();
   editingMeetupId = meetup.id;
-  meetupFormTitle.textContent = "編輯公開邀請";
+  meetupFormTitle.textContent = "編輯揪團";
   meetupSubmitButton.textContent = "儲存變更";
   meetupForm.elements.title.value = meetup.title;
   const [startDate, startTime] = localDateTimeValue(meetup.starts_at).split("T");
@@ -91,24 +77,67 @@ function editMeetup(meetup) {
     fields.querySelector(".meetup-start-date").value = startDate || "";
     fields.querySelector(".meetup-start-time").value = startTime || "";
   }
-  populateCityOptions();
-  // Older meetups may store the 臺 form, but the options use 台.
-  meetupCitySelect.value = meetup.departure_city.replace("臺", "台");
-  meetupForm.elements.origin.value = meetup.origin ? meetup.origin.name : "";
-  meetupForm.elements.destinations.value = meetup.destinations
-    .map((destination) =>
-      typeof destination === "string" ? destination : destination.name,
-    )
+  meetupForm.elements.destinations.value = [meetup.origin, ...meetup.destinations]
+    .filter(Boolean)
+    .map((stop) => (typeof stop === "string" ? stop : stop.name))
     .join("\n");
   showMeetupDialog();
 }
 
+let meetupSending = false;
+
+function canFlyPaperPlane() {
+  return (
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
+    "showPopover" in HTMLElement.prototype
+  );
+}
+
+async function refreshAfterMeetupSaved() {
+  // Saving also creates or updates the meetup's footprint.
+  await Promise.all([loadMeetups(), loadMapPoints()]);
+}
+
+// A new meetup leaves as a paper plane, however long the AI takes to read its route.
+async function sendMeetupWithPlane(request, status) {
+  let settled = false;
+  const sent = request.then(
+    () => null,
+    (error) => error,
+  );
+  meetupDialog.classList.add("is-folding");
+  const plane = playPaperPlane(meetupDialog, () => {
+    meetupDialog.classList.remove("is-folding");
+    meetupDialog.close();
+  });
+  sent.then((error) => {
+    settled = true;
+    if (error) plane.cancel();
+  });
+  await plane.finished;
+  if (!settled) showToast("正在安排路線，完成後會通知你。");
+  const error = await sent;
+  meetupDialog.classList.remove("is-folding");
+  if (error) {
+    if (!currentUser) return;
+    if (!meetupDialog.open) meetupDialog.showModal();
+    status.textContent = error.message;
+    return;
+  }
+  resetMeetupForm();
+  await refreshAfterMeetupSaved();
+  showToast("揪團已發起！");
+}
+
 meetupForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (meetupSending) return;
   const values = new FormData(meetupForm);
   const status = document.querySelector("#meetup-form-status");
   status.textContent = "";
   meetupSubmitButton.disabled = true;
+  meetupSending = true;
+  const idleLabel = meetupSubmitButton.textContent;
   try {
     const destinations = getFormText(values, "destinations")
       .split(/\r?\n/)
@@ -121,28 +150,41 @@ meetupForm.addEventListener("submit", async (event) => {
     const payload = {
       title: getFormText(values, "title"),
       starts_at: startsAt,
-      departure_city: getFormText(values, "departure_city"),
-      origin: getFormText(values, "origin"),
       destinations,
     };
     const wasEditing = editingMeetupId !== null;
-    await apiRequest(
+    const request = apiRequest(
       wasEditing ? `/meetups/${editingMeetupId}` : "/meetups",
       jsonOptions(wasEditing ? "PUT" : "POST", payload),
     );
+    if (!wasEditing && canFlyPaperPlane()) {
+      await sendMeetupWithPlane(request, status);
+      return;
+    }
+    meetupSubmitButton.textContent = wasEditing ? "儲存中…" : "發起中…";
+    await request;
     resetMeetupForm();
     meetupDialog.close();
-    await loadMeetups();
+    await refreshAfterMeetupSaved();
   } catch (error) {
     status.textContent = error.message;
   } finally {
+    meetupSending = false;
     meetupSubmitButton.disabled = false;
+    // Resetting the form already picks the right label for what comes next.
+    if (meetupSubmitButton.textContent.endsWith("中…")) {
+      meetupSubmitButton.textContent = idleLabel;
+    }
   }
 });
 
 document.querySelector("#meetup-open").addEventListener("click", () => {
   if (!currentUser) {
     openLoginDialog();
+    return;
+  }
+  if (meetupSending) {
+    showToast("上一個揪團還在送出，請稍候。");
     return;
   }
   resetMeetupForm();
@@ -183,19 +225,21 @@ meetupList.addEventListener("click", async (event) => {
     const meetup = meetups.find(
       (item) => item.id === Number(editButton.dataset.editMeetup),
     );
-    if (meetup?.is_owner) editMeetup(meetup);
+    if (meetupSending) showToast("上一個揪團還在送出，請稍候。");
+    else if (meetup?.is_owner) editMeetup(meetup);
     return;
   }
   const deleteButton = event.target.closest("[data-delete-meetup]");
   if (deleteButton) {
     const meetupId = Number(deleteButton.dataset.deleteMeetup);
-    if (!window.confirm("確定取消這個公開邀請嗎？參加名單也會一併移除。")) {
+    if (!window.confirm("確定取消這個揪團嗎？參加名單也會一併移除。")) {
       return;
     }
     deleteButton.disabled = true;
     try {
       await apiRequest(`/meetups/${meetupId}`, { method: "DELETE" });
-      await loadMeetups();
+      // Cancelling also removes the meetup's footprint.
+      await Promise.all([loadMeetups(), loadMapPoints()]);
     } catch (error) {
       showToast(`取消揪團失敗：${error.message}`);
       deleteButton.disabled = false;

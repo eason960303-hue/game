@@ -13,9 +13,15 @@ function setCheckedTripPoints(pointIds) {
 }
 
 function renderTrips() {
+  tripFormOpenButton.hidden = trips.length === 0 || !tripForm.hidden;
   if (trips.length === 0) {
-    tripList.innerHTML =
-      '<div class="module-empty">尚未建立行程包，填寫表單開始規劃。</div>';
+    tripFormOpenButton.hidden = true;
+    tripList.innerHTML = emptyStateHtml(
+      "module-empty",
+      "還沒有行程。把幾趟足跡放在一起，就是一個行程。",
+      "建立行程",
+      "new-trip",
+    );
     return;
   }
   tripList.innerHTML = trips
@@ -25,7 +31,7 @@ function renderTrips() {
           <div class="trip-card-top">
             <div>
               <h3>${escapeHtml(trip.title)}</h3>
-              <p>${escapeHtml(trip.description || "尚未新增行程簡介")} · ${trip.points.length} 個足跡</p>
+              <p>${trip.description ? `${escapeHtml(trip.description)} · ` : ""}${trip.points.length} 個足跡</p>
             </div>
             ${trip.is_public ? privacyChipHtml("public", "公開分享") : privacyChipHtml("private", "私人行程")}
           </div>

@@ -58,7 +58,7 @@ function resetEntryEditor() {
   document.querySelectorAll("[data-mood]").forEach((option) => {
     option.setAttribute("aria-pressed", String(option.dataset.mood === "開心"));
   });
-  document.querySelector("#dialog-title").textContent = "新增一筆記錄";
+  document.querySelector("#dialog-title").textContent = "寫日記";
   saveButton.textContent = "儲存記錄";
   statusMessage.textContent = "";
   savedEntryPhotoUrl = null;
@@ -131,6 +131,61 @@ async function openEntryEditor(entryId = null) {
   form.elements.title.focus();
 }
 
+// Chat can't take a photo and may not catch a place, so it offers to fill in what's missing.
+function askForMissingEntryDetails(entry, prompt = null) {
+  const missingLocation = !entry.location;
+  const missingPhoto = !entry.photo_url;
+  if (!missingLocation && !missingPhoto) {
+    prompt?.remove();
+    return;
+  }
+  const missing = [missingLocation && "地點", missingPhoto && "照片"]
+    .filter(Boolean)
+    .join("和");
+  const element = prompt || appendAiChatMessage("");
+  element.textContent = `「${entry.title}」還沒有${missing}，要補上嗎？`;
+  const actions = document.createElement("div");
+  actions.className = "ai-chat-actions";
+  const addAction = (label, onClick) => {
+    const button = document.createElement("button");
+    button.className = "small-action";
+    button.type = "button";
+    button.textContent = label;
+    button.addEventListener("click", onClick);
+    actions.append(button);
+  };
+  const openEditor = async (focusField) => {
+    await openEntryEditor(entry.id);
+    if (!dialog.open || editingEntryId !== entry.id) return;
+    dialog.addEventListener(
+      "close",
+      async () => {
+        try {
+          askForMissingEntryDetails(
+            await apiRequest(`/entries/${entry.id}`),
+            element,
+          );
+        } catch {
+          element.remove();
+        }
+      },
+      { once: true },
+    );
+    focusField();
+  };
+  if (missingLocation) {
+    addAction("新增地點", () =>
+      openEditor(() => form.elements.location.focus()),
+    );
+  }
+  if (missingPhoto) {
+    addAction("新增照片", () => openEditor(() => photoInput.click()));
+  }
+  addAction("不用了", () => element.remove());
+  element.append(actions);
+  aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+}
+
 aiChatForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!currentUser) {
@@ -158,8 +213,9 @@ aiChatForm.addEventListener("submit", async (event) => {
           .join(" ")}`
       : "";
     appendAiChatMessage(
-      `${result.reply}\n\n已儲存「${entry.title}」\n心情：${entry.mood}${tags}`,
+      `${result.reply}\n\n已儲存「${entry.title}」\n心情：${entry.mood}${entry.location ? `\n地點：${entry.location}` : ""}${tags}`,
     );
+    if (appSetting("aiFollowUp") === "on") askForMissingEntryDetails(entry);
     aiChatInput.value = "";
     await loadEntries();
   } catch (error) {

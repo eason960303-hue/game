@@ -43,15 +43,21 @@ def new_user(email: str, name: str = "測試者") -> TestClient:
 
 REAL_REGION_AT = main.region_at
 REGION_LOOKUP_PATCH = mock.patch.object(main, "region_at", return_value=(None, None))
+REAL_TYPED_STOP_REGION = main.TypedStopRegions.region_of
+TYPED_STOP_LOOKUP_PATCH = mock.patch.object(
+    main.TypedStopRegions, "region_of", return_value=(None, None)
+)
 
 
 def setUpModule() -> None:
     # Saving a located stop looks up its region; tests must not reach the network.
     REGION_LOOKUP_PATCH.start()
+    TYPED_STOP_LOOKUP_PATCH.start()
 
 
 def tearDownModule() -> None:
     REGION_LOOKUP_PATCH.stop()
+    TYPED_STOP_LOOKUP_PATCH.stop()
 
 
 class ApiTestCase(unittest.TestCase):
@@ -132,6 +138,208 @@ class AuthTests(ApiTestCase):
         self.assertEqual(client.get("/api/auth/me").status_code, 200)
         client.post("/api/auth/logout")
         self.assertEqual(client.get("/api/auth/me").status_code, 401)
+
+
+class AccountDeletionTests(ApiTestCase):
+    def rows_pointing_at(self, user_id: int) -> list[str]:
+        """Scans the schema, so a table added later can't quietly keep a deleted user's data."""
+        found = []
+        with database.get_connection() as conn:
+            tables = [
+                row["name"]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table' "
+                    "AND name NOT LIKE 'sqlite_%'"
+                )
+            ]
+            for table in tables:
+                for key in conn.execute(f"PRAGMA foreign_key_list({table})"):
+                    if key["table"] != "users":
+                        continue
+                    count = conn.execute(
+                        f'SELECT COUNT(*) FROM {table} WHERE "{key["from"]}" = ?',
+                        (user_id,),
+                    ).fetchone()[0]
+                    if count:
+                        found.append(f"{table}.{key['from']}")
+            if conn.execute(
+                "SELECT 1 FROM users WHERE id = ?", (user_id,)
+            ).fetchone():
+                found.append("users.id")
+        return found
+
+    def user_id(self, email: str) -> int:
+        with database.get_connection() as conn:
+            return conn.execute(
+                "SELECT id FROM users WHERE email = ?", (email,)
+            ).fetchone()["id"]
+
+    def footprint(self, client: TestClient, name: str) -> int:
+        created = client.post(
+            "/api/map-points",
+            json={
+                "name": name,
+                "privacy": "public",
+                "points": [
+                    {"name": "甲", "order": 1, "latitude": 25.0, "longitude": 121.5},
+                    {"name": "乙", "order": 2, "latitude": 25.1, "longitude": 121.6},
+                ],
+            },
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+        return created.json()["id"]
+
+    def test_removes_everything_of_the_user_and_keeps_others_data(self) -> None:
+        email = "leaver@example.com"
+        leaver = new_user(email, "要離開的人")
+        other = new_user("stays@example.com", "留下的人")
+        leaver_id = self.user_id(email)
+        other_id = self.user_id("stays@example.com")
+
+        image = (b"\xff\xd8\xff" + b"0" * 64, {"Content-Type": "image/jpeg"})
+        avatar = leaver.post(
+            "/api/user/avatar", content=image[0], headers=image[1]
+        ).json()["avatar_url"]
+        entry = leaver.post(
+            "/api/entries", json={"title": "日記", "content": "內容"}
+        ).json()["id"]
+        entry_photo = leaver.post(
+            f"/api/entries/{entry}/photo", content=image[0], headers=image[1]
+        ).json()["photo_url"]
+        own_point = self.footprint(leaver, "要刪的足跡")
+        cover = leaver.post(
+            f"/api/map-points/{own_point}/cover", content=image[0], headers=image[1]
+        ).json()["cover_url"]
+        photo = leaver.post(
+            f"/api/map-points/{own_point}/photos", content=image[0], headers=image[1]
+        ).json()["url"]
+        trip = leaver.post(
+            "/api/trips", json={"title": "旅程", "point_ids": [own_point]}
+        )
+        self.assertIn(trip.status_code, (200, 201), trip.text)
+
+        other_point = self.footprint(other, "留下的足跡")
+        self.assertEqual(
+            leaver.put(f"/api/map-points/{other_point}/like").status_code, 200
+        )
+        self.assertEqual(
+            other.put(f"/api/map-points/{own_point}/like").status_code, 200
+        )
+        self.assertEqual(leaver.post(f"/api/users/{other_id}/follow").status_code, 200)
+        self.assertEqual(other.post(f"/api/users/{leaver_id}/follow").status_code, 200)
+
+        files = [
+            main.AVATAR_DIR / avatar.rsplit("/", 1)[1],
+            main.ENTRY_PHOTO_DIR / entry_photo.rsplit("/", 1)[1],
+            main.FOOTPRINT_COVER_DIR / cover.rsplit("/", 1)[1],
+            main.FOOTPRINT_PHOTO_DIR / photo.rsplit("/", 1)[1],
+        ]
+        for path in files:
+            self.assertTrue(path.is_file(), path)
+        self.assertTrue(self.rows_pointing_at(leaver_id))
+
+        deleted = leaver.post("/api/user/delete", json={"password": PASSWORD})
+
+        self.assertEqual(deleted.status_code, 200, deleted.text)
+        self.assertEqual(self.rows_pointing_at(leaver_id), [])
+        for path in files:
+            self.assertFalse(path.is_file(), path)
+        self.assertEqual(leaver.get("/api/auth/me").status_code, 401)
+        with database.get_connection() as conn:
+            self.assertIsNone(
+                conn.execute(
+                    "SELECT 1 FROM map_point_likes WHERE map_point_id = ?", (own_point,)
+                ).fetchone()
+            )
+            self.assertIsNone(
+                conn.execute(
+                    "SELECT 1 FROM map_points WHERE id = ?", (own_point,)
+                ).fetchone()
+            )
+        # The other person's footprint survives, without the removed like.
+        kept = other.get("/api/map-points").json()
+        self.assertEqual([point["id"] for point in kept], [other_point])
+        self.assertEqual(kept[0]["like_count"], 0)
+        self.assertEqual(other.get("/api/user/profile").json()["followers_count"], 0)
+        # The address is free to sign up again, as a brand-new account.
+        self.assertEqual(register(TestClient(main.app), email).status_code, 201)
+
+    def test_meetup_owner_leaving_cancels_and_participant_leaving_only_withdraws(
+        self,
+    ) -> None:
+        owner = new_user("meetup-owner-leaves@example.com")
+        participant = new_user("meetup-joiner-leaves@example.com")
+        starts_at = (datetime.now() + timedelta(days=3)).astimezone().isoformat()
+        body = {
+            "title": "一起走",
+            "starts_at": starts_at,
+            "departure_city": "臺北市",
+            "origin": "起點",
+            "destinations": ["終點"],
+        }
+        created = owner.post("/api/meetups", json=body)
+        self.assertEqual(created.status_code, 201, created.text)
+        meetup_id = created.json()["id"]
+        self.assertEqual(
+            participant.post(f"/api/meetups/{meetup_id}/participants").status_code, 200
+        )
+
+        self.assertEqual(
+            participant.post(
+                "/api/user/delete", json={"password": PASSWORD}
+            ).status_code,
+            200,
+        )
+        with database.get_connection() as conn:
+            self.assertIsNotNone(
+                conn.execute(
+                    "SELECT 1 FROM meetups WHERE id = ?", (meetup_id,)
+                ).fetchone()
+            )
+            remaining = conn.execute(
+                "SELECT COUNT(*) FROM meetup_participants WHERE meetup_id = ?",
+                (meetup_id,),
+            ).fetchone()[0]
+        # Only the host is left in the meetup.
+        self.assertEqual(remaining, 1)
+
+        self.assertEqual(
+            owner.post("/api/user/delete", json={"password": PASSWORD}).status_code, 200
+        )
+        with database.get_connection() as conn:
+            self.assertIsNone(
+                conn.execute(
+                    "SELECT 1 FROM meetups WHERE id = ?", (meetup_id,)
+                ).fetchone()
+            )
+
+    def test_wrong_password_deletes_nothing_and_gets_locked_out(self) -> None:
+        email = "keeps-account@example.com"
+        client = new_user(email)
+        for _ in range(main.LOGIN_MAX_FAILURES):
+            refused = client.post("/api/user/delete", json={"password": "wrong"})
+            self.assertEqual(refused.status_code, 403)
+        self.assertEqual(
+            client.post("/api/user/delete", json={"password": PASSWORD}).status_code,
+            429,
+        )
+        self.assertEqual(client.get("/api/auth/me").status_code, 200)
+
+    def test_a_retyped_email_does_not_replace_the_password(self) -> None:
+        email = "password-required@example.com"
+        client = new_user(email)
+        self.assertEqual(
+            client.post("/api/user/delete", json={"email": email}).status_code, 403
+        )
+        self.assertEqual(client.get("/api/auth/me").status_code, 200)
+
+    def test_requires_a_signed_in_user(self) -> None:
+        self.assertEqual(
+            TestClient(main.app)
+            .post("/api/user/delete", json={"password": PASSWORD})
+            .status_code,
+            401,
+        )
 
 
 class EntryTests(ApiTestCase):
@@ -1134,6 +1342,160 @@ class MapPointTests(ApiTestCase):
             404,
         )
 
+    def test_footprint_photos_follow_the_footprint_privacy(self) -> None:
+        owner = new_user("footprint-photos@example.com")
+        point = owner.post(
+            "/api/map-points",
+            json={
+                "name": "東京五日",
+                "privacy": "private",
+                "points": [{"name": "淺草", "order": 1}],
+            },
+        ).json()
+        image = b"\xff\xd8\xfftest-footprint-photo"
+        route = f"/api/map-points/{point['id']}/photos"
+        uploaded = owner.post(
+            route, content=image, headers={"Content-Type": "image/jpeg"}
+        )
+        self.assertEqual(uploaded.status_code, 201)
+        photo = uploaded.json()
+        self.assertEqual(owner.get(photo["url"]).content, image)
+        listed = next(
+            post
+            for post in owner.get("/api/user/posts").json()
+            if post["type"] == "footprint" and post["id"] == point["id"]
+        )
+        self.assertEqual(listed["photos"], [photo])
+
+        viewer = new_user("footprint-photos-viewer@example.com")
+        self.assertEqual(viewer.get(photo["url"]).status_code, 404)
+        self.assertEqual(
+            viewer.post(
+                route, content=image, headers={"Content-Type": "image/jpeg"}
+            ).status_code,
+            404,
+        )
+        self.assertEqual(
+            viewer.delete(f"{route}/{photo['id']}").status_code, 404
+        )
+
+        owner.patch(
+            f"/api/map-points/{point['id']}/privacy", json={"privacy": "public"}
+        )
+        self.assertEqual(viewer.get(photo["url"]).content, image)
+        owner_id = owner.get("/api/auth/me").json()["user"]["id"]
+        shared = viewer.get(f"/api/users/{owner_id}/profile").json()["posts"]
+        self.assertEqual(
+            next(post for post in shared if post["id"] == point["id"])["photos"],
+            [photo],
+        )
+
+        self.assertEqual(
+            owner.delete(f"{route}/{photo['id']}").status_code, 204
+        )
+        self.assertEqual(owner.get(photo["url"]).status_code, 404)
+
+    def test_footprint_photos_are_limited_and_removed_with_the_footprint(self) -> None:
+        owner = new_user("footprint-photo-limit@example.com")
+        point = owner.post(
+            "/api/map-points",
+            json={"name": "環島", "points": [{"name": "台東", "order": 1}]},
+        ).json()
+        route = f"/api/map-points/{point['id']}/photos"
+        headers = {"Content-Type": "image/png"}
+        image = b"\x89PNG\r\n\x1a\ntest-footprint-photo"
+        self.assertEqual(
+            owner.post(route, content=b"<svg></svg>", headers=headers).status_code,
+            415,
+        )
+        photos = [
+            owner.post(route, content=image, headers=headers).json()
+            for _ in range(main.MAX_FOOTPRINT_PHOTOS)
+        ]
+        self.assertEqual(
+            owner.post(route, content=image, headers=headers).status_code, 409
+        )
+        stored = [
+            main.FOOTPRINT_PHOTO_DIR
+            / photo["url"].removeprefix(main.FOOTPRINT_PHOTO_URL_PREFIX)
+            for photo in photos
+        ]
+        self.assertTrue(all(path.is_file() for path in stored))
+
+        self.assertEqual(
+            owner.delete(f"/api/map-points/{point['id']}").status_code, 204
+        )
+        self.assertFalse(any(path.exists() for path in stored))
+        self.assertEqual(owner.get(photos[0]["url"]).status_code, 404)
+
+    def save_typed_stops(self, client: TestClient, names: list[str], urlopen):
+        main.photon_search.cache_clear()
+        with mock.patch.object(
+            main.TypedStopRegions, "region_of", REAL_TYPED_STOP_REGION
+        ), mock.patch.object(main, "urlopen", urlopen), mock.patch.dict(
+            os.environ, {"GOOGLE_MAPS_SERVER_KEY": ""}
+        ):
+            return client.post(
+                "/api/map-points",
+                json={
+                    "name": "打字的行程",
+                    "points": [
+                        {"name": name, "order": index}
+                        for index, name in enumerate(names, start=1)
+                    ],
+                },
+            )
+
+    def photon_reply(self, *places):
+        reply = mock.MagicMock()
+        reply.__enter__.return_value.read.return_value = json.dumps(
+            {
+                "features": [
+                    {
+                        "properties": {"countrycode": "TW", **properties},
+                        "geometry": {"coordinates": [121.46, 25.01]},
+                    }
+                    for properties in places
+                ]
+            }
+        ).encode()
+        return reply
+
+    def test_typed_stops_get_their_region_but_stay_unpinned(self) -> None:
+        client = new_user("typed-stops@example.com")
+        station = self.photon_reply(
+            {"name": "板橋車站", "city": "新北市", "district": "板橋區"}
+        )
+        # The only result is another place, as Photon really answers for 沙崙海灘.
+        other_place = self.photon_reply({"name": "海湖埤", "city": "桃園市"})
+        urlopen = mock.MagicMock(side_effect=[station, other_place])
+
+        saved = self.save_typed_stops(
+            client, ["板橋車站", "沙崙海灘", "板橋車站"], urlopen
+        ).json()
+
+        first, beach, back = saved["points"]
+        self.assertEqual((first["city"], first["district"]), ("新北市", "板橋區"))
+        self.assertIsNone(first["lat"])
+        self.assertIsNone(first["lng"])
+        self.assertEqual((beach["city"], beach["district"]), (None, None))
+        self.assertEqual(back["city"], "新北市")
+        # The same name in one route is only looked up once.
+        self.assertEqual(urlopen.call_count, 2)
+
+    def test_typed_stops_still_save_when_the_lookup_is_down(self) -> None:
+        client = new_user("typed-stops-down@example.com")
+        urlopen = mock.MagicMock(side_effect=main.URLError("down"))
+
+        response = self.save_typed_stops(client, ["甲地", "乙地", "丙地"], urlopen)
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            [point["city"] for point in response.json()["points"]],
+            [None, None, None],
+        )
+        self.assertEqual(urlopen.call_count, 1)
+
     def test_created_map_point_is_listed_with_coordinates(self) -> None:
         client = new_user("map@example.com")
         created = client.post(
@@ -1597,6 +1959,113 @@ class MeetupTests(ApiTestCase):
             }
             return {**payload, **overrides}
 
+    def test_first_typed_place_starts_the_route_when_no_origin_is_given(self) -> None:
+        host = new_user("meetup-no-origin@example.com")
+        payload = self.meetup_payload(destinations=["板橋車站", "十分老街", "九份老街"])
+        del payload["origin"]
+
+        created = host.post("/api/meetups", json=payload)
+
+        self.assertEqual(created.status_code, 201, created.text)
+        meetup = created.json()
+        self.addCleanup(host.delete, f"/api/meetups/{meetup['id']}")
+        self.assertEqual(meetup["origin"]["name"], "板橋車站")
+        self.assertEqual(
+            [stop["name"] for stop in meetup["destinations"]], ["十分老街", "九份老街"]
+        )
+        footprint = next(
+            point
+            for point in host.get("/api/map-points").json()
+            if point["id"] == meetup["map_point_id"]
+        )
+        self.assertEqual(
+            [stop["name"] for stop in footprint["points"]],
+            ["板橋車站", "十分老街", "九份老街"],
+        )
+
+        # Saving what the edit form shows keeps the same route.
+        payload["destinations"] = ["板橋車站", "十分老街", "九份老街"]
+        edited = host.put(f"/api/meetups/{meetup['id']}", json=payload)
+        self.assertEqual(edited.status_code, 200, edited.text)
+        self.assertEqual(edited.json()["origin"]["name"], "板橋車站")
+
+    def test_departure_city_comes_from_where_the_route_starts(self) -> None:
+        host = new_user("meetup-auto-city@example.com")
+        payload = self.meetup_payload(destinations=["板橋車站", "九份老街"])
+        del payload["origin"], payload["departure_city"]
+
+        with mock.patch.object(
+            main.TypedStopRegions, "region_of", return_value=("新北市", "板橋區")
+        ):
+            created = host.post("/api/meetups", json=payload)
+
+        self.assertEqual(created.status_code, 201, created.text)
+        meetup = created.json()
+        self.addCleanup(host.delete, f"/api/meetups/{meetup['id']}")
+        self.assertEqual(meetup["departure_city"], "新北市")
+        self.assertEqual(meetup["origin"]["city"], "新北市")
+        self.assertEqual(meetup["origin"]["district"], "板橋區")
+
+    def test_meetup_is_kept_when_the_start_has_no_known_county(self) -> None:
+        host = new_user("meetup-unknown-city@example.com")
+        payload = self.meetup_payload(destinations=["不知名集合點"])
+        del payload["origin"], payload["departure_city"]
+
+        created = host.post("/api/meetups", json=payload)
+
+        self.assertEqual(created.status_code, 201, created.text)
+        meetup = created.json()
+        self.addCleanup(host.delete, f"/api/meetups/{meetup['id']}")
+        self.assertEqual(meetup["departure_city"], "")
+        self.assertEqual(host.get("/api/meetups").status_code, 200)
+
+    def test_meetup_can_go_to_a_single_place(self) -> None:
+        host = new_user("meetup-one-place@example.com")
+        payload = self.meetup_payload(destinations=["九份老街"])
+        del payload["origin"]
+
+        created = host.post("/api/meetups", json=payload)
+
+        self.assertEqual(created.status_code, 201, created.text)
+        meetup = created.json()
+        self.addCleanup(host.delete, f"/api/meetups/{meetup['id']}")
+        self.assertEqual(meetup["origin"]["name"], "九份老街")
+        self.assertEqual(meetup["destinations"], [])
+        self.assertEqual(
+            host.get("/api/meetups").status_code, 200
+        )
+
+    def test_meetup_footprint_files_typed_stops_by_region(self) -> None:
+            host = new_user("meetup-regions@example.com", "揪團者")
+            found = {"板橋車站": ("新北市", "板橋區")}
+            with mock.patch.object(
+                main.TypedStopRegions,
+                "region_of",
+                side_effect=lambda name: found.get(name, (None, None)),
+            ):
+                created = host.post(
+                    "/api/meetups",
+                    json=self.meetup_payload(destinations=["沙崙海灘"]),
+                ).json()
+                unknown_start = host.post(
+                    "/api/meetups",
+                    json=self.meetup_payload(
+                        origin="不知名集合點", destinations=["沙崙海灘"]
+                    ),
+                ).json()
+            for meetup in (created, unknown_start):
+                self.addCleanup(host.delete, f"/api/meetups/{meetup['id']}")
+            points = {
+                point["id"]: point["points"]
+                for point in host.get("/api/map-points").json()
+            }
+            start, beach = points[created["map_point_id"]]
+            self.assertEqual((start["city"], start["district"]), ("新北市", "板橋區"))
+            self.assertEqual((beach["city"], beach["district"]), (None, None))
+            self.assertIsNone(start["lat"])
+            # Nothing found for the start, so it falls back on the departure county.
+            self.assertEqual(points[unknown_start["map_point_id"]][0]["city"], "新北市")
+
     def test_public_meetup_can_be_created_joined_and_left(self) -> None:
             host = new_user("meetup-host@example.com", "揪團者")
             attendee = new_user("meetup-attendee@example.com", "參加者")
@@ -1853,6 +2322,44 @@ class DiaryChatTests(ApiTestCase):
         self.assertEqual(saved.status_code, 200)
         self.assertEqual(saved.json()["content"], "下班後沿河散步，看見晚霞。")
 
+    def ai_diary_with_location(self, client: TestClient, message: str, location):
+        reply = mock.MagicMock()
+        reply.__enter__.return_value.read.return_value = json.dumps(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "title": "標題",
+                                    "mood": "開心",
+                                    "tags": [],
+                                    "reply": "收到",
+                                    "location": location,
+                                },
+                                ensure_ascii=False,
+                            )
+                        }
+                    }
+                ]
+            }
+        ).encode("utf-8")
+        with mock.patch.dict(
+            os.environ, {"AI_API_KEY": "test-key", "AI_MODEL": "test-model"}
+        ), mock.patch.object(main, "urlopen", return_value=reply):
+            response = client.post("/api/diary-chat", json={"message": message})
+        self.assertEqual(response.status_code, 200)
+        return response.json()["entry"]["location"]
+
+    def test_ai_diary_keeps_only_a_location_the_writer_wrote(self) -> None:
+        client = new_user("ai-location@example.com")
+        message = "今天在淡水老街吃阿給"
+        self.assertEqual(
+            self.ai_diary_with_location(client, message, "淡水老街"), "淡水老街"
+        )
+        for invented in ("台北市", "", None, 123, ["淡水老街"], "淡" * 201):
+            self.assertIsNone(self.ai_diary_with_location(client, message, invented))
+
     def test_ai_diary_reports_unconfigured_provider_without_saving(self) -> None:
         client = new_user("ai-unconfigured@example.com")
         with mock.patch.dict(
@@ -1888,6 +2395,157 @@ class SentMail:
     def reset_token(self, index: int = -1) -> str:
         body = self.messages[index].get_content()
         return re.search(r"reset_password=([\w-]+)", body).group(1)
+
+
+class AccountDeletionEmailTests(ApiTestCase):
+    def account_without_password(self, email: str) -> TestClient:
+        # Registered before mail is switched on, which would otherwise hold back the session.
+        client = new_user(email)
+        with database.get_connection() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = NULL WHERE email = ?", (email,)
+            )
+            conn.commit()
+        return client
+
+    def turn_on_mail(self) -> SentMail:
+        mail = SentMail()
+        for patch in (
+            mock.patch.dict(
+                os.environ,
+                {"SMTP_HOST": "mail.test", "SMTP_FROM": "noreply@example.com"},
+            ),
+            mock.patch.object(main.smtplib, "SMTP", mail.smtp),
+        ):
+            patch.start()
+            self.addCleanup(patch.stop)
+        return mail
+
+    def link_token(self, mail: SentMail) -> str:
+        body = mail.messages[-1].get_content()
+        return re.search(r"delete_account=([\w-]+)", body).group(1)
+
+    def user_exists(self, email: str) -> bool:
+        with database.get_connection() as conn:
+            return bool(
+                conn.execute("SELECT 1 FROM users WHERE email = ?", (email,)).fetchone()
+            )
+
+    def test_session_alone_cannot_delete_an_account_without_password(self) -> None:
+        email = "session-only@example.com"
+        client = self.account_without_password(email)
+        self.assertFalse(client.get("/api/user/profile").json()["has_password"])
+        for body in ({}, {"password": ""}, {"email": email}):
+            self.assertEqual(client.post("/api/user/delete", json=body).status_code, 403)
+        self.assertTrue(self.user_exists(email))
+
+    def test_emailed_link_deletes_only_after_confirming_and_only_once(self) -> None:
+        email = "by-mail@example.com"
+        client = self.account_without_password(email)
+        mail = self.turn_on_mail()
+
+        sent = client.post("/api/user/delete/request")
+
+        self.assertEqual(sent.status_code, 200, sent.text)
+        self.assertEqual(mail.messages[-1]["To"], email)
+        # The request alone changes nothing; the link opens a page that asks again.
+        self.assertTrue(self.user_exists(email))
+        token = self.link_token(mail)
+        self.assertEqual(TestClient(main.app).get(f"/?delete_account={token}").status_code, 200)
+        self.assertTrue(self.user_exists(email))
+
+        # Opened in another browser with no session, as a mail app would.
+        confirmed = TestClient(main.app).post(
+            "/api/user/delete/confirm", json={"token": token}
+        )
+        self.assertEqual(confirmed.status_code, 200, confirmed.text)
+        self.assertFalse(self.user_exists(email))
+        self.assertEqual(client.get("/api/auth/me").status_code, 401)
+        with database.get_connection() as conn:
+            self.assertIsNone(
+                conn.execute("SELECT 1 FROM account_deletion_tokens").fetchone()
+            )
+        self.assertEqual(
+            TestClient(main.app)
+            .post("/api/user/delete/confirm", json={"token": token})
+            .status_code,
+            400,
+        )
+
+    def test_link_expires_and_a_made_up_one_does_nothing(self) -> None:
+        email = "late-click@example.com"
+        client = self.account_without_password(email)
+        mail = self.turn_on_mail()
+        client.post("/api/user/delete/request")
+        token = self.link_token(mail)
+        self.addCleanup(self.clear_tokens)
+        with database.get_connection() as conn:
+            conn.execute("UPDATE account_deletion_tokens SET expires_at = 0")
+            conn.commit()
+
+        for attempt in (token, "made-up"):
+            self.assertEqual(
+                TestClient(main.app)
+                .post("/api/user/delete/confirm", json={"token": attempt})
+                .status_code,
+                400,
+            )
+        self.assertTrue(self.user_exists(email))
+
+    def clear_tokens(self) -> None:
+        with database.get_connection() as conn:
+            conn.execute("DELETE FROM account_deletion_tokens")
+            conn.commit()
+
+    def test_new_request_waits_then_replaces_the_old_link(self) -> None:
+        email = "asks-twice@example.com"
+        client = self.account_without_password(email)
+        mail = self.turn_on_mail()
+        self.addCleanup(self.clear_tokens)
+        client.post("/api/user/delete/request")
+        first = self.link_token(mail)
+
+        self.assertEqual(client.post("/api/user/delete/request").status_code, 429)
+        self.assertEqual(len(mail.messages), 1)
+
+        with database.get_connection() as conn:
+            conn.execute(
+                "UPDATE account_deletion_tokens SET created_at = created_at - ?",
+                (main.ACCOUNT_DELETION_RESEND_SECONDS + 1,),
+            )
+            conn.commit()
+        self.assertEqual(client.post("/api/user/delete/request").status_code, 200)
+        self.assertEqual(
+            TestClient(main.app)
+            .post("/api/user/delete/confirm", json={"token": first})
+            .status_code,
+            400,
+        )
+        self.assertTrue(self.user_exists(email))
+
+    def test_failed_send_leaves_no_working_link_and_says_so(self) -> None:
+        email = "mail-down@example.com"
+        client = self.account_without_password(email)
+        mail = self.turn_on_mail()
+        mail.smtp.side_effect = OSError("down")
+
+        self.assertEqual(client.post("/api/user/delete/request").status_code, 503)
+        with database.get_connection() as conn:
+            self.assertIsNone(
+                conn.execute("SELECT 1 FROM account_deletion_tokens").fetchone()
+            )
+
+    def test_request_needs_mail_set_up_a_session_and_no_password(self) -> None:
+        email = "no-mail-server@example.com"
+        client = self.account_without_password(email)
+        self.assertEqual(client.post("/api/user/delete/request").status_code, 503)
+
+        has_password = new_user("has-password@example.com")
+        self.turn_on_mail()
+        self.assertEqual(has_password.post("/api/user/delete/request").status_code, 400)
+        self.assertEqual(
+            TestClient(main.app).post("/api/user/delete/request").status_code, 401
+        )
 
 
 class EmailVerificationTests(ApiTestCase):

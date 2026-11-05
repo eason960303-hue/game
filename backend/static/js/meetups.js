@@ -30,9 +30,25 @@ function meetupOrigin(meetup) {
   return meetup.origin || meetup.departure_city;
 }
 
+// The district is shown only when it's in the county on the card: older meetups could
+// name a county by hand and start somewhere else.
+function meetupDepartureText(meetup) {
+  const city = meetup.departure_city;
+  if (!city) return "";
+  const sameCity =
+    (meetup.origin?.city || "").replace("臺", "台") === city.replace("臺", "台");
+  const district = sameCity ? meetup.origin?.district || "" : "";
+  return ` 從${escapeHtml(city)}${escapeHtml(district)}出發`;
+}
+
 function meetupDirectionsUrl(meetup) {
   const url = new URL("https://www.google.com/maps/dir/");
   url.searchParams.set("api", "1");
+  // A single place has no route of its own, so Maps starts from where the viewer is.
+  if (meetup.destinations.length === 0) {
+    url.searchParams.set("destination", meetupStopQuery(meetupOrigin(meetup)));
+    return url.toString();
+  }
   url.searchParams.set("origin", meetupStopQuery(meetupOrigin(meetup)));
   url.searchParams.set(
     "destination",
@@ -60,7 +76,7 @@ const MEETUP_WHO = {
     empty: "",
   },
   mine: {
-    label: "個人",
+    label: "我的",
     matches: (meetup) => meetup.is_owner || meetup.is_participating,
     empty: "你還沒有發起或參加揪團。",
   },
@@ -79,9 +95,10 @@ const meetupFilter = createContentFilter({
 });
 
 function renderMeetups() {
+  renderWelcomeCard();
   meetupFilter.refresh();
   const visible = meetupFilter.visible();
-  meetupCount.textContent = `${visible.length} 個公開邀請`;
+  meetupCount.textContent = `${visible.length} 個揪團`;
   if (visible.length === 0) {
     const message = meetupFilter.emptyMessage();
     meetupList.innerHTML = message
@@ -111,7 +128,7 @@ function renderMeetups() {
             <h3>${escapeHtml(meetup.title)}</h3>
             <span class="meetup-participants">${meetup.participant_count} / ${meetup.participant_limit} 人</span>
           </div>
-          <p class="meetup-starts-at">${escapeHtml(meetupDateLabel(meetup.starts_at))} 從${escapeHtml(meetup.departure_city)}出發</p>
+          <p class="meetup-starts-at">${escapeHtml(meetupDateLabel(meetup.starts_at))}${meetupDepartureText(meetup)}</p>
           <ol class="meetup-route" aria-label="預計路線">${route}</ol>
           <div class="meetup-card-footer">
             <span class="meetup-inviter">${meetup.is_owner ? "你發起的" : `${escapeHtml(meetup.host_name)} 發起`}</span>
@@ -135,7 +152,6 @@ async function loadMeetups({ background = false } = {}) {
     if (background && JSON.stringify(loadedMeetups) === JSON.stringify(meetups)) return;
     meetups = loadedMeetups;
     renderMeetups();
-    renderTimelineFootprints();
   } catch (error) {
     meetupCount.textContent = "載入失敗";
     meetupLoadErrorMessage.textContent = error.message;

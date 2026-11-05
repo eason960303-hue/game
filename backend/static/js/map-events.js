@@ -52,7 +52,7 @@ document.querySelector("#map-point-delete").addEventListener("click", async () =
   const status = document.querySelector("#map-form-status");
   const name = mapPointForm.elements.name.value.trim();
   if (
-    !window.confirm(`確定要刪除「${name}」嗎？也會從行程包中移除，刪除後無法復原。`)
+    !window.confirm(`確定要刪除「${name}」嗎？也會從行程中移除，刪除後無法復原。`)
   ) {
     return;
   }

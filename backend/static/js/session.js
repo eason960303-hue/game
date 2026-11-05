@@ -10,8 +10,11 @@ async function loadSessionData() {
   if (currentUser && !viewLoadsMapPoints) loads.push(loadMapPoints());
   const viewLoadsRequestCount = view === "profile" && !viewedUsername;
   if (currentUser && !viewLoadsRequestCount) refreshFollowRequestCount();
+  if (currentUser) loadSettingsFromAccount();
   loadViewData(view);
   await Promise.all(loads);
+  sessionDataLoaded = Boolean(currentUser);
+  renderWelcomeCard();
 }
 
 function updateAccountUi() {
@@ -20,6 +23,9 @@ function updateAccountUi() {
   loginOpenButton.hidden = Boolean(currentUser);
   logoutButton.hidden = !currentUser;
   document.querySelector("#recent-entries-section").hidden = !currentUser;
+  // Signed out, the welcome card already says where to begin.
+  document.querySelector("#open-entry").hidden = !currentUser;
+  renderWelcomeCard();
 }
 
 // A sign-in option that can't work isn't offered at all.
@@ -46,6 +52,7 @@ async function initializeSession() {
   } catch {
     currentUser = null;
   }
+  accountChecked = true;
   updateAccountUi();
   await Promise.all([loadSessionData(), loadOAuthProviders()]);
 }
@@ -65,6 +72,13 @@ async function handleEmailVerificationLink() {
     resetPasswordForm.reset();
     resetPasswordStatus.textContent = "";
     resetPasswordDialog.showModal();
+    return;
+  }
+  const deletionToken = url.searchParams.get("delete_account");
+  if (deletionToken) {
+    url.searchParams.delete("delete_account");
+    window.history.replaceState(null, "", url);
+    openAccountDeletionLinkDialog(deletionToken);
     return;
   }
   const token = url.searchParams.get("verify_email");
