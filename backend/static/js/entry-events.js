@@ -83,6 +83,5 @@ async function handleEntryAction(event) {
   }
 }
 
-entriesContainer.addEventListener("click", handleEntryAction);
 profileDiariesGrid.addEventListener("click", handleEntryAction);
 diaryMonthList.addEventListener("click", handleEntryAction);

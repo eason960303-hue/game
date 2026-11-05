@@ -32,7 +32,9 @@ const SETTING_CHOICES = {
   footprintPrivacy: ["private", "friends", "public"],
   aiFollowUp: ["on", "off"],
   startPage: ["last", "home"],
-  homeDiaries: ["full", "no-photo", "compact"],
+  homeDiaries: ["full", "no-photo", "compact", "hidden"],
+  homeMeetups: ["on", "off"],
+  homeFootprints: ["on", "off"],
 };
 
 function validSettings(saved) {
@@ -105,6 +107,8 @@ function applyTheme() {
   if (appSetting("palette") === "default") delete root.dataset.palette;
   else root.dataset.palette = appSetting("palette");
   root.dataset.homeDiaries = appSetting("homeDiaries");
+  root.dataset.homeMeetups = appSetting("homeMeetups");
+  root.dataset.homeFootprints = appSetting("homeFootprints");
   root.style.colorScheme = theme;
   document
     .querySelector('meta[name="theme-color"]')

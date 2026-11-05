@@ -1320,8 +1320,6 @@ a.friend-profile-link {
 
 .diary-month-list {
   display: grid;
-  max-height: 340px;
-  overflow-y: auto;
   gap: 8px;
 }
 
@@ -5067,12 +5065,13 @@ body.map-mode .page.app-shell {
   padding-bottom: 0;
 }
 
-/* The map page stays full-bleed, so its header carries its own side padding. */
+/* The map page stays full-bleed, so its header carries side padding equal to the margins
+   of every other page, which keeps the tabs from jumping when 足跡 is chosen. */
 
 body.map-mode .floating-topbar {
   position: sticky;
   margin: 0;
-  padding-inline: 16px;
+  padding-inline: calc((100% - min(100% - 48px, 1120px)) / 2);
 }
 
 body.map-mode .map-panel,
@@ -5128,7 +5127,7 @@ body.map-mode .map-sidebar,
   }
 
   body.map-mode .floating-topbar {
-    padding-inline: 12px;
+    padding-inline: 16px;
   }
 
   .brand > span:last-child {
@@ -6586,10 +6585,6 @@ body.map-mode .map-sidebar,
   display: none;
 }
 
-.ai-chat-messages {
-  min-height: 120px;
-}
-
 .privacy-note-card summary {
   color: var(--ink-2);
   cursor: pointer;
@@ -6639,7 +6634,17 @@ body.map-mode .map-sidebar,
   font-weight: 600;
 }
 
-/* Home's recent diaries, when Settings asks for no photos or for titles only. */
+/* Sections of home that Settings can turn off. */
+:root[data-home-meetups="off"] #home-view .meetup-section,
+:root[data-home-footprints="off"] #home-view .timeline-footprints {
+  display: none;
+}
+
+/* Home's recent diaries, when Settings asks for no photos, titles only or none at all. */
+:root[data-home-diaries="hidden"] #recent-entries-section {
+  display: none;
+}
+
 :root[data-home-diaries="no-photo"] #entries .entry-photo {
   display: none;
 }
@@ -6797,4 +6802,309 @@ dialog .dialog-content {
   animation: none;
   opacity: 0;
   transition: opacity 300ms ease;
+}
+
+.entry-photo[data-view-entry-photo] {
+  cursor: zoom-in;
+}
+
+/* ---------- AI 日記: a chat like any messaging app ---------- */
+
+.ai-diary-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#ai-diary-view {
+  --ai-chat-height: clamp(560px, calc(100dvh - 220px), 760px);
+}
+
+.ai-chat-card {
+  display: flex;
+  height: var(--ai-chat-height);
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.ai-provider-status {
+  margin: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.ai-chat-messages {
+  min-height: 0;
+  flex: 1;
+  gap: 8px;
+  border: 0;
+  border-radius: 0;
+  background: var(--sunken);
+  overscroll-behavior: contain;
+}
+
+.ai-chat-message,
+.ai-chat-message.is-assistant,
+.ai-chat-message.is-user,
+.ai-chat-message.is-error {
+  max-width: 80%;
+  padding: 8px 12px 6px;
+  border: 1px solid var(--line);
+  border-radius: 18px 18px 18px 4px;
+  background: var(--surface);
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.ai-chat-message.is-user {
+  border-color: var(--accent);
+  border-radius: 18px 18px 4px 18px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.ai-chat-message.is-error {
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.ai-chat-time {
+  display: block;
+  margin-top: 2px;
+  color: inherit;
+  font-size: 11px;
+  opacity: 0.65;
+  text-align: right;
+}
+
+.ai-chat-message.is-typing {
+  display: flex;
+  gap: 4px;
+  padding: 13px 14px;
+}
+
+.ai-chat-message.is-typing span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  animation: ai-chat-typing 1.2s ease-in-out infinite;
+}
+
+.ai-chat-message.is-typing span:nth-child(2) {
+  animation-delay: 150ms;
+}
+
+.ai-chat-message.is-typing span:nth-child(3) {
+  animation-delay: 300ms;
+}
+
+@keyframes ai-chat-typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.ai-chat-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.ai-chat-form .ai-chat-composer {
+  width: auto;
+  min-width: 0;
+  min-height: 40px;
+  max-height: 132px;
+  flex: 1;
+  padding: 8px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.4;
+  overflow-y: auto;
+  resize: none;
+}
+
+.ai-chat-send {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.ai-chat-send svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+}
+
+.ai-chat-send:disabled {
+  background: var(--tint);
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.ai-chat-send.is-busy svg {
+  animation: ai-chat-typing 1.2s ease-in-out infinite;
+}
+
+@media (max-width: 760px) {
+  #ai-diary-view .module-heading {
+    margin-bottom: 8px;
+  }
+
+  #ai-diary-view .module-heading p {
+    display: none;
+  }
+
+  #ai-diary-view .module-heading h1 {
+    margin: 0;
+    font-size: var(--text-xl);
+  }
+
+  /* From under the top bar to just above the tab bar, so the box is always in reach. */
+  .ai-chat-card {
+    height: calc(100dvh - 196px - env(safe-area-inset-bottom));
+    min-height: 300px;
+  }
+
+  /* With the keyboard up, the tab bar would only take typing space. */
+  body:has(#ai-chat-input:focus) .navigation {
+    display: none;
+  }
+
+  body:has(#ai-chat-input:focus) .ai-chat-card {
+    height: calc(100dvh - 136px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-chat-message.is-typing span,
+  .ai-chat-send.is-busy svg {
+    animation: none;
+  }
+}
+
+/* On a wide screen 我的日記 stands level with the chat, the same height, and scrolls inside.
+   The privacy note moves under the chat so nothing sits above it. */
+@media (min-width: 761px) {
+  .ai-diary-side {
+    display: contents;
+  }
+
+  .diary-month-card {
+    display: flex;
+    grid-column: 2;
+    grid-row: 1;
+    height: var(--ai-chat-height);
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .diary-month-list {
+    min-height: 0;
+    flex: 1;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .privacy-note-card {
+    grid-column: 1;
+    grid-row: 2;
+  }
+}
+
+/* ---------- A saved AI diary travels to 我的日記 as a point of light ---------- */
+
+.diary-spark {
+  position: fixed;
+  z-index: 1100;
+  overflow: hidden;
+  padding: 11px 13px;
+  background-color: var(--surface);
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.7;
+  pointer-events: none;
+  white-space: pre-wrap;
+}
+
+.diary-month-entry.is-new {
+  animation: diary-arrived 1800ms ease-out;
+}
+
+@keyframes diary-arrived {
+  0%,
+  35% {
+    background-color: var(--accent-soft);
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+
+  100% {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .diary-month-entry.is-new {
+    animation: none;
+  }
+}
+
+.diary-spark.is-flying {
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  overflow: visible;
+  padding: 0;
+  border-radius: 50%;
+  background-color: var(--accent);
+  box-shadow: 0 0 18px 7px var(--accent);
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
+  will-change: transform;
+}
+
+/* A fingertip is far bigger than the spark, so the part that can be grabbed is too. */
+.diary-spark.is-flying::after {
+  position: absolute;
+  inset: -18px;
+  border-radius: 50%;
+  content: "";
+}
+
+.diary-spark.is-held {
+  cursor: grabbing;
 }

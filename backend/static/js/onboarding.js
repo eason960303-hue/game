@@ -122,6 +122,10 @@ const EMPTY_STATE_ACTIONS = {
   },
   "new-trip": () => openTripForm(),
   "new-meetup": () => document.querySelector("#meetup-open").click(),
+  "diary-list": () =>
+    document
+      .querySelector(".diary-month-card")
+      .scrollIntoView({ behavior: "smooth", block: "start" }),
   "sign-up": () => openAuthDialog(true),
   "log-in": () => openAuthDialog(false),
 };

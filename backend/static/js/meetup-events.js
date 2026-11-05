@@ -36,8 +36,49 @@ function setMeetupTimeMode(mode, copyValues = true) {
   }
 }
 
+const meetupFootprintField = document.querySelector("#meetup-footprint-field");
+const meetupFootprintPick = document.querySelector("#meetup-footprint-pick");
+
+function meetupFootprintStops(point) {
+  return footprintRoutePoints(point)
+    .map((stop) => (stop.name || "").trim())
+    .filter(Boolean);
+}
+
+// Only your own trips, and only ones that still have places to reuse.
+function showPastFootprints() {
+  const footprints = mapPoints.filter(
+    (point) => point.is_owner && meetupFootprintStops(point).length > 0,
+  );
+  meetupFootprintField.hidden = footprints.length === 0;
+  meetupFootprintPick.replaceChildren(
+    meetupFootprintPick.options[0],
+    ...footprints.map((point) => {
+      const option = document.createElement("option");
+      option.value = String(point.id);
+      option.textContent = `${point.name}（${meetupFootprintStops(point).length} 站）`;
+      return option;
+    }),
+  );
+  meetupFootprintPick.value = "";
+}
+
+meetupFootprintPick.addEventListener("change", () => {
+  const point = mapPoints.find(
+    (item) => String(item.id) === meetupFootprintPick.value,
+  );
+  meetupFootprintPick.value = "";
+  if (!point) return;
+  const field = meetupForm.elements.destinations;
+  const typed = field.value.trim();
+  const stops = meetupFootprintStops(point).join("\n");
+  // Added after what's there, so it can extend a route as well as start one.
+  field.value = typed ? `${typed}\n${stops}` : stops;
+});
+
 function showMeetupDialog() {
   document.querySelector("#meetup-form-status").textContent = "";
+  showPastFootprints();
   savedMeetupForm = meetupFormSnapshot();
   meetupDialog.showModal();
   meetupForm.elements.title.focus();

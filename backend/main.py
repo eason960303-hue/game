@@ -241,7 +241,6 @@ class ParsedDiaryEntry(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     mood: str = Field(..., min_length=1, max_length=80)
     tags: list[str] = Field(default_factory=list, max_length=12)
-    reply: str = Field(..., min_length=1, max_length=500)
     # Unchecked here so a malformed value costs the location, not the whole diary.
     location: Any = None
 
@@ -3653,7 +3652,7 @@ def chat_diary(
     if not api_key or not model:
         raise HTTPException(
             status_code=503,
-            detail="AI 日記暫時無法使用，可以先在首頁用「新增記錄」手動寫日記。",
+            detail="AI 日記暫時無法使用，可以先到首頁按「寫日記」手動記錄。",
         )
 
     ai_request = ai_json_request(
@@ -3664,10 +3663,11 @@ def chat_diary(
         max_tokens=1200,
         system_prompt=(
             "你是繁體中文生活日記助理。根據使用者提供的生活敘述輸出 JSON，"
-            "欄位為 title、mood、tags（字串陣列，最多 12 個）、reply、location。"
+            "欄位為 title、mood、tags（字串陣列，最多 12 個）、location。"
+            "你只負責統整，不是聊天對象：不回答問題、不給建議、不安慰、不評論、不提問。"
             "title 是精簡標題，要涵蓋使用者提到的主要事情，用使用者的用詞，不誇大；"
             "mood 用簡短繁體中文描述使用者提到的心情，有好有壞時兩者都要寫；"
-            "tags 是精簡主題標籤；reply 是一句溫暖、簡短的繁體中文回覆；"
+            "tags 是精簡主題標籤；"
             "location 是使用者明確提到的地名或店名，逐字取自原文，"
             "沒有明確地名時填 null，不可猜測。"
             "不可加入使用者沒提到的事。"
@@ -3704,8 +3704,7 @@ def chat_diary(
 
     title = structured.title.strip()
     mood = structured.mood.strip()
-    reply = structured.reply.strip()
-    if not title or not mood or not reply:
+    if not title or not mood:
         raise HTTPException(
             status_code=502, detail="AI 回傳的日記內容不能為空，請修改內容後重試。"
         )
@@ -3727,7 +3726,7 @@ def chat_diary(
         ),
         user,
     )
-    return {"reply": reply, "entry": entry}
+    return {"entry": entry}
 
 
 def get_map_point(

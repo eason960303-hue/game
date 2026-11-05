@@ -186,6 +186,45 @@ function askForMissingEntryDetails(entry, prompt = null) {
   aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
 }
 
+let aiChatBusy = false;
+
+function updateAiChatSend() {
+  aiChatSendButton.disabled = aiChatBusy || !aiChatInput.value.trim();
+  aiChatSendButton.classList.toggle("is-busy", aiChatBusy);
+}
+
+// The box grows with the message, up to the limit set in the stylesheet, then scrolls.
+function fitAiChatInput() {
+  aiChatInput.style.height = "auto";
+  aiChatInput.style.height = `${aiChatInput.scrollHeight + 2}px`;
+  updateAiChatSend();
+}
+
+aiChatInput.addEventListener("input", fitAiChatInput);
+
+// With a keyboard, Enter sends and Shift+Enter starts a new line. On a phone Enter stays a
+// new line, and while choosing Chinese characters it only confirms the choice.
+aiChatInput.addEventListener("keydown", (event) => {
+  if (
+    event.key === "Enter" &&
+    !event.shiftKey &&
+    !event.isComposing &&
+    window.matchMedia("(hover: hover) and (pointer: fine)").matches
+  ) {
+    event.preventDefault();
+    if (!aiChatSendButton.disabled) aiChatForm.requestSubmit();
+  }
+});
+
+// Keeps the keyboard up after sending. Losing focus would also bring the tab bar back and
+// move this button out from under the finger before the tap lands.
+aiChatSendButton.addEventListener("mousedown", (event) => event.preventDefault());
+
+// The keyboard takes the room the tab bar and newest messages were using.
+aiChatInput.addEventListener("focus", () => {
+  aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+});
+
 aiChatForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!currentUser) {
@@ -196,9 +235,12 @@ aiChatForm.addEventListener("submit", async (event) => {
   const message = getFormText(values, "message");
   if (!message) return;
   appendAiChatMessage(message, "user");
-  const pending = appendAiChatMessage("正在整理你的日記…");
-  aiChatSendButton.disabled = true;
-  aiChatSendButton.textContent = "整理中…";
+  // Sent means gone from the box, as in any chat app; a failure puts it back below.
+  aiChatInput.value = "";
+  fitAiChatInput();
+  const pending = appendAiChatTyping();
+  aiChatBusy = true;
+  updateAiChatSend();
   try {
     const result = await apiRequest(
       "/diary-chat",
@@ -212,20 +254,27 @@ aiChatForm.addEventListener("submit", async (event) => {
           .map((tag) => `#${tag.trim().replace(/^#/, "")}`)
           .join(" ")}`
       : "";
-    appendAiChatMessage(
-      `${result.reply}\n\n已儲存「${entry.title}」\n心情：${entry.mood}${entry.location ? `\n地點：${entry.location}` : ""}${tags}`,
+    const saved = appendAiChatMessage(
+      `已存成日記「${entry.title}」\n心情：${entry.mood}${entry.location ? `\n地點：${entry.location}` : ""}${tags}`,
     );
-    if (appSetting("aiFollowUp") === "on") askForMissingEntryDetails(entry);
-    aiChatInput.value = "";
+    await flyDiaryToList(saved);
+    const savedDate = serverDate(entry.created_at);
+    showDiaryMonth(savedDate.getFullYear(), savedDate.getMonth() + 1);
     await loadEntries();
+    revealNewDiary(entry);
+    if (appSetting("aiFollowUp") === "on") askForMissingEntryDetails(entry);
   } catch (error) {
     pending.remove();
     appendAiChatMessage(
       `這次尚未儲存日記：${error.message}`,
       "error",
     );
+    if (!aiChatInput.value) {
+      aiChatInput.value = message;
+      fitAiChatInput();
+    }
   } finally {
-    aiChatSendButton.disabled = false;
-    aiChatSendButton.textContent = "整理並儲存";
+    aiChatBusy = false;
+    updateAiChatSend();
   }
 });

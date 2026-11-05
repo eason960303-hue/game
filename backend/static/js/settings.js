@@ -21,6 +21,8 @@ function showSettings() {
   elements.footprintPrivacy.value = appSetting("footprintPrivacy");
   elements.startPage.value = appSetting("startPage");
   elements.homeDiaries.value = appSetting("homeDiaries");
+  elements.homeMeetups.checked = appSetting("homeMeetups") === "on";
+  elements.homeFootprints.checked = appSetting("homeFootprints") === "on";
   elements.aiFollowUp.checked = appSetting("aiFollowUp") === "on";
   // A colour theme already decides light or dark.
   document.querySelector("#settings-mode").hidden = appSetting("palette") !== "default";

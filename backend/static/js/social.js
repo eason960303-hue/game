@@ -25,6 +25,24 @@ function appendAiChatMessage(message, type = "assistant") {
   const element = document.createElement("div");
   element.className = `ai-chat-message is-${type}`;
   element.textContent = message;
+  const time = document.createElement("time");
+  time.className = "ai-chat-time";
+  time.textContent = new Date().toLocaleTimeString("zh-TW", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  element.append(time);
+  aiChatMessages.append(element);
+  aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+  return element;
+}
+
+function appendAiChatTyping() {
+  const element = document.createElement("div");
+  element.className = "ai-chat-message is-assistant is-typing";
+  element.setAttribute("aria-label", "AI 正在整理你的日記");
+  element.innerHTML = '<span></span><span></span><span></span>';
   aiChatMessages.append(element);
   aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
   return element;

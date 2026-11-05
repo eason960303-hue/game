@@ -29,7 +29,7 @@ function emptyStateHtml(className, message, actionLabel, action) {
     </div>`;
 }
 
-// Home keeps the newest few; the rest live under AI 日記 and the profile page.
+// Home is an overview of the newest few. Editing and deleting live under AI 日記.
 function renderEntries(entries) {
   loadError.hidden = true;
   entriesContainer.hidden = false;
@@ -39,14 +39,7 @@ function renderEntries(entries) {
     : entries
         .slice(0, HOME_ENTRY_LIMIT)
         .map(
-          (entry) => {
-            const entryActions = `
-                <div class="entry-actions" aria-label="日記操作">
-                  <button class="small-action${entryCanBeEdited(entry.created_at) ? "" : " is-locked"}" type="button" data-edit-entry="${Number(entry.id)}" aria-disabled="${!entryCanBeEdited(entry.created_at)}" title="${entryCanBeEdited(entry.created_at) ? "編輯日記" : "發布已超過 24 小時，無法變更內容"}">編輯</button>
-                  <button class="small-action is-destructive" type="button" data-delete-entry="${Number(entry.id)}">刪除</button>
-                </div>
-              `;
-            return `
+          (entry) => `
         <article class="entry-card">
           ${entryPhotoHtml(entry)}
           <div class="entry-meta">
@@ -55,13 +48,9 @@ function renderEntries(entries) {
           </div>
           <h3>${escapeHtml(entry.title)}</h3>
           <p>${escapeHtml(entry.content)}</p>
-          <div class="entry-card-footer">
-            ${entry.location ? `<span class="entry-location">${escapeHtml(entry.location)}</span>` : "<span></span>"}
-            ${entryActions}
-          </div>
+          ${entry.location ? `<div class="entry-card-footer"><span class="entry-location">${escapeHtml(entry.location)}</span></div>` : ""}
         </article>
-            `;
-          },
+            `,
         )
         .join("");
   entriesContainer.innerHTML = cards;
@@ -957,7 +946,7 @@ async function entryPhotoBlob(file) {
 
 function entryPhotoHtml(entry) {
   return entry.photo_url
-    ? `<img class="entry-photo" src="${escapeHtml(mediaUrl(entry.photo_url))}" alt="${escapeHtml(entry.title)}的照片" loading="lazy" decoding="async" />`
+    ? `<img class="entry-photo" src="${escapeHtml(mediaUrl(entry.photo_url))}" alt="${escapeHtml(entry.title)}的照片，點一下放大" role="button" tabindex="0" data-view-entry-photo="${escapeHtml(entry.photo_url)}" data-photo-title="${escapeHtml(entry.title)}" loading="lazy" decoding="async" />`
     : "";
 }
 
@@ -1198,6 +1187,7 @@ function showViewerPhoto(index) {
   photoViewerImage.src = mediaUrl(photos[photoViewerIndex].url);
   photoViewerImage.alt = `${title}的照片`;
   photoViewerCount.textContent = `${photoViewerIndex + 1} / ${photos.length}`;
+  photoViewerCount.hidden = photos.length < 2;
   photoViewerPrev.hidden = photoViewerNext.hidden = photos.length < 2;
 }
 
@@ -1209,6 +1199,31 @@ profileFootprintsGrid.addEventListener("click", (event) => {
   photoViewerPhotos = shownFootprintPhotos(photoViewerPost);
   showViewerPhoto(Number(button.dataset.photoIndex));
   photoViewer.showModal();
+});
+
+function openEntryPhoto(photo) {
+  photoViewerPost = { title: photo.dataset.photoTitle };
+  photoViewerPhotos = [{ url: photo.dataset.viewEntryPhoto }];
+  showViewerPhoto(0);
+  photoViewer.showModal();
+}
+
+// Capturing, so opening a photo doesn't also fold up the diary card it sits in.
+document.addEventListener(
+  "click",
+  (event) => {
+    const photo = event.target.closest?.("[data-view-entry-photo]");
+    if (!photo) return;
+    event.stopPropagation();
+    openEntryPhoto(photo);
+  },
+  true,
+);
+document.addEventListener("keydown", (event) => {
+  const photo = event.target.closest?.("[data-view-entry-photo]");
+  if (!photo || (event.key !== "Enter" && event.key !== " ")) return;
+  event.preventDefault();
+  openEntryPhoto(photo);
 });
 
 photoViewerPrev.addEventListener("click", () => showViewerPhoto(photoViewerIndex - 1));

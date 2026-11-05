@@ -2315,7 +2315,9 @@ class DiaryChatTests(ApiTestCase):
 
         self.assertEqual(response.status_code, 200)
         result = response.json()
-        self.assertEqual(result["reply"], "這段黃昏聽起來很療癒。")
+        # The AI only organises the diary; it never talks back, even if it tries to.
+        self.assertNotIn("reply", result)
+        self.assertNotIn("療癒", json.dumps(result, ensure_ascii=False))
         self.assertEqual(result["entry"]["privacy"], "friends")
         self.assertEqual(result["entry"]["tags"], "散步, 晚霞")
         saved = client.get(f"/api/entries/{result['entry']['id']}")

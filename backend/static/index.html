@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta
       name="description"
       content="把日常的風景、心情與足跡，收藏成自己的生活記錄。"
@@ -206,7 +206,10 @@
 
       <section class="app-view module-view" id="ai-diary-view" hidden aria-labelledby="ai-diary-title">
         <div class="module-heading">
-          <h1 id="ai-diary-title">AI 日記</h1>
+          <div class="ai-diary-title-row">
+            <h1 id="ai-diary-title">AI 日記</h1>
+            <button class="secondary-button" type="button" data-empty-action="diary-list">我的日記</button>
+          </div>
           <p>像聊天一樣說今天發生的事，AI 會幫你存成日記。</p>
         </div>
         <div class="ai-diary-layout">
@@ -217,10 +220,8 @@
             </div>
             <form class="ai-chat-form" id="ai-chat-form">
               <label class="sr-only" for="ai-chat-input">今天想記下什麼？</label>
-              <textarea class="compact-field ai-chat-composer" id="ai-chat-input" name="message" maxlength="12000" required placeholder="例如：下班後去河邊散步，看到夕陽覺得很放鬆…"></textarea>
-              <div class="ai-chat-controls">
-                <button class="primary-button" id="ai-chat-send" type="submit">存成日記</button>
-              </div>
+              <textarea class="ai-chat-composer" id="ai-chat-input" name="message" rows="1" maxlength="12000" placeholder="今天發生了什麼？"></textarea>
+              <button class="ai-chat-send" id="ai-chat-send" type="submit" aria-label="傳送並存成日記" title="傳送並存成日記" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5.500 11.500 12 5l6.500 6.500"/></svg></button>
             </form>
           </section>
           <div class="ai-diary-side">
@@ -480,6 +481,11 @@
             <textarea name="destinations" rows="3" maxlength="2000" required placeholder="板橋車站&#10;淡水老街&#10;沙崙海灘"></textarea>
             <span class="privacy-note">照順序輸入，第一個就是出發點。也可以打一句話，例如「板橋車站再到淡水老街」。</span>
           </label>
+          <label class="compact-field" id="meetup-footprint-field" hidden>或選用過去的足跡
+            <select id="meetup-footprint-pick">
+              <option value="">選一趟足跡，把站點加進上面</option>
+            </select>
+          </label>
         </div>
         <p class="status-message" id="meetup-form-status" role="status"></p>
         <div class="meetup-form-actions">
@@ -551,7 +557,16 @@
               <option value="full">完整內容</option>
               <option value="no-photo">不顯示照片</option>
               <option value="compact">精簡（小框，只顯示標題）</option>
+              <option value="hidden">不顯示在首頁</option>
             </select>
+          </label>
+          <label class="checkbox-field">
+            <input name="homeMeetups" type="checkbox" />
+            在首頁顯示現正揪團
+          </label>
+          <label class="checkbox-field">
+            <input name="homeFootprints" type="checkbox" />
+            在首頁顯示足跡
           </label>
         </section>
         <section class="settings-section">
@@ -822,6 +837,7 @@
     <script src="js/trips.js"></script>
     <script src="js/meetups.js"></script>
     <script src="js/diary-month.js"></script>
+    <script src="js/diary-spark.js"></script>
     <script src="js/settings.js"></script>
     <script src="js/session.js"></script>
     <script src="js/compose-events.js"></script>

@@ -65,6 +65,7 @@ function renderDiaryMonth() {
               <p>${escapeHtml(entry.content)}</p>
               ${entryPhotoHtml(entry)}
               <div class="diary-month-entry-actions">
+                <button class="small-action${entryCanBeEdited(entry.created_at) ? "" : " is-locked"}" type="button" data-edit-entry="${Number(entry.id)}" aria-disabled="${!entryCanBeEdited(entry.created_at)}" aria-label="編輯日記：${escapeHtml(entry.title)}" title="${entryCanBeEdited(entry.created_at) ? "編輯日記" : "發布已超過 24 小時，無法變更內容"}">編輯</button>
                 <button class="small-action is-destructive" type="button" data-delete-entry="${Number(entry.id)}" aria-label="刪除日記：${escapeHtml(entry.title)}">刪除</button>
               </div>
             </details>
@@ -95,3 +96,39 @@ diaryMonthPrev.addEventListener("click", () => shiftDiaryMonth(-1));
 diaryMonthNext.addEventListener("click", () => shiftDiaryMonth(1));
 
 setDiaryEntries([]);
+
+// <details> snaps open and shut by itself, so its height is animated here instead.
+const DIARY_ENTRY_TOGGLE_MS = 260;
+const diaryEntryAnimations = new WeakMap();
+
+function toggleDiaryEntry(entry) {
+  const running = diaryEntryAnimations.get(entry);
+  // A second tap mid-way turns it around from wherever it has got to.
+  const opening = running ? running.closing : !entry.open;
+  const from = entry.getBoundingClientRect().height;
+  running?.cancel();
+  entry.open = true;
+  const borders = entry.offsetHeight - entry.clientHeight;
+  const to = opening
+    ? entry.getBoundingClientRect().height
+    : entry.querySelector("summary").offsetHeight + borders;
+  entry.style.overflow = "hidden";
+  const animation = entry.animate(
+    { height: [`${from}px`, `${to}px`] },
+    { duration: DIARY_ENTRY_TOGGLE_MS, easing: "cubic-bezier(0.2, 0.75, 0.3, 1)" },
+  );
+  animation.closing = !opening;
+  diaryEntryAnimations.set(entry, animation);
+  animation.onfinish = () => {
+    diaryEntryAnimations.delete(entry);
+    entry.open = opening;
+    entry.style.overflow = "";
+  };
+}
+
+diaryMonthList.addEventListener("click", (event) => {
+  const summary = event.target.closest("summary");
+  if (!summary || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  event.preventDefault();
+  toggleDiaryEntry(summary.parentElement);
+});
