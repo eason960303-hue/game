@@ -59,7 +59,7 @@ function renderDiaryMonth() {
           return `
             <details class="diary-month-entry">
               <summary>
-                <time class="diary-month-day" datetime="${escapeHtml(entry.created_at)}">${date.getMonth() + 1}/${date.getDate()}</time>
+                <time class="diary-month-day" datetime="${escapeHtml(entry.created_at)}">${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}</time>
                 <span class="diary-month-entry-title">${escapeHtml(entry.title)}</span>
               </summary>
               <p>${escapeHtml(entry.content)}</p>

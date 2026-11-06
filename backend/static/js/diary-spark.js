@@ -157,12 +157,53 @@ async function flyDiaryToList(bubble) {
   );
 }
 
-// Shows the month the diary went into, and marks it so the eye lands on it.
+const DIARY_GROW_MS = 520;
+const DIARY_CONTENT_MS = 420;
+
+// Shows the month the diary went into: the new entry opens up out of the spot the
+// spark landed on, its line slides in, then it glows so the eye lands on it.
 function revealNewDiary(entry) {
   const button = diaryMonthList.querySelector(`[data-delete-entry="${Number(entry.id)}"]`);
   const item = button?.closest(".diary-month-entry");
   if (!item) return;
   diaryMonthList.scrollTop = 0;
-  item.classList.add("is-new");
-  item.addEventListener("animationend", () => item.classList.remove("is-new"), { once: true });
+  const markNew = () => {
+    item.classList.add("is-new");
+    item.addEventListener("animationend", () => item.classList.remove("is-new"), { once: true });
+  };
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    markNew();
+    return;
+  }
+
+  const box = item.getBoundingClientRect();
+  const height = box.height;
+  // On a phone the list runs down the page, so bring the new entry into view first.
+  if (box.top < 0 || box.bottom > window.innerHeight) {
+    item.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+  const gap = parseFloat(getComputedStyle(diaryMonthList).rowGap) || 0;
+  item.style.overflow = "clip";
+  const grow = item.animate(
+    [
+      { height: "0px", marginBottom: `${-gap}px`, opacity: 0, transform: "scale(0.9)" },
+      { opacity: 1, offset: 0.6 },
+      { height: `${height}px`, marginBottom: "0px", opacity: 1, transform: "scale(1)" },
+    ],
+    { duration: DIARY_GROW_MS, easing: "cubic-bezier(0.2, 0.9, 0.3, 1.15)" },
+  );
+  const summary = item.querySelector("summary");
+  summary?.animate(
+    [
+      { opacity: 0, transform: "translateX(-14px)", filter: "blur(3px)" },
+      { opacity: 1, transform: "none", filter: "none" },
+    ],
+    { duration: DIARY_CONTENT_MS, delay: DIARY_GROW_MS * 0.45, easing: "ease-out", fill: "backwards" },
+  );
+  grow.finished
+    .catch(() => {})
+    .then(() => {
+      item.style.overflow = "";
+      if (item.isConnected) markNew();
+    });
 }

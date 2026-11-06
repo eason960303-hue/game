@@ -165,6 +165,8 @@ let editingMapPointId = null;
 let editingTripId = null;
 let addingFootprintToTripForm = false;
 let trips = [];
+// The trip a meetup's stops were copied from, credited when the meetup is sent.
+let meetupSourceTripId = null;
 let meetups = [];
 let savedMeetupForm = "";
 let savedEntryForm = "";

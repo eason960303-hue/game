@@ -2,6 +2,7 @@ function resetMeetupForm() {
   meetupForm.reset();
   setMeetupTimeMode("picker", false);
   editingMeetupId = null;
+  meetupSourceTripId = null;
   meetupFormTitle.textContent = "發起揪團";
   meetupSubmitButton.textContent = "發起揪團";
 }
@@ -135,8 +136,8 @@ function canFlyPaperPlane() {
 }
 
 async function refreshAfterMeetupSaved() {
-  // Saving also creates or updates the meetup's footprint.
-  await Promise.all([loadMeetups(), loadMapPoints()]);
+  // Saving also creates or updates the meetup's footprint, and may count as a trip's use.
+  await Promise.all([loadMeetups(), loadMapPoints(), loadTrips()]);
 }
 
 // A new meetup leaves as a paper plane, however long the AI takes to read its route.
@@ -194,6 +195,9 @@ meetupForm.addEventListener("submit", async (event) => {
       destinations,
     };
     const wasEditing = editingMeetupId !== null;
+    if (!wasEditing && meetupSourceTripId !== null) {
+      payload.source_trip_id = meetupSourceTripId;
+    }
     const request = apiRequest(
       wasEditing ? `/meetups/${editingMeetupId}` : "/meetups",
       jsonOptions(wasEditing ? "PUT" : "POST", payload),

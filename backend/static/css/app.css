@@ -170,7 +170,6 @@ textarea {
 .meetup-form-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 16px;
 }
 
 .meetup-form-fields .meetup-destinations {
@@ -230,15 +229,9 @@ textarea {
   white-space: pre-wrap;
 }
 
-.meetup-destinations .privacy-note {
-  display: block;
-  margin: 5px 0 0;
-}
-
 .meetup-form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
 }
 
 .meetup-launcher + .meetup-list:not(:empty) {
@@ -1199,10 +1192,8 @@ a.friend-profile-link {
 }
 
 .ai-chat-card {
-  display: grid;
   min-height: 560px;
   grid-template-rows: auto minmax(190px, 1fr) auto;
-  gap: 14px;
 }
 
 .ai-chat-heading h2 {
@@ -1220,20 +1211,13 @@ a.friend-profile-link {
 
 .ai-chat-messages {
   display: flex;
-  min-height: 0;
   flex-direction: column;
-  gap: 10px;
   padding: 14px;
   overflow: auto;
 }
 
 .ai-chat-message {
-  max-width: 88%;
-  padding: 11px 13px;
-  border-radius: var(--r-lg);
-  color: var(--ink-2);
   font-size: 14px;
-  line-height: 1.7;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -1251,11 +1235,6 @@ a.friend-profile-link {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
-}
-
-.ai-chat-form {
-  display: grid;
-  gap: 11px;
 }
 
 .ai-chat-composer {
@@ -1341,6 +1320,7 @@ a.friend-profile-link {
   color: var(--ink-3);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .diary-month-entry-title {
@@ -1380,7 +1360,6 @@ a.friend-profile-link {
 }
 
 .privacy-note-card p {
-  margin: 0;
   color: var(--ink-3);
   font-size: 13px;
   line-height: 1.75;
@@ -4254,7 +4233,6 @@ time,
 
 .nav-link[aria-current="page"],
 .nav-link[aria-current="page"]:hover {
-  background: var(--accent-soft);
   box-shadow: none;
   color: var(--accent-text);
   font-weight: 600;
@@ -4723,30 +4701,8 @@ a.secondary-button {
   font-size: var(--text-md);
 }
 
-.ai-chat-messages {
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  background: var(--sunken);
-}
-
 .ai-chat-message.is-assistant {
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg) var(--r-lg) var(--r-lg) 4px;
-  background: var(--surface);
   box-shadow: none;
-  color: var(--ink);
-}
-
-.ai-chat-message.is-user {
-  border-radius: var(--r-lg) var(--r-lg) 4px var(--r-lg);
-  background: var(--accent-soft);
-  color: var(--ink);
-}
-
-.ai-chat-message.is-error {
-  border-color: var(--danger-line);
-  background: var(--danger-soft);
-  color: var(--danger);
 }
 
 /* ---------- Forms and dialogs ---------- */
@@ -6280,6 +6236,7 @@ body.map-mode .map-sidebar,
 }
 
 /* Kept apart from 取消 / 儲存 so a destructive action is never hit by accident. */
+
 .modal-actions .account-delete-open {
   margin-right: auto;
   border-color: var(--danger-line);
@@ -6443,6 +6400,7 @@ body.map-mode .map-sidebar,
 }
 
 /* It stays under the finger, and only eases when tabs of different widths swap. */
+
 .navigation.is-dragging {
   cursor: grabbing;
 }
@@ -6617,6 +6575,7 @@ body.map-mode .map-sidebar,
 }
 
 /* With a single stop there is nothing to remove or reorder yet. */
+
 [data-route-remove]:disabled,
 .route-point-row:only-child .route-point-move {
   display: none;
@@ -6635,12 +6594,14 @@ body.map-mode .map-sidebar,
 }
 
 /* Sections of home that Settings can turn off. */
+
 :root[data-home-meetups="off"] #home-view .meetup-section,
 :root[data-home-footprints="off"] #home-view .timeline-footprints {
   display: none;
 }
 
 /* Home's recent diaries, when Settings asks for no photos, titles only or none at all. */
+
 :root[data-home-diaries="hidden"] #recent-entries-section {
   display: none;
 }
@@ -6680,6 +6641,7 @@ body.map-mode .map-sidebar,
 }
 
 /* The way of entering the date comes first with the heading to its right; the fields sit below both. */
+
 .meetup-start-field {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -6737,6 +6699,7 @@ body.map-mode .map-sidebar,
 
 @media (max-width: 360px) {
   /* Too narrow for a heading beside the fields, so it gets its own line. */
+
   .meetup-start-field {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -6797,6 +6760,7 @@ dialog .dialog-content {
 }
 
 /* The paper takes the window's place; the dimmed page behind stays until takeoff. */
+
 #meetup-dialog.is-folding {
   /* The opening animation would otherwise keep holding its final opacity. */
   animation: none;
@@ -6992,12 +6956,14 @@ dialog .dialog-content {
   }
 
   /* From under the top bar to just above the tab bar, so the box is always in reach. */
+
   .ai-chat-card {
     height: calc(100dvh - 196px - env(safe-area-inset-bottom));
     min-height: 300px;
   }
 
   /* With the keyboard up, the tab bar would only take typing space. */
+
   body:has(#ai-chat-input:focus) .navigation {
     display: none;
   }
@@ -7016,6 +6982,7 @@ dialog .dialog-content {
 
 /* On a wide screen 我的日記 stands level with the chat, the same height, and scrolls inside.
    The privacy note moves under the chat so nothing sits above it. */
+
 @media (min-width: 761px) {
   .ai-diary-side {
     display: contents;
@@ -7098,6 +7065,7 @@ dialog .dialog-content {
 }
 
 /* A fingertip is far bigger than the spark, so the part that can be grabbed is too. */
+
 .diary-spark.is-flying::after {
   position: absolute;
   inset: -18px;
@@ -7107,4 +7075,88 @@ dialog .dialog-content {
 
 .diary-spark.is-held {
   cursor: grabbing;
+}
+
+/* ---------- 行程: browse other people's trips for ideas ---------- */
+
+.trip-list-heading .trip-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.trip-search input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.trip-search input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+#trip-filter {
+  margin-bottom: 12px;
+}
+
+.trip-card .trip-byline {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
+.trip-owner {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.trip-owner:hover {
+  text-decoration: underline;
+}
+
+.trip-card .trip-description {
+  margin: 10px 0 0;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+}
+
+.trip-points li {
+  padding-block: 2px;
+}
+
+.trip-point-name {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.trip-point-place {
+  margin-left: 6px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.trip-point-route {
+  display: block;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.trip-actions .trip-reactions {
+  display: inline-flex;
+  margin: 0 4px 0 0;
+}
+
+.trip-card .trip-use-count {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-3);
+  font-size: 12px;
 }

@@ -359,14 +359,18 @@
       <section class="app-view module-view" id="trips-view" hidden aria-labelledby="trips-title">
         <div class="module-heading">
           <h1 id="trips-title">行程</h1>
-          <p>把幾趟足跡整理成一個行程，方便收藏或分享。</p>
+          <p>想出去玩時，看看別人怎麼走；也能把自己的足跡整理成行程分享出去。</p>
         </div>
         <div class="trip-layout">
           <div>
             <div class="trip-list-heading">
-              <h2 class="points-heading">我的行程</h2>
+              <label class="trip-search">
+                <span class="sr-only">搜尋行程</span>
+                <input id="trip-search" type="search" placeholder="搜尋地點、行程或作者" autocomplete="off" />
+              </label>
               <button class="primary-button" id="trip-form-open" type="button" hidden>＋ 建立行程</button>
             </div>
+            <div class="content-filter" id="trip-filter" hidden></div>
             <div class="trip-list" id="trip-list" aria-live="polite">
               <div class="module-empty">登入後載入你的行程。</div>
             </div>
@@ -386,11 +390,15 @@
                 <span class="privacy-note">登入後載入足跡。</span>
               </div>
             </div>
-            <label class="checkbox-field">
-              <input name="is_public" type="checkbox" />
-              建立公開分享清單
+            <label class="compact-field">誰看得到這個行程
+              <select name="privacy">
+                <option value="public">公開：所有人都能參考</option>
+                <option value="followers">追蹤者</option>
+                <option value="friends">摯友</option>
+                <option value="private">私密：只有自己</option>
+              </select>
             </label>
-            <p class="privacy-note">公開分享時只會列出設為公開的足跡，請勿加入敏感地點。</p>
+            <p class="privacy-note">別人只會看到行程裡他們有權限看的足跡。</p>
             <div class="trip-form-actions">
               <button class="primary-button" id="trip-submit" type="submit">建立行程</button>
               <button class="secondary-button" id="trip-cancel-edit" type="button">取消</button>

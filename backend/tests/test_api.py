@@ -219,6 +219,15 @@ class AccountDeletionTests(ApiTestCase):
         self.assertIn(trip.status_code, (200, 201), trip.text)
 
         other_point = self.footprint(other, "留下的足跡")
+        other_trip = other.post(
+            "/api/trips",
+            json={"title": "留下的行程", "privacy": "public", "point_ids": [other_point]},
+        ).json()["id"]
+        self.assertEqual(leaver.put(f"/api/trips/{other_trip}/save").status_code, 200)
+        self.assertEqual(leaver.put(f"/api/trips/{other_trip}/like").status_code, 200)
+        self.assertEqual(
+            leaver.post(f"/api/trips/{other_trip}/copy", json={}).status_code, 201
+        )
         self.assertEqual(
             leaver.put(f"/api/map-points/{other_point}/like").status_code, 200
         )
@@ -1738,6 +1747,176 @@ class MapPointTests(ApiTestCase):
 
 
 class TripTests(ApiTestCase):
+    def test_trip_feed_follows_trip_and_footprint_privacy(self) -> None:
+        author = new_user("feed-author@example.com")
+        follower = new_user("feed-follower@example.com")
+        friend = new_user("feed-friend@example.com")
+        stranger = new_user("feed-stranger@example.com")
+        for client in (follower, friend):
+            client.post("/api/friends", json={"email": "feed-author@example.com"})
+        friend_id = friend.get("/api/auth/me").json()["user"]["id"]
+        author.patch(f"/api/friends/{friend_id}", json={"is_close_friend": True})
+        shown = author.post(
+            "/api/map-points",
+            json={"name": "公開站", "privacy": "public", "points": [{"name": "淡水", "order": 1}]},
+        ).json()["id"]
+        hidden = author.post(
+            "/api/map-points",
+            json={"name": "私人站", "privacy": "private", "points": [{"name": "家", "order": 1}]},
+        ).json()["id"]
+        for privacy in ("public", "followers", "friends", "private"):
+            created = author.post(
+                "/api/trips",
+                json={"title": privacy, "privacy": privacy, "point_ids": [shown, hidden]},
+            )
+            self.assertEqual(created.status_code, 201, created.text)
+            self.assertEqual(created.json()["privacy"], privacy)
+            self.assertEqual(created.json()["is_public"], privacy == "public")
+        author.post("/api/trips", json={"title": "only-private-stops", "privacy": "public", "point_ids": [hidden]})
+
+        made = {"public", "followers", "friends", "private", "only-private-stops"}
+
+        def titles(client: TestClient) -> set[str]:
+            return made & {trip["title"] for trip in client.get("/api/trips/feed").json()}
+
+        self.assertEqual(titles(stranger), {"public"})
+        self.assertEqual(titles(follower), {"public", "followers"})
+        self.assertEqual(titles(friend), {"public", "followers", "friends"})
+        self.assertEqual(
+            titles(author),
+            {"public", "followers", "friends", "private", "only-private-stops"},
+        )
+        seen = next(
+            trip for trip in stranger.get("/api/trips/feed").json() if trip["title"] == "public"
+        )
+        self.assertEqual([point["id"] for point in seen["points"]], [shown])
+        self.assertFalse(seen["is_owner"])
+        self.assertEqual(seen["owner_name"], "測試者")
+        mine = {trip["title"]: trip for trip in author.get("/api/trips/feed").json()}
+        self.assertTrue(mine["public"]["is_owner"])
+        self.assertEqual(len(mine["public"]["points"]), 2)
+
+    def test_old_clients_is_public_still_sets_trip_privacy(self) -> None:
+        owner = new_user("trip-legacy@example.com")
+        public = owner.post("/api/trips", json={"title": "舊公開", "is_public": True}).json()
+        private = owner.post("/api/trips", json={"title": "舊私人"}).json()
+        self.assertEqual((public["privacy"], public["is_public"]), ("public", True))
+        self.assertEqual((private["privacy"], private["is_public"]), ("private", False))
+        updated = owner.put(
+            f"/api/trips/{public['id']}", json={"title": "改", "privacy": "followers"}
+        ).json()
+        self.assertEqual((updated["privacy"], updated["is_public"]), ("followers", False))
+
+    def test_copying_a_trip_adds_only_visible_footprints_to_mine(self) -> None:
+        author = new_user("copy-author@example.com", "阿華")
+        reader = new_user("copy-reader@example.com")
+        route = [
+            {"name": "十分老街", "order": 1, "latitude": 25.04, "longitude": 121.77},
+            {"name": "十分瀑布", "order": 2, "latitude": 25.05, "longitude": 121.78},
+        ]
+        shown = author.post(
+            "/api/map-points",
+            json={"name": "平溪", "note": "記得帶零錢", "privacy": "public", "points": route},
+        ).json()["id"]
+        hidden = author.post(
+            "/api/map-points",
+            json={"name": "我家", "privacy": "private", "points": [{"name": "家", "order": 1}]},
+        ).json()["id"]
+        trip = author.post(
+            "/api/trips",
+            json={"title": "山城", "privacy": "public", "point_ids": [shown, hidden]},
+        ).json()["id"]
+        private_trip = author.post(
+            "/api/trips", json={"title": "私", "privacy": "private", "point_ids": [shown]}
+        ).json()["id"]
+
+        copied = reader.post(f"/api/trips/{trip}/copy", json={"privacy": "friends"})
+
+        self.assertEqual(copied.status_code, 201, copied.text)
+        [point] = copied.json()
+        self.assertEqual(point["name"], "平溪")
+        self.assertEqual(point["privacy"], "friends")
+        self.assertEqual(point["note"], "記得帶零錢\n參考自 阿華 的行程「山城」")
+        self.assertEqual([stop["name"] for stop in point["points"]], ["十分老街", "十分瀑布"])
+        mine = [p for p in reader.get("/api/map-points").json() if p["is_owner"]]
+        self.assertEqual([p["id"] for p in mine], [point["id"]])
+        self.assertEqual(reader.post(f"/api/trips/{private_trip}/copy", json={}).status_code, 404)
+        self.assertEqual(author.post(f"/api/trips/{trip}/copy", json={}).status_code, 400)
+
+        def use_count(client: TestClient) -> int:
+            return next(
+                t["use_count"] for t in client.get("/api/trips/feed").json() if t["id"] == trip
+            )
+
+        self.assertEqual(use_count(author), 1)
+        meetup = {
+            "title": "一起去",
+            "starts_at": "2030-01-01T10:00:00+08:00",
+            "destinations": ["十分老街"],
+            "source_trip_id": trip,
+        }
+        self.assertEqual(reader.post("/api/meetups", json=meetup).status_code, 201)
+        self.assertEqual(use_count(reader), 2)
+        # The author's own meetup, and a trip the user can't see, aren't counted.
+        self.assertEqual(author.post("/api/meetups", json=meetup).status_code, 201)
+        hidden_meetup = {**meetup, "source_trip_id": private_trip}
+        self.assertEqual(reader.post("/api/meetups", json=hidden_meetup).status_code, 201)
+        self.assertEqual(use_count(author), 2)
+        with database.get_connection() as conn:
+            self.assertEqual(
+                conn.execute(
+                    "SELECT COUNT(*) FROM trip_uses WHERE trip_id = ?", (private_trip,)
+                ).fetchone()[0],
+                0,
+            )
+
+    def test_saving_a_trip_needs_to_see_it_and_goes_with_it(self) -> None:
+        author = new_user("save-author@example.com")
+        reader = new_user("save-reader@example.com")
+        point = author.post(
+            "/api/map-points",
+            json={"name": "站", "privacy": "public", "points": [{"name": "站", "order": 1}]},
+        ).json()["id"]
+        public = author.post(
+            "/api/trips", json={"title": "公開", "privacy": "public", "point_ids": [point]}
+        ).json()["id"]
+        private = author.post(
+            "/api/trips", json={"title": "私人", "privacy": "private", "point_ids": [point]}
+        ).json()["id"]
+
+        self.assertEqual(reader.put(f"/api/trips/{private}/save").status_code, 404)
+        self.assertEqual(reader.put(f"/api/trips/{private}/like").status_code, 404)
+        saved = reader.put(f"/api/trips/{public}/save")
+        self.assertEqual(
+            saved.json(),
+            {"is_saved": True, "save_count": 1, "is_liked": False, "like_count": 0},
+        )
+        liked = reader.put(f"/api/trips/{public}/like").json()
+        self.assertEqual((liked["is_liked"], liked["like_count"]), (True, 1))
+        self.assertEqual(author.put(f"/api/trips/{public}/like").json()["like_count"], 2)
+        trip = next(
+            trip for trip in reader.get("/api/trips/feed").json() if trip["id"] == public
+        )
+        self.assertEqual(
+            (trip["is_saved"], trip["save_count"], trip["is_liked"], trip["like_count"]),
+            (True, 1, True, 2),
+        )
+        unsaved = reader.delete(f"/api/trips/{public}/save").json()
+        self.assertEqual((unsaved["is_saved"], unsaved["save_count"]), (False, 0))
+        unliked = reader.delete(f"/api/trips/{public}/like").json()
+        self.assertEqual((unliked["is_liked"], unliked["like_count"]), (False, 1))
+
+        reader.put(f"/api/trips/{public}/save")
+        self.assertEqual(author.delete(f"/api/trips/{public}").status_code, 204)
+        with database.get_connection() as conn:
+            for table in ("trip_saves", "trip_likes"):
+                self.assertEqual(
+                    conn.execute(
+                        f"SELECT COUNT(*) FROM {table} WHERE trip_id = ?", (public,)
+                    ).fetchone()[0],
+                    0,
+                )
+
     def test_trip_list_matches_each_trip_detail(self) -> None:
         owner = new_user("trip-list@example.com")
         first, second = (

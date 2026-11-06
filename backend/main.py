@@ -278,8 +278,18 @@ class MapPointPrivacyUpdate(BaseModel):
 class TripCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=160)
     description: str = Field(default="", max_length=2000)
+    # Left out, an older client's is_public decides between public and private.
+    privacy: Optional[Privacy] = None
     is_public: bool = False
     point_ids: list[int] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def settle_privacy(self) -> "TripCreate":
+        if self.privacy is None:
+            self.privacy = "public" if self.is_public else "private"
+        # Only a public trip has a share link anyone can open.
+        self.is_public = self.privacy == "public"
+        return self
 
 
 class MeetupCreate(BaseModel):
@@ -290,6 +300,8 @@ class MeetupCreate(BaseModel):
     # Left out, the first typed place is where the route starts.
     origin: str = Field(default="", max_length=160)
     destinations: list[str] = Field(..., min_length=1, max_length=20)
+    # Set when the stops came from someone's trip, so that trip is credited with a use.
+    source_trip_id: Optional[int] = None
 
     @model_validator(mode="after")
     def normalize_meetup(self) -> "MeetupCreate":
@@ -646,6 +658,14 @@ def init_feature_tables() -> None:
             )
         if "cover_url" not in map_point_columns:
             conn.execute("ALTER TABLE map_points ADD COLUMN cover_url TEXT")
+        trip_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(trips)")
+        }
+        if "privacy" not in trip_columns:
+            conn.execute(
+                "ALTER TABLE trips ADD COLUMN privacy TEXT NOT NULL DEFAULT 'private'"
+            )
+            conn.execute("UPDATE trips SET privacy = 'public' WHERE is_public = 1")
         entry_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(entries)")
         }
@@ -756,6 +776,51 @@ def init_feature_tables() -> None:
         )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_user_close_friends_friend ON user_close_friends(friend_id, owner_id)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS trip_saves (
+                trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (trip_id, user_id)
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_trip_saves_user ON trip_saves(user_id)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS trip_likes (
+                trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (trip_id, user_id)
+            )
+            """
+        )
+        # One row each time someone else copies a trip or starts a meetup from it.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS trip_uses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                kind TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_trip_uses_trip ON trip_uses(trip_id)"
+        )
+        # The meetup list only shows upcoming meetups, soonest first.
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_meetups_starts_at ON meetups(starts_at, id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_meetups_owner_id ON meetups(owner_id)"
         )
         conn.commit()
 
@@ -3088,23 +3153,24 @@ def create_entry(
 
 
 # Diaries never use this: they are visible to their owner only, whatever their privacy value.
-def visible_content_filter() -> str:
-    return """
-        map_points.owner_id = ?
+# Footprints and trips share these rules. Takes the viewer's id three times.
+def visible_content_filter(table: str = "map_points") -> str:
+    return f"""
+        {table}.owner_id = ?
         OR (
-            map_points.privacy = 'public'
-            AND NOT (SELECT is_private FROM users WHERE users.id = map_points.owner_id)
+            {table}.privacy = 'public'
+            AND NOT (SELECT is_private FROM users WHERE users.id = {table}.owner_id)
         )
         OR (
-            map_points.privacy IN ('public', 'followers')
+            {table}.privacy IN ('public', 'followers')
             AND EXISTS (
                 SELECT 1 FROM user_follows follows
                 WHERE follows.follower_id = ?
-                    AND follows.followed_id = map_points.owner_id
+                    AND follows.followed_id = {table}.owner_id
             )
         )
         OR (
-            map_points.privacy = 'friends'
+            {table}.privacy = 'friends'
             AND EXISTS (
                 SELECT 1
                 FROM user_follows follows
@@ -3112,7 +3178,7 @@ def visible_content_filter() -> str:
                     ON close_friends.owner_id = follows.followed_id
                     AND close_friends.friend_id = follows.follower_id
                 WHERE follows.follower_id = ?
-                    AND follows.followed_id = map_points.owner_id
+                    AND follows.followed_id = {table}.owner_id
             )
         )
     """
@@ -4141,32 +4207,26 @@ def normalize_meetup_stop(stop: Any) -> dict[str, Any]:
     raise HTTPException(status_code=500, detail="揪團路線資料格式錯誤")
 
 
-def meetup_output(
-    conn: sqlite3.Connection, meetup_id: int, viewer_id: int | None
-) -> dict[str, Any]:
-    row = conn.execute(
-        """
-        SELECT meetups.*, users.display_name AS host_name,
-               users.username AS host_username,
-               (meetups.owner_id = ?) AS is_owner,
-               (SELECT COUNT(*) FROM meetup_participants
-                WHERE meetup_id = meetups.id) AS participant_count,
-               EXISTS (
-                   SELECT 1 FROM meetup_participants
-                   WHERE meetup_id = meetups.id AND user_id = ?
-               ) AS is_participating,
-               EXISTS (
-                   SELECT 1 FROM user_follows
-                   WHERE follower_id = ? AND followed_id = meetups.owner_id
-               ) AS is_following
-        FROM meetups
-        JOIN users ON users.id = meetups.owner_id
-        WHERE meetups.id = ?
-        """,
-        (viewer_id, viewer_id, viewer_id, meetup_id),
-    ).fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="找不到這個揪團邀請")
+MEETUP_SELECT = """
+    SELECT meetups.*, users.display_name AS host_name,
+           users.username AS host_username,
+           (meetups.owner_id = :viewer) AS is_owner,
+           (SELECT COUNT(*) FROM meetup_participants
+            WHERE meetup_id = meetups.id) AS participant_count,
+           EXISTS (
+               SELECT 1 FROM meetup_participants
+               WHERE meetup_id = meetups.id AND user_id = :viewer
+           ) AS is_participating,
+           EXISTS (
+               SELECT 1 FROM user_follows
+               WHERE follower_id = :viewer AND followed_id = meetups.owner_id
+           ) AS is_following
+    FROM meetups
+    JOIN users ON users.id = meetups.owner_id
+"""
+
+
+def meetup_from_row(row: sqlite3.Row) -> dict[str, Any]:
     try:
         raw_destinations = json.loads(row["destinations_json"])
         raw_origin = json.loads(row["origin_json"] or "{}")
@@ -4208,7 +4268,13 @@ def meetup_output(
 def get_meetup(
     conn: sqlite3.Connection, meetup_id: int, viewer_id: int | None
 ) -> dict[str, Any]:
-    return meetup_output(conn, meetup_id, viewer_id)
+    row = conn.execute(
+        MEETUP_SELECT + "WHERE meetups.id = :id",
+        {"viewer": viewer_id, "id": meetup_id},
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="找不到這個揪團邀請")
+    return meetup_from_row(row)
 
 
 def locate_one_destination(
@@ -4470,14 +4536,12 @@ def list_meetups(request: Request) -> list[dict[str, Any]]:
     viewer_id = get_optional_user_id(request)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with get_connection() as conn:
-        meetup_ids = [
-            row["id"]
-            for row in conn.execute(
-                "SELECT id FROM meetups WHERE starts_at > ? ORDER BY starts_at, id",
-                (now,),
-            ).fetchall()
-        ]
-        return [get_meetup(conn, meetup_id, viewer_id) for meetup_id in meetup_ids]
+        rows = conn.execute(
+            MEETUP_SELECT
+            + "WHERE meetups.starts_at > :now ORDER BY meetups.starts_at, meetups.id",
+            {"viewer": viewer_id, "now": now},
+        ).fetchall()
+    return [meetup_from_row(row) for row in rows]
 
 
 @app.post("/api/meetups", status_code=status.HTTP_201_CREATED)
@@ -4509,6 +4573,8 @@ def create_meetup(
             "INSERT INTO meetup_participants (meetup_id, user_id) VALUES (?, ?)",
             (meetup_id, user["id"]),
         )
+        if meetup.source_trip_id is not None:
+            record_trip_use(conn, meetup.source_trip_id, user["id"], "meetup")
         created = get_meetup(conn, meetup_id, user["id"])
         conn.commit()
     return created
@@ -4581,6 +4647,9 @@ ACCOUNT_ROWS_TO_DELETE = (
     ("meetup_participants", "user_id"),
     ("map_point_likes", "user_id"),
     ("map_point_saves", "user_id"),
+    ("trip_saves", "user_id"),
+    ("trip_likes", "user_id"),
+    ("trip_uses", "user_id"),
     ("user_follows", "follower_id"),
     ("user_follows", "followed_id"),
     ("user_close_friends", "owner_id"),
@@ -4620,13 +4689,11 @@ def erase_account(conn: sqlite3.Connection, account: sqlite3.Row) -> None:
         """,
         (user_id,),
     )
-    conn.execute(
-        """
-        DELETE FROM trip_map_points
-        WHERE trip_id IN (SELECT id FROM trips WHERE owner_id = ?)
-        """,
-        (user_id,),
-    )
+    for table in ("trip_map_points", "trip_saves", "trip_likes", "trip_uses"):
+        conn.execute(
+            f"DELETE FROM {table} WHERE trip_id IN (SELECT id FROM trips WHERE owner_id = ?)",
+            (user_id,),
+        )
     for table, column in ACCOUNT_ROWS_TO_DELETE:
         conn.execute(f"DELETE FROM {table} WHERE {column} = ?", (user_id,))
     conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
@@ -4845,8 +4912,17 @@ def create_trip(
     with get_connection() as conn:
         require_owned_points(conn, user["id"], point_ids)
         cursor = conn.execute(
-            "INSERT INTO trips (owner_id, title, description, is_public) VALUES (?, ?, ?, ?)",
-            (user["id"], trip.title.strip(), trip.description.strip(), int(trip.is_public)),
+            """
+            INSERT INTO trips (owner_id, title, description, is_public, privacy)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                user["id"],
+                trip.title.strip(),
+                trip.description.strip(),
+                int(trip.is_public),
+                trip.privacy,
+            ),
         )
         trip_id = cursor.lastrowid
         insert_trip_points(conn, trip_id, point_ids)
@@ -4873,13 +4949,14 @@ def update_trip(
         conn.execute(
             """
             UPDATE trips
-            SET title = ?, description = ?, is_public = ?
+            SET title = ?, description = ?, is_public = ?, privacy = ?
             WHERE id = ? AND owner_id = ?
             """,
             (
                 trip.title.strip(),
                 trip.description.strip(),
                 int(trip.is_public),
+                trip.privacy,
                 trip_id,
                 user["id"],
             ),
@@ -4905,6 +4982,8 @@ def delete_trip(
             raise HTTPException(status_code=404, detail="找不到這個行程包")
         # The footprints stay; only their place in this trip goes away.
         conn.execute("DELETE FROM trip_map_points WHERE trip_id = ?", (trip_id,))
+        for table in ("trip_saves", "trip_likes", "trip_uses"):
+            conn.execute(f"DELETE FROM {table} WHERE trip_id = ?", (trip_id,))
         conn.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -4940,6 +5019,226 @@ def create_trip_map_point(
             (trip_id, map_point_id, position),
         )
         created = get_map_point(conn, map_point_id, user["id"])
+        conn.commit()
+    return created
+
+
+TRIP_FEED_LIMIT = 200
+
+
+@app.get("/api/trips/feed")
+def list_trip_feed(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """Every trip the viewer may see, their own included, to browse for ideas.
+
+    Each trip lists only the footprints the viewer may see, and one with none left is skipped.
+    """
+    viewer = user["id"]
+    with get_connection() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT trips.*, {OWNER_COLUMNS},
+                   (trips.owner_id = ?) AS is_owner,
+                   EXISTS (
+                       SELECT 1 FROM user_follows
+                       WHERE follower_id = ? AND followed_id = trips.owner_id
+                   ) AS is_following,
+                   EXISTS (
+                       SELECT 1 FROM trip_saves
+                       WHERE trip_id = trips.id AND user_id = ?
+                   ) AS is_saved,
+                   EXISTS (
+                       SELECT 1 FROM trip_likes
+                       WHERE trip_id = trips.id AND user_id = ?
+                   ) AS is_liked,
+                   (SELECT COUNT(*) FROM trip_likes WHERE trip_id = trips.id)
+                       AS like_count,
+                   (SELECT COUNT(*) FROM trip_saves WHERE trip_id = trips.id)
+                       AS save_count,
+                   (SELECT COUNT(*) FROM trip_uses WHERE trip_id = trips.id)
+                       AS use_count
+            FROM trips
+            JOIN users ON users.id = trips.owner_id
+            WHERE {visible_content_filter("trips")}
+            ORDER BY trips.created_at DESC, trips.id DESC
+            LIMIT ?
+            """,
+            (viewer, viewer, viewer, viewer, viewer, viewer, viewer, TRIP_FEED_LIMIT),
+        ).fetchall()
+        trips = {}
+        for row in rows:
+            trip = trip_output(row)
+            for flag in ("is_owner", "is_following", "is_saved", "is_liked"):
+                trip[flag] = bool(trip[flag])
+            trips[trip["id"]] = trip
+        if trips:
+            marks = ",".join("?" * len(trips))
+            points = conn.execute(
+                f"""
+                SELECT map_points.*, trip_map_points.trip_id AS linked_trip_id
+                FROM trip_map_points
+                JOIN map_points ON map_points.id = trip_map_points.map_point_id
+                WHERE trip_map_points.trip_id IN ({marks})
+                    AND ({visible_content_filter()})
+                ORDER BY trip_map_points.position, map_points.id
+                """,
+                (*trips, viewer, viewer, viewer),
+            ).fetchall()
+            for point in points:
+                point = dict(point)
+                trips[point.pop("linked_trip_id")]["points"].append(
+                    map_point_output(point)
+                )
+    return [trip for trip in trips.values() if trip["is_owner"] or trip["points"]]
+
+
+TRIP_REACTION_TABLES = {"like": "trip_likes", "save": "trip_saves"}
+
+
+def set_trip_reaction(
+    kind: str, trip_id: int, user_id: int, active: bool
+) -> dict[str, Any]:
+    table = TRIP_REACTION_TABLES[kind]
+    with get_connection() as conn:
+        # Someone who can't see a trip gets the same answer as if it didn't exist.
+        visible = conn.execute(
+            f"SELECT 1 FROM trips WHERE id = ? AND ({visible_content_filter('trips')})",
+            (trip_id, user_id, user_id, user_id),
+        ).fetchone()
+        if not visible:
+            raise HTTPException(status_code=404, detail="找不到這個行程")
+        if active:
+            conn.execute(
+                f"INSERT OR IGNORE INTO {table} (trip_id, user_id) VALUES (?, ?)",
+                (trip_id, user_id),
+            )
+        else:
+            conn.execute(
+                f"DELETE FROM {table} WHERE trip_id = ? AND user_id = ?",
+                (trip_id, user_id),
+            )
+        row = conn.execute(
+            """
+            SELECT
+                EXISTS (SELECT 1 FROM trip_likes WHERE trip_id = :trip AND user_id = :user)
+                    AS is_liked,
+                EXISTS (SELECT 1 FROM trip_saves WHERE trip_id = :trip AND user_id = :user)
+                    AS is_saved,
+                (SELECT COUNT(*) FROM trip_likes WHERE trip_id = :trip) AS like_count,
+                (SELECT COUNT(*) FROM trip_saves WHERE trip_id = :trip) AS save_count
+            """,
+            {"trip": trip_id, "user": user_id},
+        ).fetchone()
+        conn.commit()
+    return {
+        "is_liked": bool(row["is_liked"]),
+        "is_saved": bool(row["is_saved"]),
+        "like_count": row["like_count"],
+        "save_count": row["save_count"],
+    }
+
+
+@app.put("/api/trips/{trip_id}/{kind}")
+def add_trip_reaction(
+    trip_id: int,
+    kind: Literal["like", "save"],
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    return set_trip_reaction(kind, trip_id, user["id"], True)
+
+
+@app.delete("/api/trips/{trip_id}/{kind}")
+def remove_trip_reaction(
+    trip_id: int,
+    kind: Literal["like", "save"],
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    return set_trip_reaction(kind, trip_id, user["id"], False)
+
+
+def record_trip_use(
+    conn: sqlite3.Connection, trip_id: int, user_id: int, kind: str
+) -> None:
+    """Counts a use only by someone other than the author who can see the trip."""
+    trip = conn.execute(
+        f"SELECT owner_id FROM trips WHERE id = ? AND ({visible_content_filter('trips')})",
+        (trip_id, user_id, user_id, user_id),
+    ).fetchone()
+    if trip is None or trip["owner_id"] == user_id:
+        return
+    conn.execute(
+        "INSERT INTO trip_uses (trip_id, user_id, kind) VALUES (?, ?, ?)",
+        (trip_id, user_id, kind),
+    )
+
+
+class TripCopyRequest(BaseModel):
+    privacy: Privacy = "private"
+
+
+MAP_POINT_NOTE_MAX = 1000
+
+
+@app.post("/api/trips/{trip_id}/copy", status_code=status.HTTP_201_CREATED)
+def copy_trip_to_footprints(
+    trip_id: int,
+    request: TripCopyRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """Copies the footprints of someone's trip that the viewer can see into their own.
+
+    Routes and notes come along, photos stay with their owner, and each note says where it came from.
+    """
+    viewer = user["id"]
+    with get_connection() as conn:
+        trip = conn.execute(
+            f"""
+            SELECT trips.title, trips.owner_id, users.display_name AS owner_name
+            FROM trips JOIN users ON users.id = trips.owner_id
+            WHERE trips.id = ? AND ({visible_content_filter("trips")})
+            """,
+            (trip_id, viewer, viewer, viewer),
+        ).fetchone()
+        if trip is None:
+            raise HTTPException(status_code=404, detail="找不到這個行程")
+        if trip["owner_id"] == viewer:
+            raise HTTPException(status_code=400, detail="這是你自己的行程，足跡已經在你的足跡裡")
+        sources = conn.execute(
+            f"""
+            SELECT map_points.name, map_points.latitude, map_points.longitude,
+                   map_points.note, map_points.points_json
+            FROM trip_map_points
+            JOIN map_points ON map_points.id = trip_map_points.map_point_id
+            WHERE trip_map_points.trip_id = ? AND ({visible_content_filter()})
+            ORDER BY trip_map_points.position, map_points.id
+            """,
+            (trip_id, viewer, viewer, viewer),
+        ).fetchall()
+        if not sources:
+            raise HTTPException(status_code=404, detail="這個行程裡沒有你能看到的足跡")
+        credit = f"參考自 {trip['owner_name']} 的行程「{trip['title']}」"
+        created_ids = []
+        for source in sources:
+            original = (source["note"] or "").strip()
+            room = MAP_POINT_NOTE_MAX - len(credit) - 1
+            note = f"{original[:room]}\n{credit}" if original else credit
+            created_ids.append(
+                insert_map_point(
+                    conn,
+                    viewer,
+                    (
+                        source["name"],
+                        source["latitude"],
+                        source["longitude"],
+                        note[:MAP_POINT_NOTE_MAX],
+                        request.privacy,
+                        source["points_json"],
+                    ),
+                )
+            )
+        created = [get_map_point(conn, point_id, viewer) for point_id in created_ids]
+        record_trip_use(conn, trip_id, viewer, "copy")
         conn.commit()
     return created
 

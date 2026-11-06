@@ -98,3 +98,12 @@ function formatDate(value) {
         day: "2-digit",
       }).format(date);
 }
+
+// Diaries show when in the day they were written, not just the date.
+function formatDateTime(value) {
+  if (!value) return "剛剛";
+  const date = serverDate(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const time = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return `${formatDate(value)} ${time}`;
+}

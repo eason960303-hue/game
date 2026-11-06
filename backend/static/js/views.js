@@ -44,7 +44,7 @@ function renderEntries(entries) {
           ${entryPhotoHtml(entry)}
           <div class="entry-meta">
             <span class="mood">${escapeHtml(entry.mood || "生活")}</span>
-            <time>${escapeHtml(formatDate(entry.created_at))}</time>
+            <time datetime="${escapeHtml(entry.created_at || "")}">${escapeHtml(formatDateTime(entry.created_at))}</time>
           </div>
           <h3>${escapeHtml(entry.title)}</h3>
           <p>${escapeHtml(entry.content)}</p>
@@ -854,7 +854,8 @@ function toggleProfilePost(event, type) {
       details.toggleAttribute("inert", !isExpanded);
     });
   });
-  button.focus();
+  // A tap already focuses the button; scrolling to it here would jerk the page mid-animation.
+  button.focus({ preventScroll: true });
 }
 
 profileDiariesGrid.addEventListener("click", (event) =>

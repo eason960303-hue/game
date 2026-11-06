@@ -46,6 +46,8 @@ async function loadOAuthProviders() {
 }
 
 async function initializeSession() {
+  // The sign-in options don't depend on who is signed in, so fetch them meanwhile.
+  const providersLoaded = loadOAuthProviders();
   try {
     const result = await apiRequest("/auth/me");
     currentUser = result.user;
@@ -54,7 +56,7 @@ async function initializeSession() {
   }
   accountChecked = true;
   updateAccountUi();
-  await Promise.all([loadSessionData(), loadOAuthProviders()]);
+  await Promise.all([loadSessionData(), providersLoaded]);
 }
 
 function showVerificationPrompt(email) {
