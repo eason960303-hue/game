@@ -62,12 +62,19 @@ function createContentFilter({ rootId, label, items, regionOf, who, onChange }) 
         )
         .join("")}
     </div>
-    <div class="content-filter-region">
+    <button class="content-filter-region-toggle" type="button" aria-expanded="false" aria-controls="${rootId}-region">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
+      <span data-filter-region-label>地區</span>
+    </button>
+    <div class="content-filter-region" id="${rootId}-region" hidden>
       <select data-filter-city aria-label="${label}：縣市"></select>
       <select data-filter-district aria-label="${label}：區"></select>
     </div>
   `;
   const whoGroup = root.querySelector(".content-filter-who");
+  const regionToggle = root.querySelector(".content-filter-region-toggle");
+  const regionLabel = root.querySelector("[data-filter-region-label]");
+  const regionMenus = root.querySelector(".content-filter-region");
   const citySelect = root.querySelector("[data-filter-city]");
   const districtSelect = root.querySelector("[data-filter-district]");
   let whoKey = "all";
@@ -101,7 +108,17 @@ function createContentFilter({ rootId, label, items, regionOf, who, onChange }) 
     citySelect.innerHTML = regionOptionsHtml("全部縣市", cities, city);
     districtSelect.innerHTML = regionOptionsHtml("全部區", districts, district);
     districtSelect.disabled = !city;
+    // The menus stay folded away until wanted; the button names the place chosen.
+    regionLabel.textContent = city ? (district ? `${city}・${district}` : city) : "地區";
+    regionToggle.classList.toggle("is-active", Boolean(city));
   }
+
+  regionToggle.addEventListener("click", () => {
+    const open = regionMenus.hidden;
+    regionMenus.hidden = !open;
+    regionToggle.setAttribute("aria-expanded", String(open));
+    if (open) citySelect.focus();
+  });
 
   function setWho(key) {
     whoKey = key;

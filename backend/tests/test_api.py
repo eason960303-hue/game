@@ -206,6 +206,14 @@ class AccountDeletionTests(ApiTestCase):
         entry_photo = leaver.post(
             f"/api/entries/{entry}/photo", content=image[0], headers=image[1]
         ).json()["photo_url"]
+        # An AI diary keeps what the AI first wrote, which must go too.
+        with database.get_connection() as conn:
+            conn.execute(
+                "INSERT INTO diary_ai_drafts (entry_id, user_id, title, mood) "
+                "VALUES (?, ?, '日記', '開心')",
+                (entry, leaver_id),
+            )
+            conn.commit()
         own_point = self.footprint(leaver, "要刪的足跡")
         cover = leaver.post(
             f"/api/map-points/{own_point}/cover", content=image[0], headers=image[1]
@@ -1404,6 +1412,34 @@ class MapPointTests(ApiTestCase):
         )
         self.assertEqual(owner.get(photo["url"]).status_code, 404)
 
+    def test_the_footprint_list_carries_the_photos_its_reader_may_see(self) -> None:
+        owner = new_user("map-photos-owner@example.com")
+        reader = new_user("map-photos-reader@example.com")
+        image = b"\xff\xd8\xffmap-photo"
+
+        def footprint(name: str, privacy: str) -> tuple[int, dict]:
+            point = owner.post(
+                "/api/map-points",
+                json={"name": name, "privacy": privacy, "points": [{"name": name, "order": 1}]},
+            ).json()["id"]
+            photo = owner.post(
+                f"/api/map-points/{point}/photos",
+                content=image,
+                headers={"Content-Type": "image/jpeg"},
+            ).json()
+            return point, photo
+
+        shown, shown_photo = footprint("海邊", "public")
+        hidden, hidden_photo = footprint("秘密基地", "private")
+
+        def listed(client: TestClient) -> dict[int, list]:
+            return {p["id"]: p["photos"] for p in client.get("/api/map-points").json()}
+
+        self.assertEqual(listed(owner)[shown], [shown_photo])
+        self.assertEqual(listed(owner)[hidden], [hidden_photo])
+        self.assertEqual(listed(reader).get(shown), [shown_photo])
+        self.assertNotIn(hidden, listed(reader))
+
     def test_footprint_photos_are_limited_and_removed_with_the_footprint(self) -> None:
         owner = new_user("footprint-photo-limit@example.com")
         point = owner.post(
@@ -1795,6 +1831,40 @@ class TripTests(ApiTestCase):
         mine = {trip["title"]: trip for trip in author.get("/api/trips/feed").json()}
         self.assertTrue(mine["public"]["is_owner"])
         self.assertEqual(len(mine["public"]["points"]), 2)
+
+    def test_trip_feed_shows_photos_of_the_footprints_the_reader_may_see(self) -> None:
+        author = new_user("trip-photos-author@example.com")
+        reader = new_user("trip-photos-reader@example.com")
+        image = b"\xff\xd8\xfftrip-photo"
+        headers = {"Content-Type": "image/jpeg"}
+
+        def footprint(name: str, privacy: str) -> tuple[int, dict]:
+            point = author.post(
+                "/api/map-points",
+                json={"name": name, "privacy": privacy, "points": [{"name": name, "order": 1}]},
+            ).json()["id"]
+            photo = author.post(
+                f"/api/map-points/{point}/photos", content=image, headers=headers
+            ).json()
+            return point, photo
+
+        shown, shown_photo = footprint("九份", "public")
+        hidden, hidden_photo = footprint("私房景點", "private")
+        trip = author.post(
+            "/api/trips",
+            json={"title": "山城", "privacy": "public", "point_ids": [shown, hidden]},
+        ).json()["id"]
+
+        def feed_photos(client: TestClient) -> dict[int, list[dict]]:
+            listed = next(t for t in client.get("/api/trips/feed").json() if t["id"] == trip)
+            return {point["id"]: point["photos"] for point in listed["points"]}
+
+        self.assertEqual(feed_photos(reader), {shown: [shown_photo]})
+        self.assertEqual(reader.get(shown_photo["url"]).content, image)
+        self.assertEqual(reader.get(hidden_photo["url"]).status_code, 404)
+        self.assertEqual(
+            feed_photos(author), {shown: [shown_photo], hidden: [hidden_photo]}
+        )
 
     def test_old_clients_is_public_still_sets_trip_privacy(self) -> None:
         owner = new_user("trip-legacy@example.com")
@@ -2503,6 +2573,103 @@ class DiaryChatTests(ApiTestCase):
         self.assertEqual(saved.status_code, 200)
         self.assertEqual(saved.json()["content"], "下班後沿河散步，看見晚霞。")
 
+    def ai_reply(self, structured: dict) -> mock.MagicMock:
+        reply = mock.MagicMock()
+        reply.__enter__.return_value.read.return_value = json.dumps(
+            {"choices": [{"message": {"content": json.dumps(structured, ensure_ascii=False)}}]}
+        ).encode("utf-8")
+        return reply
+
+    def test_greetings_and_questions_about_the_app_are_answered_not_saved(self) -> None:
+        client = new_user("ai-small-talk@example.com")
+        with mock.patch.dict(
+            os.environ, {"AI_API_KEY": "test-key", "AI_MODEL": "test-model"}
+        ), mock.patch.object(main, "urlopen") as ai:
+            for message in ("你好", "嗨嗨～", "Hello!", "在嗎？", "你可以幫我做什麼？", "這要怎麼用", "測試", "？？", "可以幫我記一下嗎", "幫我記錄今天", "ok", "謝謝！", "嗯嗯", "123"):
+                response = client.post("/api/diary-chat", json={"message": message})
+                self.assertEqual(response.status_code, 200, message)
+                self.assertIsNone(response.json()["entry"], message)
+                self.assertIn("日記", response.json()["notice"], message)
+        # Answered without asking the AI, and nothing was saved.
+        ai.assert_not_called()
+        self.assertEqual(client.get("/api/entries").json(), [])
+
+    def test_a_short_message_the_ai_calls_small_talk_is_not_saved_unless_insisted(self) -> None:
+        client = new_user("ai-not-diary@example.com")
+        not_diary = {"is_diary": False, "title": "", "mood": "", "tags": [], "location": None}
+        with mock.patch.dict(
+            os.environ, {"AI_API_KEY": "test-key", "AI_MODEL": "test-model"}
+        ), mock.patch.object(main, "urlopen", return_value=self.ai_reply(not_diary)):
+            response = client.post("/api/diary-chat", json={"message": "你覺得我該寫什麼"})
+            self.assertIsNone(response.json()["entry"])
+            self.assertEqual(client.get("/api/entries").json(), [])
+
+            # A long message is a diary whatever the AI thought, so nothing written is lost.
+            long_message = "今天" + "在家整理房間，" * 10
+            kept = client.post("/api/diary-chat", json={"message": long_message}).json()["entry"]
+            self.assertEqual(kept["content"], long_message)
+            self.assertEqual(kept["title"], "今天在家整理房間")
+            self.assertEqual(kept["mood"], "平靜")
+
+        insisted = {"is_diary": True, "title": "不知道寫什麼", "mood": "困惑", "tags": [], "location": None}
+        with mock.patch.dict(
+            os.environ, {"AI_API_KEY": "test-key", "AI_MODEL": "test-model"}
+        ), mock.patch.object(main, "urlopen", return_value=self.ai_reply(insisted)):
+            for message in ("你覺得我該寫什麼", "你好"):
+                saved = client.post(
+                    "/api/diary-chat", json={"message": message, "force": True}
+                ).json()["entry"]
+                self.assertEqual(saved["content"], message)
+        self.assertEqual(len(client.get("/api/entries").json()), 3)
+
+        # Insisting works even when the AI still calls it small talk.
+        with mock.patch.dict(
+            os.environ, {"AI_API_KEY": "test-key", "AI_MODEL": "test-model"}
+        ), mock.patch.object(main, "urlopen", return_value=self.ai_reply(not_diary)):
+            saved = client.post(
+                "/api/diary-chat", json={"message": "嗨", "force": True}
+            ).json()["entry"]
+        self.assertEqual((saved["title"], saved["mood"]), ("嗨", "平靜"))
+
+    def test_a_title_copied_from_an_example_is_not_kept(self) -> None:
+        client = new_user("ai-made-up@example.com")
+        copied = {"is_diary": True, "title": "交了報告", "mood": "鬆一口氣", "tags": [], "location": None}
+        blank = {"is_diary": True, "title": "", "mood": "", "tags": [], "location": None}
+        with mock.patch.dict(
+            os.environ, {"AI_API_KEY": "test-key", "AI_MODEL": "test-model"}
+        ):
+            with mock.patch.object(main, "urlopen", return_value=self.ai_reply(copied)):
+                # A short message with an invented title is treated as small talk.
+                self.assertIsNone(
+                    client.post("/api/diary-chat", json={"message": "幫個忙好嗎"}).json()["entry"]
+                )
+                # A longer one is kept under its own words instead.
+                long_message = "下午在家整理衣櫃，" * 8
+                kept = client.post("/api/diary-chat", json={"message": long_message}).json()["entry"]
+                self.assertEqual(kept["title"], "下午在家整理衣櫃")
+            with mock.patch.object(main, "urlopen", return_value=self.ai_reply(blank)):
+                tired = client.post("/api/diary-chat", json={"message": "好累"}).json()["entry"]
+        self.assertEqual((tired["title"], tired["mood"]), ("好累", "平靜"))
+
+        # A title in the AI's own words is kept, even sharing nothing with the message.
+        paraphrased = {"is_diary": True, "title": "享用自助餐", "mood": "滿足", "tags": [], "location": None}
+        with mock.patch.dict(
+            os.environ, {"AI_API_KEY": "test-key", "AI_MODEL": "test-model"}
+        ), mock.patch.object(main, "urlopen", return_value=self.ai_reply(paraphrased)):
+            buffet = client.post("/api/diary-chat", json={"message": "吃到飽"}).json()["entry"]
+        self.assertEqual(buffet["title"], "享用自助餐")
+
+    def test_a_diary_that_mentions_hello_is_still_saved(self) -> None:
+        client = new_user("ai-hello-diary@example.com")
+        diary = {"is_diary": True, "title": "跟鄰居打招呼", "mood": "開心", "tags": ["鄰居"], "location": None}
+        with mock.patch.dict(
+            os.environ, {"AI_API_KEY": "test-key", "AI_MODEL": "test-model"}
+        ), mock.patch.object(main, "urlopen", return_value=self.ai_reply(diary)):
+            response = client.post(
+                "/api/diary-chat", json={"message": "今天跟新鄰居說你好，她人很好"}
+            )
+        self.assertEqual(response.json()["entry"]["title"], "跟鄰居打招呼")
+
     def ai_diary_with_location(self, client: TestClient, message: str, location):
         reply = mock.MagicMock()
         reply.__enter__.return_value.read.return_value = json.dumps(
@@ -2540,6 +2707,92 @@ class DiaryChatTests(ApiTestCase):
         )
         for invented in ("台北市", "", None, 123, ["淡水老街"], "淡" * 201):
             self.assertIsNone(self.ai_diary_with_location(client, message, invented))
+
+    def ai_diary(self, client: TestClient, message: str, answer: dict):
+        """Writes an AI diary; returns the saved entry and the messages sent to the AI."""
+        reply = mock.MagicMock()
+        reply.__enter__.return_value.read.return_value = json.dumps(
+            {"choices": [{"message": {"content": json.dumps(answer, ensure_ascii=False)}}]}
+        ).encode("utf-8")
+        urlopen = mock.MagicMock(return_value=reply)
+        with mock.patch.dict(
+            os.environ, {"AI_API_KEY": "test-key", "AI_MODEL": "test-model"}
+        ), mock.patch.object(main, "urlopen", urlopen):
+            response = client.post("/api/diary-chat", json={"message": message})
+        self.assertEqual(response.status_code, 200)
+        sent = json.loads(urlopen.call_args.args[0].data.decode("utf-8"))["messages"]
+        return response.json()["entry"], sent
+
+    def test_ai_diary_learns_from_the_writers_corrections(self) -> None:
+        client = new_user("ai-learns@example.com")
+        wrong = {"title": "收到東西", "mood": "好", "tags": ["東西"], "location": None}
+        corrected, _ = self.ai_diary(client, "醫生是在三小啦 東西有到就好", wrong)
+        untouched, _ = self.ai_diary(client, "今天去公園散步", {**wrong, "mood": "平靜"})
+        unrelated, _ = self.ai_diary(client, "晚上看了一部電影", {**wrong, "mood": "放鬆"})
+
+        def edit(entry, **changes):
+            body = {key: entry[key] for key in ("title", "content", "mood", "tags")}
+            response = client.put(f"/api/entries/{entry['id']}", json={**body, **changes})
+            self.assertEqual(response.status_code, 200)
+
+        edit(corrected, title="醫生態度差", mood="生氣、無奈", tags="醫生, 看病")
+        # Retyping the same tags differently or only touching the text isn't a correction.
+        edit(untouched, content="今天去公園散步，天氣很好", tags="東西 ")
+        edit(unrelated, mood="開心")
+        edit(unrelated, mood="放鬆")
+
+        _, sent = self.ai_diary(client, "醫生又在三小 算了", wrong)
+        shown = [json.loads(m["content"]) for m in sent if m["role"] == "assistant"]
+        asked = [m["content"] for m in sent if m["role"] == "user"]
+        self.assertEqual(asked[-1], "醫生又在三小 算了")
+        # The correction comes last before the new diary, in the writer's own words.
+        self.assertEqual(asked[-2], "醫生是在三小啦 東西有到就好")
+        self.assertEqual(
+            shown[-1],
+            {"is_diary": True, "title": "醫生態度差", "mood": "生氣、無奈", "tags": ["醫生", "看病"], "location": None},
+        )
+        self.assertEqual(len(shown), len(main.DIARY_EXAMPLES) + 1)
+
+        # Someone else's corrections never reach this writer's AI.
+        _, others_sent = self.ai_diary(new_user("ai-other@example.com"), "醫生又在三小", wrong)
+        self.assertEqual(
+            len([m for m in others_sent if m["role"] == "assistant"]),
+            len(main.DIARY_EXAMPLES),
+        )
+
+        # Deleting the diary forgets the lesson with it.
+        self.assertEqual(client.delete(f"/api/entries/{corrected['id']}").status_code, 204)
+        _, sent = self.ai_diary(client, "醫生又在三小 算了", wrong)
+        self.assertEqual(
+            len([m for m in sent if m["role"] == "assistant"]), len(main.DIARY_EXAMPLES)
+        )
+
+    def test_a_long_diary_reaches_the_ai_shortened_but_is_saved_whole(self) -> None:
+        client = new_user("ai-long@example.com")
+        message = "開頭" + "今天的事。" * 2000 + "結尾很開心"
+        answer = {"title": "長日記", "mood": "開心", "tags": [], "location": None}
+        entry, sent = self.ai_diary(client, message, answer)
+        asked = sent[-1]["content"]
+        self.assertLessEqual(len(asked), main.DIARY_AI_TEXT_MAX + 5)
+        self.assertTrue(asked.startswith("開頭"))
+        self.assertTrue(asked.endswith("結尾很開心"))
+        self.assertEqual(client.get(f"/api/entries/{entry['id']}").json()["content"], message)
+
+    def test_ai_diary_picks_the_closest_corrections(self) -> None:
+        client = new_user("ai-closest@example.com")
+        # Not the corrected title, which the chat would take as copied from a lesson.
+        answer = {"title": "記事", "mood": "好", "tags": [], "location": None}
+        for message in ("加班到十點", "排隊排到賣完", "考完資料庫", "火鍋很好吃", "看醫生等很久"):
+            entry, _ = self.ai_diary(client, message, answer)
+            client.put(
+                f"/api/entries/{entry['id']}",
+                json={"title": "標題", "content": message, "mood": f"{message}的心情"},
+            )
+        _, sent = self.ai_diary(client, "今天又加班到很晚", answer)
+        asked = [m["content"] for m in sent if m["role"] == "user"]
+        lessons = asked[len(main.DIARY_EXAMPLES) : -1]
+        self.assertEqual(len(lessons), main.DIARY_LESSONS_USED)
+        self.assertEqual(lessons[-1], "加班到十點")
 
     def test_ai_diary_reports_unconfigured_provider_without_saving(self) -> None:
         client = new_user("ai-unconfigured@example.com")

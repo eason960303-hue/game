@@ -209,7 +209,7 @@ async function copyTripToFootprints(tripId, button) {
   const trip = trips.find((item) => item.id === tripId);
   if (!trip) return;
   button.disabled = true;
-  button.textContent = "新增中…";
+  button.textContent = "存入中…";
   try {
     const created = await apiRequest(
       `/trips/${tripId}/copy`,
@@ -218,11 +218,11 @@ async function copyTripToFootprints(tripId, button) {
     copiedTripIds.add(tripId);
     trip.use_count = (trip.use_count || 0) + 1;
     renderTripList();
-    showToast(`已新增 ${created.length} 個足跡到你的足跡。`);
+    showToast(`已把 ${created.length} 個足跡存到你的足跡。`);
     loadMapPoints();
   } catch (error) {
     button.disabled = false;
-    button.textContent = "新增至足跡";
+    button.textContent = "存到我的足跡";
     showToast(`新增失敗：${error.message}`);
   }
 }

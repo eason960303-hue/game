@@ -73,6 +73,7 @@ function renderDiaryMonth() {
         })
         .join("")
     : '<p class="diary-month-empty">這個月還沒有日記。</p>';
+  warmPhotos(diaryMonthList);
 }
 
 function showDiaryMonth(year, month) {
@@ -126,9 +127,45 @@ function toggleDiaryEntry(entry) {
   };
 }
 
-diaryMonthList.addEventListener("click", (event) => {
+// Whether the entry is open, or on its way to being open.
+function diaryEntryIsOpen(entry) {
+  const running = diaryEntryAnimations.get(entry);
+  return running ? !running.closing : entry.open;
+}
+
+// Only one diary is open at a time: opening one folds away the one before.
+function closeOtherDiaryEntries(keep, animate) {
+  diaryMonthList.querySelectorAll(".diary-month-entry").forEach((other) => {
+    if (other === keep) return;
+    // One still waiting for its photo won't open after all.
+    delete other.dataset.preparing;
+    if (!diaryEntryIsOpen(other)) return;
+    if (animate) toggleDiaryEntry(other);
+    else other.open = false;
+  });
+}
+
+diaryMonthList.addEventListener("click", async (event) => {
   const summary = event.target.closest("summary");
-  if (!summary || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (!summary) return;
+  const entry = summary.parentElement;
+  const opening = !diaryEntryIsOpen(entry);
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (opening) closeOtherDiaryEntries(entry, false);
+    return;
+  }
   event.preventDefault();
-  toggleDiaryEntry(summary.parentElement);
+  if (opening) closeOtherDiaryEntries(entry, true);
+  // Opening waits for the photo, so the entry grows to its full height in one go.
+  if (opening && !entry.open && entry.querySelector("img")) {
+    if (entry.dataset.preparing) return;
+    const request = String(performance.now());
+    entry.dataset.preparing = request;
+    await photosReady(entry);
+    // Another diary was opened meanwhile, or the list was redrawn.
+    if (entry.dataset.preparing !== request || !entry.isConnected) return;
+    delete entry.dataset.preparing;
+    easeInLatePhotos(entry, () => entry.open && !diaryEntryAnimations.get(entry)?.closing);
+  }
+  toggleDiaryEntry(entry);
 });

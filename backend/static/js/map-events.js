@@ -9,7 +9,9 @@ document.querySelector("#open-entry").addEventListener("click", () => {
 document.querySelector("#close-dialog").addEventListener("click", closeEntryDialog);
 document.querySelector("#dismiss-dialog").addEventListener("click", closeEntryDialog);
 
+// A file picker closed without a choice also sends "cancel", which bubbles up to here.
 dialog.addEventListener("cancel", (event) => {
+  if (event.target !== dialog) return;
   event.preventDefault();
   closeEntryDialog();
 });
@@ -40,6 +42,7 @@ document
   .addEventListener("click", closeMapPointDialog);
 
 mapPointDialog.addEventListener("cancel", (event) => {
+  if (event.target !== mapPointDialog) return;
   event.preventDefault();
   closeMapPointDialog();
 });
@@ -76,6 +79,10 @@ mapPointForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const values = new FormData(mapPointForm);
   const status = document.querySelector("#map-form-status");
+  if (mapFormPhotos.busy) {
+    status.textContent = "照片還在處理，請稍等一下再儲存。";
+    return;
+  }
   status.textContent = "正在查詢地址…";
   mapPointSaveButton.disabled = true;
   try {
@@ -112,6 +119,13 @@ mapPointForm.addEventListener("submit", async (event) => {
         : "/map-points",
       jsonOptions(editingMapPointId ? "PUT" : "POST", payload),
     );
+    // The footprint is saved either way; a photo that fails is reported, not lost silently.
+    try {
+      await saveMapFormPhotos(saved.id, status);
+    } catch (error) {
+      showToast(`足跡已儲存，但照片沒有全部上傳：${error.message}。可以按「編輯這趟足跡」再補上。`);
+    }
+    resetMapFormPhotos();
     // The form already saved its own privacy, which replaces any waiting choice.
     privacyDrafts.delete(saved.id);
     if (saved.id !== selectedMapPointId) flushPrivacyDrafts();

@@ -225,29 +225,41 @@ aiChatInput.addEventListener("focus", () => {
   aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
 });
 
-aiChatForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (!currentUser) {
-    openLoginDialog();
-    return;
-  }
-  const values = new FormData(aiChatForm);
-  const message = getFormText(values, "message");
-  if (!message) return;
-  appendAiChatMessage(message, "user");
-  // Sent means gone from the box, as in any chat app; a failure puts it back below.
-  aiChatInput.value = "";
-  fitAiChatInput();
+// Small talk gets a note on how to use the chat instead of a diary, with a way to keep
+// it as a diary anyway in case the chat guessed wrong.
+function showDiaryNotice(notice, message) {
+  const element = appendAiChatMessage(notice);
+  const actions = document.createElement("div");
+  actions.className = "ai-chat-actions";
+  const keep = document.createElement("button");
+  keep.className = "small-action";
+  keep.type = "button";
+  keep.textContent = "還是存成日記";
+  keep.addEventListener("click", async () => {
+    if (aiChatBusy) return;
+    actions.remove();
+    await sendDiaryMessage(message, { force: true });
+  });
+  actions.append(keep);
+  element.append(actions);
+  aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+}
+
+async function sendDiaryMessage(message, { force = false } = {}) {
   const pending = appendAiChatTyping();
   aiChatBusy = true;
   updateAiChatSend();
   try {
     const result = await apiRequest(
       "/diary-chat",
-      jsonOptions("POST", { message }),
+      jsonOptions("POST", force ? { message, force } : { message }),
     );
     pending.remove();
     const entry = result.entry;
+    if (!entry) {
+      showDiaryNotice(result.notice, message);
+      return;
+    }
     const tags = entry.tags
       ? `\n標籤：${entry.tags
           .split(",")
@@ -277,4 +289,20 @@ aiChatForm.addEventListener("submit", async (event) => {
     aiChatBusy = false;
     updateAiChatSend();
   }
+}
+
+aiChatForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!currentUser) {
+    openLoginDialog();
+    return;
+  }
+  const values = new FormData(aiChatForm);
+  const message = getFormText(values, "message");
+  if (!message) return;
+  appendAiChatMessage(message, "user");
+  // Sent means gone from the box, as in any chat app; a failure puts it back below.
+  aiChatInput.value = "";
+  fitAiChatInput();
+  await sendDiaryMessage(message);
 });

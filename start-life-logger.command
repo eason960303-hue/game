@@ -8,7 +8,9 @@ BACKEND="/Users/ding/Desktop/game/backend"
 PY="/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python"
 MAIL_ENV="$HOME/.config/life-logger/mail.env"
 LOGDIR="$HOME/.config/life-logger/logs"
-MODEL="qwen2.5:3b"
+BASE_MODEL="qwen2.5:7b"
+MODEL="life-diary"
+MODELFILE="$BACKEND/life-diary.Modelfile"
 mkdir -p "$LOGDIR"
 
 echo "==> Life Logger 啟動中..."
@@ -24,10 +26,12 @@ if ! curl -s -m 3 http://127.0.0.1:11434/api/version >/dev/null 2>&1; then
 fi
 if curl -s -m 3 http://127.0.0.1:11434/api/version >/dev/null 2>&1; then
   echo "    Ollama OK"
-  if ! ollama list 2>/dev/null | grep -q "$MODEL"; then
-    echo "    下載模型 $MODEL（第一次較久）..."
-    ollama pull "$MODEL"
+  if ! ollama list 2>/dev/null | grep -q "$BASE_MODEL"; then
+    echo "    下載模型 $BASE_MODEL（第一次較久）..."
+    ollama pull "$BASE_MODEL"
   fi
+  # A light copy of the model with a smaller memory reservation; it shares the files above.
+  ollama create "$MODEL" -f "$MODELFILE" >/dev/null 2>&1
 else
   echo "    ⚠ Ollama 沒起來，AI 日記會無法使用（其他功能正常）"
 fi

@@ -315,7 +315,7 @@ async function showSignedOutState() {
   resetMeetupForm();
   stopMapPick();
   aiChatMessages.innerHTML =
-    '<div class="ai-chat-message is-assistant">嗨！今天發生了什麼？直接打字告訴我就好。</div>';
+    '<div class="ai-chat-message is-assistant">嗨！今天發生了什麼？打給我，我會幫你整理成日記。</div>';
   aiProviderStatus.textContent = "";
   profileBio.textContent = "請登入以查看個人簡介。";
   profileDiariesCount.textContent = "0 篇";

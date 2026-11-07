@@ -779,6 +779,110 @@ function setMapPointDialogMode(isEditing) {
   document.querySelector("#map-point-delete").hidden = !isEditing;
 }
 
+// Photos picked in the footprint form. Nothing is uploaded until the footprint is saved.
+const mapFormPhotoGrid = document.querySelector("#map-form-photo-grid");
+const mapFormPhotoInput = document.querySelector("#map-form-photo-input");
+const mapFormPhotoAdd = document.querySelector("#map-form-photo-add");
+const mapFormPhotoNote = document.querySelector("#map-form-photo-note");
+let mapFormPhotos = { saved: [], removedIds: new Set(), added: [], busy: false };
+let nextMapFormPhotoId = 1;
+
+function mapFormShownPhotos() {
+  return [
+    ...mapFormPhotos.saved.filter((photo) => !mapFormPhotos.removedIds.has(photo.id)),
+    ...mapFormPhotos.added,
+  ];
+}
+
+function renderMapFormPhotos(message = "") {
+  const shown = mapFormShownPhotos();
+  mapFormPhotoGrid.innerHTML = shown
+    .map(
+      (photo, index) => `
+        <div class="map-form-photo">
+          <img src="${escapeHtml(photo.draftId ? photo.url : mediaUrl(photo.url))}" alt="第 ${index + 1} 張照片" />
+          <button class="map-form-photo-remove" type="button" ${photo.draftId ? `data-remove-draft-photo="${photo.draftId}"` : `data-remove-saved-photo="${photo.id}"`} aria-label="移除第 ${index + 1} 張照片">×</button>
+        </div>
+      `,
+    )
+    .join("");
+  mapFormPhotoAdd.hidden = shown.length >= MAX_FOOTPRINT_PHOTOS;
+  mapFormPhotoInput.disabled = mapFormPhotos.busy;
+  mapFormPhotoNote.textContent =
+    message ||
+    (shown.length
+      ? `${shown.length} / ${MAX_FOOTPRINT_PHOTOS} 張，按「儲存足跡」時一起上傳。誰能看照片跟著這趟足跡的設定。`
+      : `最多 ${MAX_FOOTPRINT_PHOTOS} 張。誰能看照片跟著這趟足跡的設定。`);
+}
+
+function resetMapFormPhotos(saved = []) {
+  mapFormPhotos.added.forEach((photo) => URL.revokeObjectURL(photo.url));
+  mapFormPhotos = { saved: [...saved], removedIds: new Set(), added: [], busy: false };
+  mapFormPhotoInput.value = "";
+  renderMapFormPhotos();
+}
+
+mapFormPhotoInput.addEventListener("change", async () => {
+  const files = [...mapFormPhotoInput.files];
+  mapFormPhotoInput.value = "";
+  const chosen = files.slice(0, MAX_FOOTPRINT_PHOTOS - mapFormShownPhotos().length);
+  const notes = [];
+  mapFormPhotos.busy = true;
+  renderMapFormPhotos("正在處理照片…");
+  for (const file of chosen) {
+    try {
+      const blob = await entryPhotoBlob(file);
+      mapFormPhotos.added.push({
+        draftId: nextMapFormPhotoId++,
+        blob,
+        url: URL.createObjectURL(blob),
+      });
+    } catch (error) {
+      notes.push(`${file.name}：${error.message}`);
+    }
+  }
+  if (files.length > chosen.length) {
+    notes.push(`超過 ${MAX_FOOTPRINT_PHOTOS} 張上限，略過 ${files.length - chosen.length} 張。`);
+  }
+  mapFormPhotos.busy = false;
+  renderMapFormPhotos(notes.join(" "));
+});
+
+mapFormPhotoGrid.addEventListener("click", (event) => {
+  const draft = event.target.closest("[data-remove-draft-photo]");
+  const saved = event.target.closest("[data-remove-saved-photo]");
+  if (draft) {
+    const id = Number(draft.dataset.removeDraftPhoto);
+    mapFormPhotos.added = mapFormPhotos.added.filter((photo) => {
+      if (photo.draftId === id) URL.revokeObjectURL(photo.url);
+      return photo.draftId !== id;
+    });
+  }
+  if (saved) mapFormPhotos.removedIds.add(Number(saved.dataset.removeSavedPhoto));
+  if (draft || saved) renderMapFormPhotos();
+});
+
+// Runs once the footprint itself is saved: removals first, which frees room, then uploads.
+async function saveMapFormPhotos(pointId, status) {
+  for (const photoId of mapFormPhotos.removedIds) {
+    try {
+      await apiRequest(`/map-points/${pointId}/photos/${photoId}`, { method: "DELETE" });
+    } catch (error) {
+      // Already gone, for example deleted in another window: the goal is met.
+      if (error.status !== 404) throw error;
+    }
+  }
+  const total = mapFormPhotos.added.length;
+  for (const [index, photo] of mapFormPhotos.added.entries()) {
+    status.textContent = `正在上傳照片 ${index + 1} / ${total}…`;
+    await apiRequest(`/map-points/${pointId}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": photo.blob.type },
+      body: photo.blob,
+    });
+  }
+}
+
 function mapPointFormSnapshot() {
   return JSON.stringify([
     mapPointForm.elements.name.value,
@@ -788,6 +892,8 @@ function mapPointFormSnapshot() {
       routePointList.querySelectorAll(".route-point-row"),
       (row) => [row.querySelector("[data-route-name]").value, row.dataset.lat],
     ),
+    mapFormPhotos.added.map((photo) => photo.draftId),
+    [...mapFormPhotos.removedIds],
   ]);
 }
 
@@ -820,6 +926,7 @@ function openNewMapPointDialog(addToTripForm = false) {
   mapPointForm.reset();
   mapPointForm.elements.privacy.value = appSetting("footprintPrivacy");
   resetRoutePoints();
+  resetMapFormPhotos();
   editingMapPointId = null;
   setMapPointDialogMode(false);
   stopMapPick();
@@ -868,6 +975,7 @@ function openMapPointEditor(pointId) {
   footprintRoutePoints(point).forEach((routePoint) => {
     addRoutePoint(routePoint);
   });
+  resetMapFormPhotos(point.photos || []);
   setMapPointDialogMode(true);
   showMapPointDialog();
 }
@@ -878,12 +986,12 @@ async function removeMapPointCover(button) {
     `[data-map-cover-status="${pointId}"]`,
   );
   button.disabled = true;
-  status.textContent = "正在移除圖片…";
+  status.textContent = "正在移除封面…";
   try {
     await apiRequest(`/map-points/${pointId}/cover`, { method: "DELETE" });
-    applyMapPointCover(pointId, null, "圖片已移除。");
+    applyMapPointCover(pointId, null, "封面已移除。");
   } catch (error) {
-    status.textContent = error.message || "移除圖片失敗，請稍後再試。";
+    status.textContent = error.message || "移除封面失敗，請稍後再試。";
     button.disabled = false;
   }
 }
@@ -892,6 +1000,13 @@ mapPointsContainer.addEventListener("click", (event) => {
   const editButton = event.target.closest("[data-edit-map-point]");
   if (editButton) {
     openMapPointEditor(Number(editButton.dataset.editMapPoint));
+    return;
+  }
+  // Opens the editor straight at choosing photos; still in the tap, so the picker may open.
+  const photoButton = event.target.closest("[data-add-map-photos]");
+  if (photoButton) {
+    openMapPointEditor(Number(photoButton.dataset.addMapPhotos));
+    if (mapPointDialog.open && !mapFormPhotoAdd.hidden) mapFormPhotoInput.click();
     return;
   }
   const deleteButton = event.target.closest("[data-delete-map-point]");
@@ -922,28 +1037,44 @@ mapPointsContainer.addEventListener("click", (event) => {
   selectMapPoint(pointId);
 });
 
+// What the viewer pages through: the cover first, as on a trip, then the trip photos.
+function mapPointPhotos(point) {
+  return [point.cover_url, ...(point.photos || []).map((photo) => photo.url)]
+    .filter(Boolean)
+    .map((url) => ({ url, caption: point.name }));
+}
+
+// The cover is the one picture shown on the card and the profile; the photos are the trip's
+// album. A footprint with photos but no cover borrows its first photo for the thumbnail.
+function mapPointThumbUrl(point) {
+  return mediaUrl(point.cover_url || point.photos?.[0]?.url);
+}
+
 function mapPointCoverHtml(point) {
   const coverUrl = mediaUrl(point.cover_url);
   const media = coverUrl
-    ? `<img class="map-point-cover" src="${escapeHtml(coverUrl)}" alt="${escapeHtml(point.name)}的圖片" loading="lazy" decoding="async" />`
+    ? `<button class="map-point-cover-button" type="button" data-view-map-photo="${Number(point.id)}" data-photo-index="0" aria-label="放大「${escapeHtml(point.name)}」的封面">
+        <img class="map-point-cover" src="${escapeHtml(coverUrl)}" alt="" loading="lazy" decoding="async" />
+      </button>`
     : "";
   if (!point.is_owner) return media;
+  const hasPhotos = (point.photos || []).length > 0;
   return `
-    ${media || '<div class="map-point-photo-placeholder"><span aria-hidden="true">▧</span><span>還沒有圖片</span></div>'}
+    ${media || (hasPhotos ? "" : '<div class="map-point-photo-placeholder"><span aria-hidden="true">▧</span><span>還沒有封面</span></div>')}
     <div class="profile-footprint-cover-actions">
       <label class="small-action profile-cover-upload">
-        ${coverUrl ? "更換圖片" : "新增圖片"}
+        ${coverUrl ? "更換封面" : "新增封面"}
         <input class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" data-map-cover-upload="${Number(point.id)}" />
       </label>
-      ${coverUrl ? `<button class="small-action is-destructive" type="button" data-remove-map-cover="${Number(point.id)}">移除圖片</button>` : ""}
-      <span class="privacy-note" data-map-cover-status="${Number(point.id)}" role="status">圖片會顯示在足跡列表與個人檔案，最大 25 MB。</span>
+      ${coverUrl ? `<button class="small-action is-destructive" type="button" data-remove-map-cover="${Number(point.id)}">移除封面</button>` : ""}
+      <span class="privacy-note" data-map-cover-status="${Number(point.id)}" role="status">封面會顯示在足跡列表與個人檔案，最大 25 MB。</span>
     </div>
   `;
 }
 
 function mapPointCardHtml(point) {
   const isSelected = point.id === selectedMapPointId;
-  const coverUrl = mediaUrl(point.cover_url);
+  const coverUrl = mapPointThumbUrl(point);
   const routePoints = footprintRoutePoints(point);
   return `
   <article class="map-point-card${isSelected ? " is-selected is-expanded" : ""}">
@@ -959,6 +1090,7 @@ function mapPointCardHtml(point) {
     <div class="map-point-author">${ownerLink(point, "其他使用者")}</div>
     <div class="map-point-details" id="map-point-details-${point.id}"${isSelected ? "" : " hidden"}>
       ${mapPointCoverHtml(point)}
+      ${photoStripHtml(mapPointPhotos(point), "view-map", point.id, point.cover_url ? 1 : 0)}
               <p>${escapeHtml(point.note || "尚未新增小記")}</p>
       <ol class="route-stops">
         ${routePoints
@@ -980,6 +1112,7 @@ function mapPointCardHtml(point) {
         point.is_owner
           ? `<div class="map-point-actions">
               <button class="secondary-button" type="button" data-edit-map-point="${point.id}">編輯這趟足跡</button>
+              ${(point.photos || []).length < MAX_FOOTPRINT_PHOTOS ? `<button class="secondary-button" type="button" data-add-map-photos="${point.id}">新增照片</button>` : ""}
               <button class="small-action is-destructive" type="button" data-delete-map-point="${point.id}">刪除</button>
               <label class="compact-field">隱私層級
                 ${privacySelectHtml(point.id, point.name, point.privacy)}
@@ -1015,12 +1148,12 @@ mapPointsContainer.addEventListener("change", async (event) => {
     `[data-map-cover-status="${pointId}"]`,
   );
   input.disabled = true;
-  status.textContent = "正在處理圖片…";
+  status.textContent = "正在處理封面…";
   try {
     const coverUrl = await uploadFootprintCover(pointId, file);
-    applyMapPointCover(pointId, coverUrl, "圖片已更新。");
+    applyMapPointCover(pointId, coverUrl, "封面已更新。");
   } catch (error) {
-    status.textContent = error.message || "圖片上傳失敗，請稍後再試。";
+    status.textContent = error.message || "封面上傳失敗，請稍後再試。";
     input.disabled = false;
     input.value = "";
   }

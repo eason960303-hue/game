@@ -5,7 +5,7 @@ const systemDarkTheme = window.matchMedia("(prefers-color-scheme: dark)");
 
 // Colours are in tokens.css; these are the swatches shown when choosing and each theme's base.
 const PALETTES = [
-  { id: "default", name: "預設", mode: null, swatches: ["#f3f0e8", "#fffefa", "#1f6b57", "#a9cdbd", "#af4526", "#23261f"] },
+  { id: "default", name: "活力", mode: null, swatches: ["#fff7ef", "#ffb82e", "#d63d1a", "#f2487a", "#0a7770", "#2a1d18"] },
   { id: "1", name: "莓果", mode: "light", swatches: ["#800021", "#881144", "#243A66", "#C24366", "#FF69B4", "#FFE4D8"] },
   { id: "3", name: "深海", mode: "dark", swatches: ["#05161A", "#072E33", "#0C7075", "#0F969C", "#6DA5C0", "#294D61"] },
   { id: "4", name: "森林", mode: "dark", swatches: ["#0F1F17", "#1E3A2E", "#3E5A3F", "#6B7F67", "#C7CBB8", "#3D4337"] },

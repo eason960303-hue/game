@@ -1,0 +1,5 @@
+# The AI diary model: qwen2.5:7b with a context sized for one diary.
+# Ollama would otherwise reserve 32768 tokens per model, about 1.5 GB more memory
+# than a diary, its worked examples and the reply ever need.
+FROM qwen2.5:7b
+PARAMETER num_ctx 6144

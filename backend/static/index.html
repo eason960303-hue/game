@@ -7,7 +7,7 @@
       name="description"
       content="把日常的風景、心情與足跡，收藏成自己的生活記錄。"
     />
-    <meta name="theme-color" content="#f3f0e8" />
+    <meta name="theme-color" content="#fff7ef" />
     <title>我的生活記錄</title>
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icons/icon-192.png" type="image/png" />
@@ -79,10 +79,21 @@
           <div class="hero-copy">
             <p class="eyebrow" id="hero-date">今天</p>
             <h1 id="page-title">我的生活記錄</h1>
-            <button class="primary-button" id="open-entry" type="button">
-              <span aria-hidden="true">＋</span>
-              寫日記
-            </button>
+            <p class="hero-lead">今天過得如何？從這裡開始記錄。</p>
+            <div class="hero-actions">
+              <button class="primary-button" id="open-entry" type="button">
+                <span aria-hidden="true">＋</span>
+                寫日記
+              </button>
+              <button class="hero-chip" type="button" data-view="ai-diary">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h14a1 1 0 0 1 1 1V16a1 1 0 0 1-1 1H10l-4.5 3.5V17H5a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1z"/></svg>
+                跟 AI 聊日記
+              </button>
+              <button class="hero-chip" type="button" data-view="map">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
+                記錄足跡
+              </button>
+            </div>
           </div>
           <div class="hero-art" aria-hidden="true">
             <svg viewBox="0 0 340 190">
@@ -118,6 +129,7 @@
         <section class="entries-section" id="recent-entries-section" aria-labelledby="entries-title" hidden>
           <div class="section-heading">
             <div>
+              <p class="eyebrow">心情手帳</p>
               <h2 id="entries-title">最近的日記</h2>
               <span class="entry-count" id="entry-count">載入中…</span>
             </div>
@@ -158,6 +170,7 @@
               <div class="profile-username-row">
                 <h1 class="profile-username" id="profile-page-title">個人檔案</h1>
                 <button class="profile-edit-button" id="profile-edit-open" type="button">編輯個人檔案</button>
+                <button class="profile-edit-button" id="profile-install" type="button" hidden>安裝 App</button>
                 <button class="profile-edit-button" id="profile-follow" type="button" hidden>追蹤</button>
               </div>
               <div class="profile-stats" aria-label="個人檔案統計">
@@ -216,7 +229,7 @@
           <section class="module-card ai-chat-card" aria-label="AI 日記對話">
             <p class="ai-provider-status" id="ai-provider-status" role="status"></p>
             <div class="ai-chat-messages" id="ai-chat-messages" role="log" aria-live="polite">
-              <div class="ai-chat-message is-assistant">嗨！今天發生了什麼？直接打字告訴我就好。</div>
+              <div class="ai-chat-message is-assistant">嗨！今天發生了什麼？打給我，我會幫你整理成日記。</div>
             </div>
             <form class="ai-chat-form" id="ai-chat-form">
               <label class="sr-only" for="ai-chat-input">今天想記下什麼？</label>
@@ -228,6 +241,7 @@
             <details class="module-card privacy-note-card">
               <summary>誰看得到我的日記？</summary>
               <p>日記只有你自己看得到。AI 會收到你送出的文字，用來產生標題、心情和標籤，日記內容保存的是你的原文。</p>
+              <p>AI 判斷錯了，可以在 24 小時內編輯那篇日記，改掉標題、心情或標籤。之後幫你寫日記時，AI 會參考你改過的寫法；這些修改只用在你自己的日記。</p>
             </details>
             <section class="module-card diary-month-card" aria-labelledby="diary-month-title">
               <div class="diary-month-heading">
@@ -348,6 +362,7 @@
               <div class="content-filter" id="map-point-filter" hidden></div>
               <span class="entry-count" id="map-point-count">0 個地點</span>
             </div>
+            <p class="map-sidebar-lead">足跡是你去過的每一趟出遊，可以有好幾站和照片。把幾趟足跡串起來分享給別人，就是「行程」。</p>
             <div class="map-points" id="map-points" aria-live="polite">
               <div class="module-empty">登入後載入你的足跡。</div>
             </div>
@@ -359,7 +374,7 @@
       <section class="app-view module-view" id="trips-view" hidden aria-labelledby="trips-title">
         <div class="module-heading">
           <h1 id="trips-title">行程</h1>
-          <p>想出去玩時，看看別人怎麼走；也能把自己的足跡整理成行程分享出去。</p>
+          <p>行程是把幾趟足跡串成的路線，分享給別人參考。看到喜歡的，可以收藏、存到自己的足跡，或直接用來揪團。</p>
         </div>
         <div class="trip-layout">
           <div>
@@ -385,6 +400,7 @@
             </label>
             <div>
               <span class="compact-field">選擇加入的足跡</span>
+              <p class="privacy-note">行程由你的足跡組成，照順序勾選要放進來的幾趟。</p>
               <button class="small-action" id="trip-add-footprint" type="button">＋ 新增足跡</button>
               <div class="trip-point-list" id="trip-point-options">
                 <span class="privacy-note">登入後載入足跡。</span>
@@ -431,6 +447,15 @@
           <label class="compact-field">小記（選填）
             <textarea name="note" maxlength="1000" placeholder="記下這裡的故事…"></textarea>
           </label>
+          <section class="map-form-photos" aria-labelledby="map-form-photos-title">
+            <span class="map-form-photos-title" id="map-form-photos-title">照片（選填）</span>
+            <div class="map-form-photo-grid" id="map-form-photo-grid"></div>
+            <label class="map-form-photo-add" id="map-form-photo-add">
+              <input class="visually-hidden" id="map-form-photo-input" type="file" accept="image/jpeg,image/png,image/webp" multiple />
+              <span aria-hidden="true">＋</span> 選擇照片
+            </label>
+            <p class="privacy-note" id="map-form-photo-note" role="status"></p>
+          </section>
           <label class="compact-field">誰看得到
             <select name="privacy">
               <option value="private">私密</option>
@@ -540,76 +565,109 @@
 
     <dialog id="settings-dialog" aria-labelledby="settings-title">
       <form class="dialog-content settings-form" id="settings-form">
-        <div class="dialog-heading">
+        <div class="dialog-heading settings-heading">
           <div>
             <h2 id="settings-title">設定</h2>
-            <p>變更會立即套用。登入時也會同步到你的帳號。</p>
+            <p>變更會立即套用，登入時也會同步到你的帳號。</p>
           </div>
           <button class="icon-button" id="settings-dismiss" type="button" aria-label="關閉設定">×</button>
         </div>
-        <section class="settings-section">
-          <h3>色彩主題</h3>
-          <div class="palette-options" id="settings-palettes"></div>
-          <label class="field" id="settings-mode">深淺模式
-            <select name="mode">
-              <option value="system">跟隨系統</option>
-              <option value="light">淺色</option>
-              <option value="dark">深色</option>
-            </select>
-          </label>
+
+        <section class="settings-group" aria-labelledby="settings-look-title">
+          <h3 id="settings-look-title">外觀</h3>
+          <div class="settings-card">
+            <div class="settings-row is-stacked" id="settings-mode" role="radiogroup" aria-labelledby="settings-mode-label">
+              <span class="settings-text">
+                <span class="settings-label" id="settings-mode-label">深淺模式</span>
+                <span class="settings-hint" id="settings-mode-note"></span>
+              </span>
+              <span class="settings-segmented">
+                <label><input type="radio" name="mode" value="system" /><span>跟隨系統</span></label>
+                <label><input type="radio" name="mode" value="light" /><span>淺色</span></label>
+                <label><input type="radio" name="mode" value="dark" /><span>深色</span></label>
+              </span>
+            </div>
+            <div class="settings-row is-stacked" role="radiogroup" aria-labelledby="settings-palette-label">
+              <span class="settings-text">
+                <span class="settings-label" id="settings-palette-label">色彩主題</span>
+                <span class="settings-hint" id="settings-palette-current"></span>
+              </span>
+              <div class="palette-groups" id="settings-palettes"></div>
+            </div>
+          </div>
         </section>
-        <section class="settings-section">
-          <h3>首頁</h3>
-          <label class="field">最近的日記
-            <select name="homeDiaries">
-              <option value="full">完整內容</option>
-              <option value="no-photo">不顯示照片</option>
-              <option value="compact">精簡（小框，只顯示標題）</option>
-              <option value="hidden">不顯示在首頁</option>
-            </select>
-          </label>
-          <label class="checkbox-field">
-            <input name="homeMeetups" type="checkbox" />
-            在首頁顯示現正揪團
-          </label>
-          <label class="checkbox-field">
-            <input name="homeFootprints" type="checkbox" />
-            在首頁顯示足跡
-          </label>
+
+        <section class="settings-group" aria-labelledby="settings-home-title">
+          <h3 id="settings-home-title">首頁</h3>
+          <div class="settings-card">
+            <label class="settings-row">
+              <span class="settings-text"><span class="settings-label">最近的日記</span></span>
+              <select name="homeDiaries">
+                <option value="full">完整內容</option>
+                <option value="no-photo">不顯示照片</option>
+                <option value="compact">只顯示標題</option>
+                <option value="hidden">不顯示</option>
+              </select>
+            </label>
+            <label class="settings-row">
+              <span class="settings-text"><span class="settings-label">顯示現正揪團</span></span>
+              <input class="settings-switch" name="homeMeetups" type="checkbox" role="switch" />
+            </label>
+            <label class="settings-row">
+              <span class="settings-text"><span class="settings-label">顯示足跡</span></span>
+              <input class="settings-switch" name="homeFootprints" type="checkbox" role="switch" />
+            </label>
+          </div>
         </section>
-        <section class="settings-section">
-          <h3>足跡</h3>
-          <label class="field">新足跡的預設隱私
-            <select name="footprintPrivacy">
-              <option value="private">私密</option>
-              <option value="friends">摯友</option>
-              <option value="public">公開</option>
-            </select>
-          </label>
+
+        <section class="settings-group" aria-labelledby="settings-record-title">
+          <h3 id="settings-record-title">日記與足跡</h3>
+          <div class="settings-card">
+            <label class="settings-row">
+              <span class="settings-text">
+                <span class="settings-label">AI 日記追問</span>
+                <span class="settings-hint">存好後，問要不要補地點或照片。</span>
+              </span>
+              <input class="settings-switch" name="aiFollowUp" type="checkbox" role="switch" />
+            </label>
+            <div class="settings-row is-stacked" role="radiogroup" aria-labelledby="settings-privacy-label">
+              <span class="settings-text">
+                <span class="settings-label" id="settings-privacy-label">新足跡的預設隱私</span>
+                <span class="settings-hint">每趟足跡之後都還能個別調整。</span>
+              </span>
+              <span class="settings-segmented">
+                <label><input type="radio" name="footprintPrivacy" value="private" /><span>私密</span></label>
+                <label><input type="radio" name="footprintPrivacy" value="friends" /><span>摯友</span></label>
+                <label><input type="radio" name="footprintPrivacy" value="public" /><span>公開</span></label>
+              </span>
+            </div>
+          </div>
         </section>
-        <section class="settings-section">
-          <h3>AI 日記</h3>
-          <label class="checkbox-field">
-            <input name="aiFollowUp" type="checkbox" />
-            存好日記後，詢問要不要補上地點或照片
-          </label>
-        </section>
-        <section class="settings-section">
-          <h3>開啟 App</h3>
-          <label class="field">開啟時顯示
-            <select name="startPage">
-              <option value="last">上次看的頁面</option>
-              <option value="home">首頁</option>
-            </select>
-          </label>
-        </section>
-        <section class="settings-section" id="settings-install" hidden>
-          <h3>安裝</h3>
-          <button class="secondary-button" id="pwa-install" type="button">安裝 App</button>
-        </section>
-        <section class="settings-section">
-          <h3>使用說明</h3>
-          <button class="secondary-button" id="settings-show-guide" type="button">再看一次新手指引</button>
+
+        <section class="settings-group" aria-labelledby="settings-app-title">
+          <h3 id="settings-app-title">App</h3>
+          <div class="settings-card">
+            <div class="settings-row is-stacked" role="radiogroup" aria-labelledby="settings-start-label">
+              <span class="settings-text"><span class="settings-label" id="settings-start-label">開啟時顯示</span></span>
+              <span class="settings-segmented">
+                <label><input type="radio" name="startPage" value="last" /><span>上次看的頁面</span></label>
+                <label><input type="radio" name="startPage" value="home" /><span>首頁</span></label>
+              </span>
+            </div>
+            <div id="settings-install" hidden>
+              <button class="settings-row settings-link" id="pwa-install" type="button">
+                <span class="settings-text">
+                  <span class="settings-label">安裝 App</span>
+                  <span class="settings-hint">加到主畫面，像一般 App 一樣開啟。</span>
+                </span>
+                <span class="settings-chevron" aria-hidden="true">›</span>
+              </button>
+            </div>
+            <button class="settings-row settings-link" id="settings-show-guide" type="button">
+              <span class="settings-text"><span class="settings-label">再看一次新手指引</span></span>
+              <span class="settings-chevron" aria-hidden="true">›</span>
+            </button>
+          </div>
         </section>
       </form>
     </dialog>

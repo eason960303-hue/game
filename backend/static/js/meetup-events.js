@@ -250,6 +250,7 @@ document
   .addEventListener("click", closeMeetupDialog);
 
 meetupDialog.addEventListener("cancel", (event) => {
+  if (event.target !== meetupDialog) return;
   event.preventDefault();
   closeMeetupDialog();
 });

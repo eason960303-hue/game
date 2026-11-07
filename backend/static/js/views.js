@@ -2,7 +2,8 @@ const HOME_ENTRY_LIMIT = 3;
 const MAX_FOOTPRINT_PHOTOS = 9;
 const TOAST_MIN_MS = 3200;
 const TOAST_MS_PER_CHARACTER = 120;
-const FOOTPRINT_PAGE_SIZE = 6;
+// Phones show one column, so fewer footprints at a time keeps home short.
+const FOOTPRINT_PAGE_SIZE = window.matchMedia("(max-width: 760px)").matches ? 3 : 6;
 let toastTimer = null;
 let timelineFootprintsShown = FOOTPRINT_PAGE_SIZE;
 
@@ -43,7 +44,7 @@ function renderEntries(entries) {
         <article class="entry-card">
           ${entryPhotoHtml(entry)}
           <div class="entry-meta">
-            <span class="mood">${escapeHtml(entry.mood || "生活")}</span>
+            <span class="mood" data-tone="${moodTone(entry.mood)}">${escapeHtml(entry.mood || "生活")}</span>
             <time datetime="${escapeHtml(entry.created_at || "")}">${escapeHtml(formatDateTime(entry.created_at))}</time>
           </div>
           <h3>${escapeHtml(entry.title)}</h3>
@@ -54,6 +55,20 @@ function renderEntries(entries) {
         )
         .join("");
   entriesContainer.innerHTML = cards;
+}
+
+// Each mood chip gets a colour from its first feeling, so a page of diaries reads at a glance.
+const MOOD_TONES = [
+  ["sun", /開心|快樂|興奮|期待|幸福|滿足|好玩|驚喜|happy/i],
+  ["coral", /生氣|憤怒|煩|不爽|火大/],
+  ["sky", /難過|傷心|孤單|失望|寂寞|沮喪|想念|懷念/],
+  ["violet", /累|疲|無奈|困惑|焦慮|擔心|緊張|尷尬|壓力/],
+  ["teal", /平靜|放鬆|輕鬆|鬆一口氣|感動|感謝|溫暖|安心|療癒/],
+];
+
+function moodTone(mood) {
+  const first = String(mood || "").split(/[、,，]/)[0];
+  return (MOOD_TONES.find(([, pattern]) => pattern.test(first)) || ["pink"])[0];
 }
 
 function entryCanBeEdited(createdAt) {
@@ -296,8 +311,15 @@ function shownFootprintPhotos(post) {
   ];
 }
 
+// What the enlarged view pages through: the cover first, as on 足跡 and 行程, then the photos.
+function footprintViewerPhotos(post) {
+  const photos = shownFootprintPhotos(post);
+  return post.cover_url ? [{ url: post.cover_url }, ...photos] : photos;
+}
+
 function footprintPhotosHtml(post) {
   const photos = shownFootprintPhotos(post);
+  const firstPhotoIndex = post.cover_url ? 1 : 0;
   const draft = footprintPhotoDrafts.get(post.id);
   const editing = post.is_owner && Boolean(draft);
   if (!photos.length && !post.is_owner) return "";
@@ -306,7 +328,7 @@ function footprintPhotosHtml(post) {
   const tiles = photos.map(
     (photo, index) => `
       <div class="footprint-photo${photo.draftId ? " is-unsaved" : ""}">
-        <button type="button" data-view-footprint-photo="${pointId}" data-photo-index="${index}" aria-label="放大第 ${index + 1} 張照片">
+        <button type="button" data-view-footprint-photo="${pointId}" data-photo-index="${firstPhotoIndex + index}" aria-label="放大第 ${index + 1} 張照片">
           <img src="${escapeHtml(mediaUrl(photo.url))}" alt="${escapeHtml(post.title)}的照片" loading="lazy" decoding="async" />
         </button>
         ${
@@ -413,21 +435,22 @@ function renderProfilePostCard(post, type, expandedId) {
       ? `
         <div class="profile-footprint-cover-actions">
           <label class="small-action profile-cover-upload">
-            ${post.cover_url ? "更換背景照片" : "新增背景照片"}
+            ${post.cover_url ? "更換封面" : "新增封面"}
             <input class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" data-footprint-cover-upload="${Number(post.id)}" />
           </label>
           ${
             post.cover_url
-              ? `<button class="small-action is-destructive" type="button" data-remove-footprint-cover="${Number(post.id)}">移除照片</button>`
+              ? `<button class="small-action is-destructive" type="button" data-remove-footprint-cover="${Number(post.id)}">移除封面</button>`
               : ""
           }
-          <span class="privacy-note" data-footprint-cover-status="${Number(post.id)}" role="status">照片會顯示在足跡卡片背景，最大 25 MB。</span>
+          <span class="privacy-note" data-footprint-cover-status="${Number(post.id)}" role="status">封面會顯示在足跡卡片背景，最大 25 MB。</span>
         </div>
       `
       : "";
   const photos = isFootprint ? footprintPhotosHtml(post) : "";
   return `
     <article class="profile-post-tile${isFootprint ? "" : " is-diary"}${isExpanded ? " is-expanded" : ""}">
+      <div class="profile-post-head">
       <button
         class="profile-post-toggle${coverUrl ? " has-cover" : ""}"
         type="button"
@@ -456,6 +479,15 @@ function renderProfilePostCard(post, type, expandedId) {
           <time class="profile-post-date" datetime="${escapeHtml(post.created_at || "")}">${escapeHtml(formatDate(post.created_at))}</time>
         </span>
       </button>
+      ${
+        coverUrl
+          ? `<button class="profile-cover-zoom" type="button" data-view-footprint-photo="${Number(post.id)}" data-photo-index="0" aria-label="放大「${escapeHtml(post.title)}」的封面">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>
+              放大封面
+            </button>`
+          : ""
+      }
+      </div>
       <div
         class="profile-post-details"
         id="profile-post-details-${type}-${post.id}"
@@ -521,6 +553,7 @@ function renderProfilePosts(
     : viewedProfile
       ? `<div class="profile-empty">${escapeHtml(emptyDiaries)}</div>`
       : emptyStateHtml("profile-empty", emptyDiaries, "寫日記", "write-diary");
+  warmPhotos(profileDiariesGrid);
   profileFootprintsGrid.innerHTML = footprints.length
     ? footprints
         .map((post) =>
@@ -858,11 +891,26 @@ function toggleProfilePost(event, type) {
   button.focus({ preventScroll: true });
 }
 
-profileDiariesGrid.addEventListener("click", (event) =>
-  toggleProfilePost(event, "diary"),
-);
+// Opening waits for the post's photos, so the tile grows to its full height in one go.
+async function openProfilePost(event, type) {
+  const button = event.target.closest("[data-profile-post-type]");
+  if (!button || button.dataset.profilePostType !== type) return;
+  const card = button.closest(".profile-post-tile");
+  const details = card?.querySelector(".profile-post-details");
+  if (details && !card.classList.contains("is-expanded") && details.querySelector("img")) {
+    if (card.dataset.preparing) return;
+    card.dataset.preparing = "true";
+    await photosReady(details);
+    delete card.dataset.preparing;
+    if (!card.isConnected) return;
+    easeInLatePhotos(card, () => card.classList.contains("is-expanded"));
+  }
+  toggleProfilePost(event, type);
+}
+
+profileDiariesGrid.addEventListener("click", (event) => openProfilePost(event, "diary"));
 profileFootprintsGrid.addEventListener("click", (event) =>
-  toggleProfilePost(event, "footprint"),
+  openProfilePost(event, "footprint"),
 );
 
 profileFootprintsGrid.addEventListener("click", (event) => {
@@ -945,6 +993,63 @@ async function entryPhotoBlob(file) {
   return blob;
 }
 
+// A photo inside a closed section is lazy, so it hasn't loaded. Opening the section then
+// measures it as nothing, and the photo pops in once the animation has ended.
+const PHOTO_WAIT_MS = 350;
+
+// Fetches the photos of a freshly drawn list while the browser is idle, before anyone opens one.
+function warmPhotos(root) {
+  const warm = () =>
+    root.querySelectorAll('img[loading="lazy"]').forEach((img) => {
+      img.loading = "eager";
+    });
+  if ("requestIdleCallback" in window) requestIdleCallback(warm, { timeout: 2000 });
+  else setTimeout(warm, 300);
+}
+
+// Resolves once the section's photos are loaded and decoded, or after a short wait at most,
+// so it can be measured with them in place.
+function photosReady(root) {
+  const images = Array.from(root.querySelectorAll("img"));
+  if (images.length === 0) return Promise.resolve();
+  images.forEach((img) => {
+    img.loading = "eager";
+  });
+  return Promise.race([
+    Promise.all(images.map((img) => img.decode().catch(() => {}))),
+    new Promise((resolve) => setTimeout(resolve, PHOTO_WAIT_MS)),
+  ]);
+}
+
+const LATE_PHOTO_MS = 260;
+
+// A photo that still arrives after its section has opened (a slow connection) would shove
+// everything down at once. It stays out of the layout until it has loaded, so the opening
+// measures the section without it; then the section grows from wherever it is to fit it,
+// and the photo fades in.
+function easeInLatePhotos(container, isOpen) {
+  container.querySelectorAll("img").forEach((img) => {
+    if (img.complete && img.naturalWidth > 0) return;
+    img.style.display = "none";
+    const arrive = () => {
+      const from = container.getBoundingClientRect().height;
+      img.style.removeProperty("display");
+      if (!container.isConnected || !isOpen()) return;
+      // scrollHeight is the full content even while an opening animation holds the height.
+      const to = container.scrollHeight + container.offsetHeight - container.clientHeight;
+      if (to - from < 1) return;
+      const timing = { duration: LATE_PHOTO_MS, easing: "cubic-bezier(0.2, 0.75, 0.3, 1)" };
+      container.animate(
+        { height: [`${from}px`, `${to}px`], overflow: ["hidden", "hidden"] },
+        timing,
+      );
+      img.animate({ opacity: [0, 1] }, timing);
+    };
+    img.addEventListener("load", arrive, { once: true });
+    img.addEventListener("error", () => img.style.removeProperty("display"), { once: true });
+  });
+}
+
 function entryPhotoHtml(entry) {
   return entry.photo_url
     ? `<img class="entry-photo" src="${escapeHtml(mediaUrl(entry.photo_url))}" alt="${escapeHtml(entry.title)}的照片，點一下放大" role="button" tabindex="0" data-view-entry-photo="${escapeHtml(entry.photo_url)}" data-photo-title="${escapeHtml(entry.title)}" loading="lazy" decoding="async" />`
@@ -1012,7 +1117,7 @@ profileFootprintsGrid.addEventListener("change", async (event) => {
   status.textContent = "正在處理照片…";
   try {
     const coverUrl = await uploadFootprintCover(pointId, file);
-    applyFootprintCover(pointId, coverUrl, "背景照片已更新。");
+    applyFootprintCover(pointId, coverUrl, "封面已更新。");
   } catch (error) {
     status.textContent = error.message || "照片上傳失敗，請稍後再試。";
     input.disabled = false;
@@ -1030,7 +1135,7 @@ profileFootprintsGrid.addEventListener("click", async (event) => {
   status.textContent = "正在移除照片…";
   try {
     await apiRequest(`/map-points/${pointId}/cover`, { method: "DELETE" });
-    applyFootprintCover(pointId, null, "背景照片已移除。");
+    applyFootprintCover(pointId, null, "封面已移除。");
   } catch (error) {
     status.textContent = error.message || "移除照片失敗，請稍後再試。";
     button.disabled = false;
@@ -1185,10 +1290,13 @@ function showViewerPhoto(index) {
   const { title } = photoViewerPost;
   const photos = photoViewerPhotos;
   photoViewerIndex = (index + photos.length) % photos.length;
+  // A trip's photos come from several footprints, so each names the one it is from.
+  const { caption } = photos[photoViewerIndex];
   photoViewerImage.src = mediaUrl(photos[photoViewerIndex].url);
-  photoViewerImage.alt = `${title}的照片`;
-  photoViewerCount.textContent = `${photoViewerIndex + 1} / ${photos.length}`;
-  photoViewerCount.hidden = photos.length < 2;
+  photoViewerImage.alt = `${caption || title}的照片`;
+  const count = photos.length > 1 ? `${photoViewerIndex + 1} / ${photos.length}` : "";
+  photoViewerCount.textContent = [caption, count].filter(Boolean).join("　");
+  photoViewerCount.hidden = !photoViewerCount.textContent;
   photoViewerPrev.hidden = photoViewerNext.hidden = photos.length < 2;
 }
 
@@ -1197,7 +1305,29 @@ profileFootprintsGrid.addEventListener("click", (event) => {
   if (!button) return;
   photoViewerPost = profileFootprintPost(Number(button.dataset.viewFootprintPhoto));
   if (!photoViewerPost) return;
-  photoViewerPhotos = shownFootprintPhotos(photoViewerPost);
+  photoViewerPhotos = footprintViewerPhotos(photoViewerPost);
+  showViewerPhoto(Number(button.dataset.photoIndex));
+  photoViewer.showModal();
+});
+
+tripList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-view-trip-photo]");
+  if (!button) return;
+  const trip = trips.find((item) => item.id === Number(button.dataset.viewTripPhoto));
+  if (!trip) return;
+  photoViewerPost = { title: trip.title };
+  photoViewerPhotos = tripPhotos(trip);
+  showViewerPhoto(Number(button.dataset.photoIndex));
+  photoViewer.showModal();
+});
+
+mapPointsContainer.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-view-map-photo]");
+  if (!button) return;
+  const point = mapPoints.find((item) => item.id === Number(button.dataset.viewMapPhoto));
+  if (!point) return;
+  photoViewerPost = { title: point.name };
+  photoViewerPhotos = mapPointPhotos(point);
   showViewerPhoto(Number(button.dataset.photoIndex));
   photoViewer.showModal();
 });

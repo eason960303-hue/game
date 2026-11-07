@@ -117,6 +117,47 @@ function tripRouteHtml(trip) {
   `;
 }
 
+// Every photo along the trip, footprint by footprint: its cover first, then its trip photos.
+function tripPhotos(trip) {
+  const seen = new Set();
+  return trip.points.flatMap((point) =>
+    [point.cover_url, ...(point.photos || []).map((photo) => photo.url)]
+      .filter((url) => url && !seen.has(url) && seen.add(url))
+      .map((url) => ({ url, caption: point.name })),
+  );
+}
+
+const STRIP_PHOTOS_SHOWN = 3;
+
+// Up to three photos; the last one says how many more there are. Each opens the viewer,
+// named by data-<kind>-photo on its button with the id of what the photos belong to.
+// `start` skips photos shown elsewhere on the card (a footprint's cover) while keeping
+// each button's place in the viewer's full list.
+function photoStripHtml(photos, kind, ownerId, start = 0) {
+  const rest = photos.slice(start);
+  if (rest.length === 0) return "";
+  const shown = rest.slice(0, STRIP_PHOTOS_SHOWN);
+  const more = rest.length - shown.length;
+  return `
+    <div class="trip-photos is-${shown.length}" aria-label="照片，共 ${rest.length} 張">
+      ${shown
+        .map(
+          (photo, index) => `
+            <button type="button" data-${kind}-photo="${ownerId}" data-photo-index="${start + index}" aria-label="放大「${escapeHtml(photo.caption)}」的照片（第 ${start + index + 1} 張，共 ${photos.length} 張）">
+              <img src="${escapeHtml(mediaUrl(photo.url))}" alt="" loading="lazy" decoding="async" />
+              ${index === shown.length - 1 && more > 0 ? `<span class="trip-photos-more" aria-hidden="true">+${more}</span>` : ""}
+            </button>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function tripPhotosHtml(trip) {
+  return photoStripHtml(tripPhotos(trip), "view-trip", trip.id);
+}
+
 // The same heart and bookmark as on footprints.
 function tripReactionsHtml(trip) {
   const likes = Number(trip.like_count) || 0;
@@ -154,18 +195,19 @@ function tripCardHtml(trip) {
         ${
           trip.points.length > 0
             ? copiedTripIds.has(trip.id)
-              ? '<button class="small-action" type="button" disabled>已新增至足跡</button>'
-              : `<button class="small-action" type="button" data-copy-trip="${trip.id}">新增至足跡</button>`
+              ? '<button class="small-action" type="button" disabled>已存到我的足跡</button>'
+              : `<button class="small-action" type="button" data-copy-trip="${trip.id}">存到我的足跡</button>`
             : ""
         }
         ${
           trip.points.length > 0
-            ? `<button class="small-action" type="button" data-view-trip-point="${trip.points[0].id}">在足跡查看</button>`
+            ? `<button class="small-action" type="button" data-view-trip-point="${trip.points[0].id}">在地圖上看</button>`
             : ""
         }
       `;
   return `
     <article class="trip-card${trip.is_owner ? " is-mine" : ""}">
+      ${tripPhotosHtml(trip)}
       <div class="trip-card-top">
         <div>
           <h3>${escapeHtml(trip.title)}</h3>

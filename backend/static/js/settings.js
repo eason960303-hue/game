@@ -3,29 +3,52 @@ const settingsForm = document.querySelector("#settings-form");
 const paletteOptions = document.querySelector("#settings-palettes");
 const SERVER_SETTING_PREFIX = "web.";
 
-paletteOptions.innerHTML = PALETTES.map(
-  (palette) => `
+const MODE_NAMES = { light: "淺色", dark: "深色" };
+
+function paletteOptionHtml(palette) {
+  return `
     <label class="palette-option">
       <input type="radio" name="palette" value="${palette.id}" />
       <span class="palette-swatches" aria-hidden="true">
         ${palette.swatches.map((color) => `<i style="background:${color}"></i>`).join("")}
       </span>
-      <span>${palette.name}</span>
-    </label>`,
-).join("");
+      <span class="palette-name">${palette.name}${palette.mode ? "" : "<small>預設</small>"}</span>
+    </label>`;
+}
+
+// 活力 follows the light/dark choice, so it leads the light group, where it starts out.
+paletteOptions.innerHTML = [
+  ["淺色", PALETTES.filter((palette) => palette.mode !== "dark")],
+  ["深色", PALETTES.filter((palette) => palette.mode === "dark")],
+]
+  .map(
+    ([title, palettes]) => `
+      <div class="palette-group">
+        <span class="palette-group-title">${title}</span>
+        <div class="palette-options">${palettes.map(paletteOptionHtml).join("")}</div>
+      </div>`,
+  )
+  .join("");
 
 function showSettings() {
   const { elements } = settingsForm;
-  elements.palette.value = appSetting("palette");
-  elements.mode.value = appSetting("mode");
+  const palette = PALETTES.find((item) => item.id === appSetting("palette")) || PALETTES[0];
+  elements.palette.value = palette.id;
   elements.footprintPrivacy.value = appSetting("footprintPrivacy");
   elements.startPage.value = appSetting("startPage");
   elements.homeDiaries.value = appSetting("homeDiaries");
   elements.homeMeetups.checked = appSetting("homeMeetups") === "on";
   elements.homeFootprints.checked = appSetting("homeFootprints") === "on";
   elements.aiFollowUp.checked = appSetting("aiFollowUp") === "on";
-  // A colour theme already decides light or dark.
-  document.querySelector("#settings-mode").hidden = appSetting("palette") !== "default";
+  document.querySelector("#settings-palette-current").textContent = `目前：${palette.name}`;
+  // A colour theme already decides light or dark, so the choice shows it and is locked
+  // until 活力 is picked again; the saved choice is kept for then.
+  elements.mode.value = palette.mode || appSetting("mode");
+  for (const input of elements.mode) input.disabled = Boolean(palette.mode);
+  document.querySelector("#settings-mode").classList.toggle("is-locked", Boolean(palette.mode));
+  document.querySelector("#settings-mode-note").textContent = palette.mode
+    ? `「${palette.name}」主題固定是${MODE_NAMES[palette.mode]}，換回「活力」才能切換。`
+    : "";
 }
 
 async function changeSetting(key, value) {
