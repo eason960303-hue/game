@@ -8135,3 +8135,382 @@ button:not(:disabled):active {
 .profile-post-tile:not(.is-expanded) .profile-cover-zoom {
   display: none;
 }
+
+/* ---------- The bell: news about your meetups ---------- */
+
+.notifications-open {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+}
+
+.notifications-open svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.notifications-badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  display: grid;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  place-items: center;
+  border: 2px solid var(--bg);
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.notifications-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notification-item {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+}
+
+button.notification-item {
+  cursor: pointer;
+}
+
+button.notification-item:hover {
+  background: var(--tint);
+}
+
+.notification-item.is-unread {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.notification-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--sunken);
+  color: var(--accent-text);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.notification-icon[data-kind="meetup_joined"] {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.notification-icon[data-kind="meetup_cancelled"],
+.notification-icon[data-kind="meetup_left"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.notification-text {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  font-size: var(--text-md);
+  line-height: 1.45;
+}
+
+.notification-quote {
+  overflow: hidden;
+  padding-left: 8px;
+  border-left: 3px solid var(--line-strong);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-text time {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.notification-dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.notifications-empty,
+.meetup-comments-empty {
+  padding: 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  text-align: center;
+}
+
+/* ---------- Who is going, on a meetup card ---------- */
+
+.meetup-members-strip {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--sunken);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.meetup-members-strip:hover {
+  border-color: var(--accent-line);
+  background: var(--tint);
+}
+
+.meetup-avatars {
+  display: flex;
+  flex: none;
+}
+
+.meetup-avatars .social-avatar {
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--surface);
+  font-size: 11px;
+}
+
+.meetup-avatars .social-avatar + .social-avatar {
+  margin-left: -8px;
+}
+
+.meetup-members-names {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meetup-room-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.meetup-room-chip svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
+}
+
+/* ---------- A meetup's members and board ---------- */
+
+.meetup-room {
+  display: grid;
+  gap: 18px;
+}
+
+.meetup-room .dialog-heading {
+  margin-bottom: 0;
+}
+
+.meetup-room-section {
+  display: grid;
+  gap: 10px;
+}
+
+.meetup-room-section h3 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.meetup-room-section .privacy-note {
+  margin: -4px 0 0;
+}
+
+.meetup-room-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.meetup-room-member {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.meetup-room-member:hover {
+  border-color: var(--accent-line);
+}
+
+.meetup-room-member .social-avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 12px;
+}
+
+.meetup-host-tag {
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.meetup-comments {
+  display: grid;
+  max-height: min(42vh, 360px);
+  gap: 12px;
+  margin: 0;
+  padding: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+
+.meetup-comment {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+
+.meetup-comment-main {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 4px var(--r-md) var(--r-md) var(--r-md);
+  background: var(--sunken);
+}
+
+.meetup-comment.is-mine .meetup-comment-main {
+  background: var(--accent-soft);
+}
+
+.meetup-comment-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+}
+
+.meetup-comment-meta time {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.meetup-comment-delete {
+  margin-left: auto;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.meetup-comment-delete:hover {
+  color: var(--danger);
+}
+
+.meetup-comment-main p {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.meetup-comment-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.meetup-comment-form textarea {
+  width: 100%;
+  min-height: 44px;
+  max-height: 140px;
+  padding: 11px 14px;
+  border: 1px solid var(--field-line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.4;
+  resize: none;
+}
+
+.meetup-comment-form .primary-button {
+  min-width: 72px;
+}
+
+/* ---------- Logging out lives at the bottom of settings ---------- */
+
+.settings-link.is-destructive .settings-label {
+  color: var(--danger);
+}
+
+.settings-link.is-destructive:hover {
+  background: var(--danger-soft);
+}
+
+#logout-dialog {
+  width: min(100% - 32px, 380px);
+}

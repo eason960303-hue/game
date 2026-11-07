@@ -391,7 +391,11 @@ function renderProfilePostCard(post, type, expandedId) {
     .sort((left, right) => left.order - right.order);
   const details = isFootprint
     ? `
-        <p class="profile-post-content">${escapeHtml(post.content || "尚未新增旅程備註。")}</p>
+        ${
+          post.content || post.is_owner
+            ? `<p class="profile-post-content">${escapeHtml(post.content || "尚未新增旅程備註。")}</p>`
+            : ""
+        }
         <ol class="profile-route-list">
           ${routePoints
             .map(

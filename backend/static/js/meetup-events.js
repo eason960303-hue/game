@@ -309,6 +309,7 @@ meetupList.addEventListener("click", async (event) => {
       meetup.id === meetupId ? updated : meetup,
     );
     renderMeetups();
+    if (joinButton) showToast("已參加！點卡片上的成員列，可以跟大家約集合細節。");
   } catch (error) {
     showToast(
       joinButton

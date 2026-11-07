@@ -18,10 +18,15 @@ async function loadSessionData() {
 }
 
 function updateAccountUi() {
-  // Signed in, the account area is just the logout button.
+  // Signed in, the top bar holds the bell and settings; logging out is in settings,
+  // where it can't be hit by accident.
   accountName.hidden = Boolean(currentUser);
   loginOpenButton.hidden = Boolean(currentUser);
-  logoutButton.hidden = !currentUser;
+  document.querySelector("#settings-account").hidden = !currentUser;
+  document.querySelector("#settings-account-name").textContent = currentUser?.display_name || "";
+  document.querySelector("#settings-account-email").textContent = currentUser?.email || "";
+  resetNotifications();
+  refreshNotifications();
   document.querySelector("#recent-entries-section").hidden = !currentUser;
   // Signed out, the welcome card already says where to begin.
   document.querySelector("#open-entry").hidden = !currentUser;

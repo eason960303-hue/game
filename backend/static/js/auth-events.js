@@ -169,14 +169,27 @@ loginForm.addEventListener("submit", async (event) => {
   }
 });
 
-logoutButton.addEventListener("click", async () => {
+const logoutDialog = document.querySelector("#logout-dialog");
+const logoutConfirmButton = document.querySelector("#logout-confirm");
+
+// Asks first: signing back in on a phone means typing the password again.
+logoutButton.addEventListener("click", () => logoutDialog.showModal());
+document.querySelector("#logout-cancel").addEventListener("click", () => logoutDialog.close());
+
+document.querySelector("#logout-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  logoutConfirmButton.disabled = true;
   await flushPrivacyDrafts();
   try {
     await apiRequest("/auth/logout", { method: "POST" });
   } catch (error) {
     showToast(`登出失敗：${error.message}`);
     return;
+  } finally {
+    logoutConfirmButton.disabled = false;
   }
+  logoutDialog.close();
+  settingsDialog.close();
   await showSignedOutState();
 });
 
@@ -297,7 +310,18 @@ async function showSignedOutState() {
   trips = [];
   profilePosts = [];
   discardFootprintPhotoDrafts();
+  // Who is going and what they said belonged to the account that just left.
+  meetups = meetups.map((meetup) => ({
+    ...meetup,
+    is_owner: false,
+    is_participating: false,
+    members: [],
+    comment_count: 0,
+  }));
   renderMeetups();
+  loadMeetups();
+  if (meetupRoomDialog.open) meetupRoomDialog.close();
+  if (notificationsDialog.open) notificationsDialog.close();
   setDiaryEntries([]);
   expandedProfileDiaryId = null;
   expandedProfileFootprintId = null;
@@ -315,7 +339,7 @@ async function showSignedOutState() {
   resetMeetupForm();
   stopMapPick();
   aiChatMessages.innerHTML =
-    '<div class="ai-chat-message is-assistant">嗨！今天發生了什麼？打給我，我會幫你整理成日記。</div>';
+    '<div class="ai-chat-message is-assistant">嗨！今天發生了什麼？打字告訴我，我會幫你整理成日記。</div>';
   aiProviderStatus.textContent = "";
   profileBio.textContent = "請登入以查看個人簡介。";
   profileDiariesCount.textContent = "0 篇";

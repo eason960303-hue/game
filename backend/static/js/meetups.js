@@ -94,6 +94,33 @@ const meetupFilter = createContentFilter({
   onChange: renderMeetups,
 });
 
+const MEETUP_AVATARS_SHOWN = 5;
+
+// Only the people going get the list back, so this shows on their cards alone.
+function meetupMembersHtml(meetup) {
+  const members = meetup.members || [];
+  if (members.length === 0) return "";
+  const names = members.map((member) => member.display_name);
+  const summary =
+    names.length > 3 ? `${names.slice(0, 3).join("、")} 等 ${names.length} 人` : names.join("、");
+  const comments = meetup.comment_count ? `${meetup.comment_count} 則留言` : "留言";
+  return `
+    <button class="meetup-members-strip" type="button" data-open-meetup-room="${meetup.id}" aria-label="成員與留言：${escapeHtml(meetup.title)}，${escapeHtml(summary)}，${comments}">
+      <span class="meetup-avatars" aria-hidden="true">
+        ${members
+          .slice(0, MEETUP_AVATARS_SHOWN)
+          .map((member) => avatarHtml(member.avatar_url, member.display_name, "social-avatar-small"))
+          .join("")}
+      </span>
+      <span class="meetup-members-names" aria-hidden="true">${escapeHtml(summary)}</span>
+      <span class="meetup-room-chip" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>
+        ${comments}
+      </span>
+    </button>
+  `;
+}
+
 function renderMeetups() {
   renderWelcomeCard();
   meetupFilter.refresh();
@@ -130,6 +157,7 @@ function renderMeetups() {
           </div>
           <p class="meetup-starts-at">${escapeHtml(meetupDateLabel(meetup.starts_at))}${meetupDepartureText(meetup)}</p>
           <ol class="meetup-route" aria-label="預計路線">${route}</ol>
+          ${meetupMembersHtml(meetup)}
           <div class="meetup-card-footer">
             <span class="meetup-inviter">${meetup.is_owner ? "你發起的" : `${escapeHtml(meetup.host_name)} 發起`}</span>
             <a class="meetup-route-link" href="${escapeHtml(meetupDirectionsUrl(meetup))}" target="_blank" rel="noopener noreferrer">在 Google 地圖看路線</a>

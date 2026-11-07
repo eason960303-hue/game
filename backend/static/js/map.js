@@ -1091,7 +1091,11 @@ function mapPointCardHtml(point) {
     <div class="map-point-details" id="map-point-details-${point.id}"${isSelected ? "" : " hidden"}>
       ${mapPointCoverHtml(point)}
       ${photoStripHtml(mapPointPhotos(point), "view-map", point.id, point.cover_url ? 1 : 0)}
-              <p>${escapeHtml(point.note || "尚未新增小記")}</p>
+      ${
+        point.note || point.is_owner
+          ? `<p>${escapeHtml(point.note || "尚未新增小記")}</p>`
+          : ""
+      }
       <ol class="route-stops">
         ${routePoints
           .map(

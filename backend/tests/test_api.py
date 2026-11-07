@@ -2527,6 +2527,161 @@ class MeetupTests(ApiTestCase):
             )
 
 
+class MeetupGroupTests(ApiTestCase):
+    """Who is going, what they say to each other, and what each of them hears about."""
+
+    def start_meetup(self, prefix: str):
+        host = new_user(f"{prefix}-host@example.com", "揪團主")
+        joiner = new_user(f"{prefix}-joiner@example.com", "小美")
+        outsider = new_user(f"{prefix}-outsider@example.com", "路人")
+        payload = {
+            "title": "週末爬山",
+            "starts_at": (datetime.now() + timedelta(days=2)).replace(microsecond=0).isoformat(),
+            "departure_city": "臺北市",
+            "origin": "捷運劍潭站",
+            "destinations": ["劍潭山"],
+        }
+        created = host.post("/api/meetups", json=payload)
+        self.assertEqual(created.status_code, 201, created.text)
+        meetup_id = created.json()["id"]
+        # Other tests expect a list holding only their own meetups.
+        self.addCleanup(host.delete, f"/api/meetups/{meetup_id}")
+        self.assertEqual(joiner.post(f"/api/meetups/{meetup_id}/participants").status_code, 200)
+        return host, joiner, outsider, meetup_id, payload
+
+    @staticmethod
+    def listed(client: TestClient, meetup_id: int) -> dict:
+        return next(m for m in client.get("/api/meetups").json() if m["id"] == meetup_id)
+
+    @staticmethod
+    def news(client: TestClient) -> dict:
+        response = client.get("/api/notifications")
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    def test_only_the_people_going_see_who_is_going(self) -> None:
+        host, joiner, outsider, meetup_id, _ = self.start_meetup("group-members")
+        for client in (host, joiner):
+            members = self.listed(client, meetup_id)["members"]
+            self.assertEqual(
+                [(m["display_name"], m["is_host"]) for m in members],
+                [("揪團主", True), ("小美", False)],
+            )
+        seen_from_outside = self.listed(outsider, meetup_id)
+        self.assertEqual(seen_from_outside["members"], [])
+        self.assertEqual(seen_from_outside["participant_count"], 2)
+        anonymous = self.listed(TestClient(main.app), meetup_id)
+        self.assertEqual(anonymous["members"], [])
+
+    def test_the_people_going_can_talk_and_no_one_else_can_read_it(self) -> None:
+        host, joiner, outsider, meetup_id, _ = self.start_meetup("group-comments")
+        url = f"/api/meetups/{meetup_id}/comments"
+        posted = joiner.post(url, json={"body": "  我會帶水，九點見！  "})
+        self.assertEqual(posted.status_code, 201, posted.text)
+        comment = posted.json()
+        self.assertEqual(comment["body"], "我會帶水，九點見！")
+        self.assertTrue(comment["is_mine"])
+
+        self.assertEqual(joiner.post(url, json={"body": "   "}).status_code, 422)
+        self.assertEqual(outsider.get(url).status_code, 403)
+        self.assertEqual(outsider.post(url, json={"body": "我也要"}).status_code, 403)
+        self.assertEqual(TestClient(main.app).get(url).status_code, 401)
+
+        board = host.get(url).json()
+        self.assertEqual([c["body"] for c in board], ["我會帶水，九點見！"])
+        self.assertEqual(board[0]["author"]["display_name"], "小美")
+        self.assertFalse(board[0]["is_mine"])
+        self.assertTrue(board[0]["can_delete"])
+        self.assertEqual(self.listed(host, meetup_id)["comment_count"], 1)
+        self.assertEqual(self.listed(outsider, meetup_id)["comment_count"], 0)
+
+        own = host.post(url, json={"body": "好"}).json()
+        self.assertFalse(joiner.get(url).json()[1]["can_delete"])
+        self.assertEqual(joiner.delete(f"{url}/{own['id']}").status_code, 404)
+        self.assertEqual(host.delete(f"{url}/{comment['id']}").status_code, 204)
+        self.assertEqual([c["body"] for c in joiner.get(url).json()], ["好"])
+
+    def test_the_host_hears_who_joins_and_leaves(self) -> None:
+        host, joiner, _, meetup_id, _ = self.start_meetup("group-join-news")
+        news = self.news(host)
+        self.assertEqual(news["unread"], 1)
+        self.assertEqual(
+            (news["items"][0]["kind"], news["items"][0]["actor_name"], news["items"][0]["meetup_title"]),
+            ("meetup_joined", "小美", "週末爬山"),
+        )
+        # Pressing join again changes nothing, so it tells no one.
+        joiner.post(f"/api/meetups/{meetup_id}/participants")
+        self.assertEqual(self.news(host)["unread"], 1)
+        self.assertEqual(self.news(joiner)["unread"], 0)
+
+        joiner.delete(f"/api/meetups/{meetup_id}/participants")
+        joiner.delete(f"/api/meetups/{meetup_id}/participants")
+        news = self.news(host)
+        self.assertEqual(news["unread"], 2)
+        self.assertEqual(news["items"][0]["kind"], "meetup_left")
+
+        self.assertEqual(host.post("/api/notifications/read").json(), {"unread": 0})
+        news = self.news(host)
+        self.assertEqual(news["unread"], 0)
+        self.assertTrue(all(item["is_read"] for item in news["items"]))
+
+    def test_the_people_going_hear_about_changes_words_and_cancelling(self) -> None:
+        host, joiner, outsider, meetup_id, payload = self.start_meetup("group-member-news")
+        later = (datetime.now() + timedelta(days=3)).replace(microsecond=0).isoformat()
+        self.assertEqual(
+            host.put(f"/api/meetups/{meetup_id}", json={**payload, "starts_at": later}).status_code,
+            200,
+        )
+        news = self.news(joiner)
+        self.assertEqual((news["items"][0]["kind"], news["items"][0]["body"]), ("meetup_updated", "時間"))
+        # Saving without changing anything isn't news.
+        host.put(f"/api/meetups/{meetup_id}", json={**payload, "starts_at": later})
+        self.assertEqual(self.news(joiner)["unread"], 1)
+
+        host.post(f"/api/meetups/{meetup_id}/comments", json={"body": "記得帶雨衣"})
+        news = self.news(joiner)
+        self.assertEqual((news["items"][0]["kind"], news["items"][0]["body"]), ("meetup_comment", "記得帶雨衣"))
+        self.assertTrue(news["items"][0]["meetup_exists"])
+
+        self.assertEqual(host.delete(f"/api/meetups/{meetup_id}").status_code, 204)
+        news = self.news(joiner)
+        self.assertEqual(news["items"][0]["kind"], "meetup_cancelled")
+        self.assertEqual(news["items"][0]["actor_name"], "揪團主")
+        self.assertFalse(news["items"][0]["meetup_exists"])
+        self.assertEqual(self.news(outsider)["items"], [])
+        # The host is never told about what they did themselves.
+        self.assertEqual(
+            [item["kind"] for item in self.news(host)["items"]], ["meetup_joined"]
+        )
+        with database.get_connection() as conn:
+            self.assertEqual(
+                conn.execute(
+                    "SELECT COUNT(*) FROM meetup_comments WHERE meetup_id = ?", (meetup_id,)
+                ).fetchone()[0],
+                0,
+            )
+
+    def test_a_host_deleting_their_account_tells_the_people_going(self) -> None:
+        host, joiner, _, meetup_id, _ = self.start_meetup("group-host-leaves")
+        joiner.post(f"/api/meetups/{meetup_id}/comments", json={"body": "期待"})
+        self.assertEqual(
+            host.post("/api/user/delete", json={"password": PASSWORD}).status_code, 200
+        )
+        cancelled = self.news(joiner)["items"][0]
+        self.assertEqual(
+            (cancelled["kind"], cancelled["meetup_title"], cancelled["actor_name"]),
+            ("meetup_cancelled", "週末爬山", ""),
+        )
+        with database.get_connection() as conn:
+            for table in ("meetup_comments", "meetup_participants"):
+                self.assertEqual(
+                    conn.execute(
+                        f"SELECT COUNT(*) FROM {table} WHERE meetup_id = ?", (meetup_id,)
+                    ).fetchone()[0],
+                    0,
+                )
+
+
 class DiaryChatTests(ApiTestCase):
     def test_ai_diary_structures_and_saves_entry(self) -> None:
         client = new_user("ai-diary@example.com")

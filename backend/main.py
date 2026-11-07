@@ -844,6 +844,44 @@ def init_feature_tables() -> None:
             "CREATE INDEX IF NOT EXISTS idx_diary_ai_drafts_user "
             "ON diary_ai_drafts(user_id, corrected)"
         )
+        # What the people in a meetup say to each other; only its members read it.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS meetup_comments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                meetup_id INTEGER NOT NULL REFERENCES meetups(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                body TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_meetup_comments_meetup "
+            "ON meetup_comments(meetup_id, id)"
+        )
+        # News for one person about their meetups. The names are copied in, so a
+        # cancelled meetup, or one whose host left, can still be told about.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                kind TEXT NOT NULL,
+                actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                actor_name TEXT NOT NULL DEFAULT '',
+                meetup_id INTEGER,
+                meetup_title TEXT NOT NULL DEFAULT '',
+                body TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                read_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_notifications_user "
+            "ON notifications(user_id, id)"
+        )
         conn.commit()
 
 
@@ -3819,7 +3857,7 @@ DIARY_ACKNOWLEDGEMENT = re.compile(
     re.IGNORECASE,
 )
 DIARY_HOW_TO = (
-    "把今天發生的事直接打給我，例如「下班跟同事去吃拉麵，排了一小時但超好吃」，"
+    "把今天發生的事直接打字告訴我，例如「下班跟同事去吃拉麵，排了一小時但超好吃」，"
     "我會整理成有標題、心情和標籤的日記，只有你看得到。"
 )
 
@@ -4474,6 +4512,8 @@ MEETUP_SELECT = """
            (meetups.owner_id = :viewer) AS is_owner,
            (SELECT COUNT(*) FROM meetup_participants
             WHERE meetup_id = meetups.id) AS participant_count,
+           (SELECT COUNT(*) FROM meetup_comments
+            WHERE meetup_id = meetups.id) AS comment_count,
            EXISTS (
                SELECT 1 FROM meetup_participants
                WHERE meetup_id = meetups.id AND user_id = :viewer
@@ -4523,7 +4563,104 @@ def meetup_from_row(row: sqlite3.Row) -> dict[str, Any]:
         "is_owner": bool(row["is_owner"]),
         "is_participating": bool(row["is_participating"]),
         "is_following": bool(row["is_following"]),
+        # Who is going and what they've said is for the people going; filled in by
+        # attach_meetup_members.
+        "members": [],
+        "comment_count": (
+            row["comment_count"] if row["is_owner"] or row["is_participating"] else 0
+        ),
     }
+
+
+def attach_meetup_members(
+    conn: sqlite3.Connection, meetups: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Lists the host and everyone who joined, on the meetups the viewer is part of."""
+    ids = [m["id"] for m in meetups if m["is_owner"] or m["is_participating"]]
+    if not ids:
+        return meetups
+    members: dict[int, list[dict[str, Any]]] = {}
+    rows = conn.execute(
+        f"""
+        SELECT meetup_participants.meetup_id, users.username, users.display_name,
+               users.avatar_url,
+               (meetup_participants.user_id = meetups.owner_id) AS is_host
+        FROM meetup_participants
+        JOIN users ON users.id = meetup_participants.user_id
+        JOIN meetups ON meetups.id = meetup_participants.meetup_id
+        WHERE meetup_participants.meetup_id IN ({",".join("?" * len(ids))})
+        ORDER BY is_host DESC, meetup_participants.created_at,
+                 meetup_participants.rowid
+        """,
+        ids,
+    )
+    for row in rows:
+        members.setdefault(row["meetup_id"], []).append(
+            {
+                "username": row["username"],
+                "display_name": row["display_name"],
+                "avatar_url": row["avatar_url"],
+                "is_host": bool(row["is_host"]),
+            }
+        )
+    for meetup in meetups:
+        meetup["members"] = members.get(meetup["id"], [])
+    return meetups
+
+
+NOTIFICATIONS_KEPT = 200
+NOTIFICATIONS_SHOWN = 50
+NOTIFICATION_SNIPPET = 80
+
+
+def meetup_member_ids(conn: sqlite3.Connection, meetup_id: int) -> list[int]:
+    return [
+        row["user_id"]
+        for row in conn.execute(
+            "SELECT user_id FROM meetup_participants WHERE meetup_id = ?", (meetup_id,)
+        )
+    ]
+
+
+def notify(
+    conn: sqlite3.Connection,
+    recipient_ids: list[int],
+    kind: str,
+    actor: Optional[dict[str, Any]],
+    meetup_id: int,
+    meetup_title: str,
+    body: str = "",
+) -> None:
+    """Tells each recipient, except the person who did it, and keeps their latest few."""
+    actor_id = actor["id"] if actor else None
+    recipients = sorted({rid for rid in recipient_ids if rid != actor_id})
+    for recipient_id in recipients:
+        conn.execute(
+            """
+            INSERT INTO notifications
+                (user_id, kind, actor_id, actor_name, meetup_id, meetup_title, body)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                recipient_id,
+                kind,
+                actor_id,
+                actor["display_name"] if actor else "",
+                meetup_id,
+                meetup_title,
+                body[:NOTIFICATION_SNIPPET],
+            ),
+        )
+        conn.execute(
+            """
+            DELETE FROM notifications
+            WHERE user_id = ? AND id NOT IN (
+                SELECT id FROM notifications WHERE user_id = ?
+                ORDER BY id DESC LIMIT ?
+            )
+            """,
+            (recipient_id, recipient_id, NOTIFICATIONS_KEPT),
+        )
 
 
 def get_meetup(
@@ -4535,7 +4672,7 @@ def get_meetup(
     ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="找不到這個揪團邀請")
-    return meetup_from_row(row)
+    return attach_meetup_members(conn, [meetup_from_row(row)])[0]
 
 
 def locate_one_destination(
@@ -4802,7 +4939,7 @@ def list_meetups(request: Request) -> list[dict[str, Any]]:
             + "WHERE meetups.starts_at > :now ORDER BY meetups.starts_at, meetups.id",
             {"viewer": viewer_id, "now": now},
         ).fetchall()
-    return [meetup_from_row(row) for row in rows]
+        return attach_meetup_members(conn, [meetup_from_row(row) for row in rows])
 
 
 @app.post("/api/meetups", status_code=status.HTTP_201_CREATED)
@@ -4850,6 +4987,36 @@ def update_meetup(
     origin, destinations = locate_meetup_route(meetup)
     with get_connection() as conn:
         existing = owned_meetup_row(conn, meetup_id, user["id"])
+        before = conn.execute(
+            "SELECT title, starts_at, origin_json, destinations_json FROM meetups WHERE id = ?",
+            (meetup_id,),
+        ).fetchone()
+        title, starts_at, _, origin_json, destinations_json = meetup_values(
+            meetup, origin, destinations
+        )
+        changes = [
+            label
+            for label, changed in (
+                ("名稱", title != before["title"]),
+                ("時間", starts_at != before["starts_at"]),
+                (
+                    "路線",
+                    origin_json != before["origin_json"]
+                    or destinations_json != before["destinations_json"],
+                ),
+            )
+            if changed
+        ]
+        if changes:
+            notify(
+                conn,
+                meetup_member_ids(conn, meetup_id),
+                "meetup_updated",
+                user,
+                meetup_id,
+                title,
+                "、".join(changes),
+            )
         conn.execute(
             """
             UPDATE meetups
@@ -4880,6 +5047,19 @@ def delete_meetup(
 ) -> Response:
     with get_connection() as conn:
         existing = owned_meetup_row(conn, meetup_id, user["id"])
+        cancelled = conn.execute(
+            "SELECT title, starts_at FROM meetups WHERE id = ?", (meetup_id,)
+        ).fetchone()
+        if cancelled["starts_at"] > datetime.now(timezone.utc).isoformat(timespec="seconds"):
+            notify(
+                conn,
+                meetup_member_ids(conn, meetup_id),
+                "meetup_cancelled",
+                user,
+                meetup_id,
+                cancelled["title"],
+            )
+        conn.execute("DELETE FROM meetup_comments WHERE meetup_id = ?", (meetup_id,))
         # Cancelling the meetup also removes the footprint it generated.
         photo_urls = (
             delete_owned_map_point(conn, existing["map_point_id"], user["id"])
@@ -4907,6 +5087,9 @@ ACCOUNT_ROWS_TO_DELETE = (
     ("trips", "owner_id"),
     ("meetups", "owner_id"),
     ("meetup_participants", "user_id"),
+    ("meetup_comments", "user_id"),
+    ("notifications", "user_id"),
+    ("notifications", "actor_id"),
     ("map_point_likes", "user_id"),
     ("map_point_saves", "user_id"),
     ("trip_saves", "user_id"),
@@ -4944,13 +5127,26 @@ def erase_account(conn: sqlite3.Connection, account: sqlite3.Row) -> None:
         for point in points
         for url in delete_owned_map_point(conn, point["id"], user_id)
     ]
-    conn.execute(
-        """
-        DELETE FROM meetup_participants
-        WHERE meetup_id IN (SELECT id FROM meetups WHERE owner_id = ?)
-        """,
-        (user_id,),
-    )
+    # The people in this account's upcoming meetups hear they're off. The host's name
+    # goes with the account, so the notice comes from no one in particular.
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    for meetup in conn.execute(
+        "SELECT id, title FROM meetups WHERE owner_id = ? AND starts_at > ?",
+        (user_id, now),
+    ).fetchall():
+        notify(
+            conn,
+            [rid for rid in meetup_member_ids(conn, meetup["id"]) if rid != user_id],
+            "meetup_cancelled",
+            None,
+            meetup["id"],
+            meetup["title"],
+        )
+    for table in ("meetup_participants", "meetup_comments"):
+        conn.execute(
+            f"DELETE FROM {table} WHERE meetup_id IN (SELECT id FROM meetups WHERE owner_id = ?)",
+            (user_id,),
+        )
     for table in ("trip_map_points", "trip_saves", "trip_likes", "trip_uses"):
         conn.execute(
             f"DELETE FROM {table} WHERE trip_id IN (SELECT id FROM trips WHERE owner_id = ?)",
@@ -5086,7 +5282,7 @@ def join_meetup(
     with get_connection() as conn:
         conn.execute("BEGIN IMMEDIATE")
         meetup = conn.execute(
-            "SELECT starts_at FROM meetups WHERE id = ?", (meetup_id,)
+            "SELECT owner_id, title, starts_at FROM meetups WHERE id = ?", (meetup_id,)
         ).fetchone()
         if meetup is None or meetup["starts_at"] <= now:
             raise HTTPException(status_code=404, detail="找不到可參加的揪團邀請")
@@ -5108,6 +5304,9 @@ def join_meetup(
                 "INSERT INTO meetup_participants (meetup_id, user_id) VALUES (?, ?)",
                 (meetup_id, user["id"]),
             )
+            notify(
+                conn, [meetup["owner_id"]], "meetup_joined", user, meetup_id, meetup["title"]
+            )
         joined = get_meetup(conn, meetup_id, user["id"])
         conn.commit()
     return joined
@@ -5120,7 +5319,7 @@ def leave_meetup(
 ) -> dict[str, Any]:
     with get_connection() as conn:
         meetup = conn.execute(
-            "SELECT owner_id FROM meetups WHERE id = ?", (meetup_id,)
+            "SELECT owner_id, title FROM meetups WHERE id = ?", (meetup_id,)
         ).fetchone()
         if meetup is None:
             raise HTTPException(status_code=404, detail="找不到這個揪團邀請")
@@ -5128,13 +5327,198 @@ def leave_meetup(
             raise HTTPException(
                 status_code=409, detail="揪團者不能退出邀請；請編輯或取消揪團"
             )
-        conn.execute(
+        removed = conn.execute(
             "DELETE FROM meetup_participants WHERE meetup_id = ? AND user_id = ?",
             (meetup_id, user["id"]),
         )
+        if removed.rowcount:
+            notify(
+                conn, [meetup["owner_id"]], "meetup_left", user, meetup_id, meetup["title"]
+            )
         left = get_meetup(conn, meetup_id, user["id"])
         conn.commit()
     return left
+
+
+MEETUP_COMMENT_MAX = 500
+MEETUP_COMMENTS_SHOWN = 200
+
+
+class MeetupCommentCreate(BaseModel):
+    body: str = Field(..., min_length=1, max_length=MEETUP_COMMENT_MAX)
+
+    @model_validator(mode="after")
+    def strip_body(self) -> "MeetupCommentCreate":
+        self.body = self.body.strip()
+        if not self.body:
+            raise ValueError("留言不可空白")
+        return self
+
+
+def member_meetup_row(
+    conn: sqlite3.Connection, meetup_id: int, user_id: int
+) -> sqlite3.Row:
+    """The meetup, if this person is its host or has joined it."""
+    meetup = conn.execute(
+        "SELECT id, owner_id, title FROM meetups WHERE id = ?", (meetup_id,)
+    ).fetchone()
+    if meetup is None:
+        raise HTTPException(status_code=404, detail="找不到這個揪團邀請")
+    if user_id not in meetup_member_ids(conn, meetup_id):
+        raise HTTPException(status_code=403, detail="參加這個揪團後才能看留言")
+    return meetup
+
+
+def meetup_comment_from_row(row: sqlite3.Row, viewer_id: int, host_id: int) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "body": row["body"],
+        "created_at": row["created_at"],
+        "author": {
+            "username": row["username"],
+            "display_name": row["display_name"],
+            "avatar_url": row["avatar_url"],
+            "is_host": row["user_id"] == host_id,
+        },
+        "is_mine": row["user_id"] == viewer_id,
+        # The host keeps the board tidy; everyone can take back what they wrote.
+        "can_delete": viewer_id in (row["user_id"], host_id),
+    }
+
+
+MEETUP_COMMENT_SELECT = """
+    SELECT meetup_comments.id, meetup_comments.body, meetup_comments.created_at,
+           meetup_comments.user_id, users.username, users.display_name, users.avatar_url
+    FROM meetup_comments
+    JOIN users ON users.id = meetup_comments.user_id
+"""
+
+
+@app.get("/api/meetups/{meetup_id}/comments")
+def list_meetup_comments(
+    meetup_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    with get_connection() as conn:
+        meetup = member_meetup_row(conn, meetup_id, user["id"])
+        rows = conn.execute(
+            MEETUP_COMMENT_SELECT
+            + "WHERE meetup_comments.meetup_id = ? ORDER BY meetup_comments.id DESC LIMIT ?",
+            (meetup_id, MEETUP_COMMENTS_SHOWN),
+        ).fetchall()
+    return [
+        meetup_comment_from_row(row, user["id"], meetup["owner_id"])
+        for row in reversed(rows)
+    ]
+
+
+@app.post("/api/meetups/{meetup_id}/comments", status_code=status.HTTP_201_CREATED)
+def create_meetup_comment(
+    meetup_id: int,
+    comment: MeetupCommentCreate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    with get_connection() as conn:
+        meetup = member_meetup_row(conn, meetup_id, user["id"])
+        cursor = conn.execute(
+            "INSERT INTO meetup_comments (meetup_id, user_id, body) VALUES (?, ?, ?)",
+            (meetup_id, user["id"], comment.body),
+        )
+        notify(
+            conn,
+            meetup_member_ids(conn, meetup_id),
+            "meetup_comment",
+            user,
+            meetup_id,
+            meetup["title"],
+            comment.body,
+        )
+        row = conn.execute(
+            MEETUP_COMMENT_SELECT + "WHERE meetup_comments.id = ?", (cursor.lastrowid,)
+        ).fetchone()
+        conn.commit()
+    return meetup_comment_from_row(row, user["id"], meetup["owner_id"])
+
+
+@app.delete(
+    "/api/meetups/{meetup_id}/comments/{comment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_meetup_comment(
+    meetup_id: int,
+    comment_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> Response:
+    with get_connection() as conn:
+        meetup = member_meetup_row(conn, meetup_id, user["id"])
+        deleted = conn.execute(
+            """
+            DELETE FROM meetup_comments
+            WHERE id = ? AND meetup_id = ? AND (user_id = ? OR ? = ?)
+            """,
+            (comment_id, meetup_id, user["id"], meetup["owner_id"], user["id"]),
+        )
+        if not deleted.rowcount:
+            raise HTTPException(status_code=404, detail="找不到這則留言")
+        conn.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/api/notifications")
+def list_notifications(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT notifications.*, users.username AS actor_username,
+                   EXISTS (SELECT 1 FROM meetups WHERE meetups.id = notifications.meetup_id)
+                       AS meetup_exists
+            FROM notifications
+            LEFT JOIN users ON users.id = notifications.actor_id
+            WHERE notifications.user_id = ?
+            ORDER BY notifications.id DESC LIMIT ?
+            """,
+            (user["id"], NOTIFICATIONS_SHOWN),
+        ).fetchall()
+        unread = conn.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read_at IS NULL",
+            (user["id"],),
+        ).fetchone()[0]
+    return {
+        "unread": unread,
+        "items": [
+            {
+                "id": row["id"],
+                "kind": row["kind"],
+                "actor_name": row["actor_name"],
+                "actor_username": row["actor_username"],
+                "meetup_id": row["meetup_id"],
+                "meetup_title": row["meetup_title"],
+                "meetup_exists": bool(row["meetup_exists"]),
+                "body": row["body"],
+                "created_at": row["created_at"],
+                "is_read": row["read_at"] is not None,
+            }
+            for row in rows
+        ],
+    }
+
+
+@app.post("/api/notifications/read")
+def mark_notifications_read(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, int]:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE notifications SET read_at = CURRENT_TIMESTAMP
+            WHERE user_id = ? AND read_at IS NULL
+            """,
+            (user["id"],),
+        )
+        conn.commit()
+    return {"unread": 0}
 
 
 @app.get("/api/trips")

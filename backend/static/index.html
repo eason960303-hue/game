@@ -60,10 +60,10 @@
             </div>
           </details>
           <div class="account-actions">
+            <button class="account-logout notifications-open" id="notifications-open" type="button" aria-label="通知" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg><span class="notifications-badge" id="notifications-badge" hidden></span></button>
             <button class="account-logout settings-open" id="settings-open" type="button" aria-label="設定"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.700 1.700 0 0 0 .34 1.870l.06.06a2 2 0 1 1-2.830 2.830l-.06-.06a1.700 1.700 0 0 0-2.880 1.200V21a2 2 0 1 1-4 0v-.09a1.700 1.700 0 0 0-2.880-1.200l-.06.06a2 2 0 1 1-2.830-2.830l.06-.06a1.700 1.700 0 0 0-1.200-2.880H3a2 2 0 1 1 0-4h.09a1.700 1.700 0 0 0 1.200-2.880l-.06-.06a2 2 0 1 1 2.830-2.830l.06.06a1.700 1.700 0 0 0 2.880-1.200V3a2 2 0 1 1 4 0v.09a1.700 1.700 0 0 0 2.880 1.200l.06-.06a2 2 0 1 1 2.830 2.830l-.06.06a1.700 1.700 0 0 0 1.200 2.880H21a2 2 0 1 1 0 4h-.09a1.700 1.700 0 0 0-1.510 1z"/></svg></button>
             <span class="account-name" id="account-name">尚未登入</span>
             <button class="account-button" id="login-open" type="button">登入 / 註冊</button>
-            <button class="account-logout" id="logout-button" type="button" hidden>登出</button>
           </div>
         </div>
       </header>
@@ -133,7 +133,7 @@
               <h2 id="entries-title">最近的日記</h2>
               <span class="entry-count" id="entry-count">載入中…</span>
             </div>
-            <button class="secondary-button" type="button" data-view="ai-diary">查看全部</button>
+            <button class="secondary-button" type="button" data-view="ai-diary" data-empty-action="diary-list">查看全部</button>
           </div>
           <div class="entries" id="entries" aria-live="polite">
             <div class="empty-state">正在整理你的生活片段…</div>
@@ -229,7 +229,7 @@
           <section class="module-card ai-chat-card" aria-label="AI 日記對話">
             <p class="ai-provider-status" id="ai-provider-status" role="status"></p>
             <div class="ai-chat-messages" id="ai-chat-messages" role="log" aria-live="polite">
-              <div class="ai-chat-message is-assistant">嗨！今天發生了什麼？打給我，我會幫你整理成日記。</div>
+              <div class="ai-chat-message is-assistant">嗨！今天發生了什麼？打字告訴我，我會幫你整理成日記。</div>
             </div>
             <form class="ai-chat-form" id="ai-chat-form">
               <label class="sr-only" for="ai-chat-input">今天想記下什麼？</label>
@@ -669,7 +669,76 @@
             </button>
           </div>
         </section>
+
+        <section class="settings-group" id="settings-account" aria-labelledby="settings-account-title" hidden>
+          <h3 id="settings-account-title">帳號</h3>
+          <div class="settings-card">
+            <div class="settings-row">
+              <span class="settings-text">
+                <span class="settings-label" id="settings-account-name"></span>
+                <span class="settings-hint" id="settings-account-email"></span>
+              </span>
+            </div>
+            <button class="settings-row settings-link is-destructive" id="logout-button" type="button">
+              <span class="settings-text"><span class="settings-label">登出</span></span>
+            </button>
+          </div>
+        </section>
       </form>
+    </dialog>
+
+    <dialog id="logout-dialog" aria-labelledby="logout-title">
+      <form class="dialog-content" id="logout-form">
+        <div class="dialog-heading">
+          <div>
+            <h2 id="logout-title">要登出嗎？</h2>
+            <p>登出後要重新登入，才看得到你的日記和足跡。</p>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary-button" id="logout-cancel" type="button">取消</button>
+          <button class="primary-button" id="logout-confirm" type="submit">登出</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="notifications-dialog" aria-labelledby="notifications-title">
+      <div class="dialog-content notifications-panel">
+        <div class="dialog-heading">
+          <div>
+            <h2 id="notifications-title">通知</h2>
+            <p>你的揪團有人參加、退出或留言時，會在這裡告訴你。</p>
+          </div>
+          <button class="icon-button" id="notifications-dismiss" type="button" aria-label="關閉通知">×</button>
+        </div>
+        <ul class="notifications-list" id="notifications-list"></ul>
+      </div>
+    </dialog>
+
+    <dialog id="meetup-room-dialog" aria-labelledby="meetup-room-title">
+      <div class="dialog-content meetup-room">
+        <div class="dialog-heading">
+          <div>
+            <h2 id="meetup-room-title"></h2>
+            <p id="meetup-room-when"></p>
+          </div>
+          <button class="icon-button" id="meetup-room-dismiss" type="button" aria-label="關閉成員與留言">×</button>
+        </div>
+        <section class="meetup-room-section" aria-labelledby="meetup-room-members-title">
+          <h3 id="meetup-room-members-title">成員</h3>
+          <ul class="meetup-room-members" id="meetup-room-members"></ul>
+        </section>
+        <section class="meetup-room-section" aria-labelledby="meetup-room-board-title">
+          <h3 id="meetup-room-board-title">留言</h3>
+          <p class="privacy-note">只有參加的人看得到。可以在這裡約集合地點、要帶什麼。</p>
+          <ol class="meetup-comments" id="meetup-room-comments"></ol>
+          <form class="meetup-comment-form" id="meetup-comment-form">
+            <textarea id="meetup-comment-input" name="body" aria-label="留言" rows="1" maxlength="500" placeholder="例如：我九點到" required></textarea>
+            <button class="primary-button" id="meetup-comment-send" type="submit">送出</button>
+          </form>
+          <p class="status-message" id="meetup-room-status" role="status"></p>
+        </section>
+      </div>
     </dialog>
 
     <dialog id="account-delete-link-dialog" aria-labelledby="account-delete-link-title">
@@ -913,6 +982,8 @@
     <script src="js/social-events.js"></script>
     <script src="js/paper-plane.js"></script>
     <script src="js/meetup-events.js"></script>
+    <script src="js/meetup-room.js"></script>
+    <script src="js/notifications.js"></script>
     <script src="js/entry-events.js"></script>
     <script src="js/pwa.js"></script>
     <script src="js/main.js"></script>

@@ -99,6 +99,18 @@ function formatDate(value) {
       }).format(date);
 }
 
+// Recent things read as "5 分鐘前"; older ones as their date and time.
+function timeAgo(value) {
+  const date = serverDate(value || "");
+  const seconds = (Date.now() - date.getTime()) / 1000;
+  if (Number.isNaN(seconds)) return value || "";
+  if (seconds < 60) return "剛剛";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} 分鐘前`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小時前`;
+  if (seconds < 7 * 86400) return `${Math.floor(seconds / 86400)} 天前`;
+  return formatDateTime(value);
+}
+
 // Diaries show when in the day they were written, not just the date.
 function formatDateTime(value) {
   if (!value) return "剛剛";

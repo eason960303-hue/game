@@ -217,6 +217,11 @@ function applyViewFromUrl() {
 viewButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const view = button.dataset.view;
+    // A new page starts at its top. Tapping the page you're on goes back up, as in
+    // most phone apps; someone else's profile isn't the 我的 page.
+    const samePage = viewFromUrl() === view && !usernameFromUrl();
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: samePage && !reduceMotion ? "smooth" : "auto" });
     applyView(view);
     const url =
       view === "home"
@@ -269,6 +274,8 @@ window.addEventListener("popstate", () => {
 document.addEventListener("click", (event) => {
   if (!event.target.closest('a[href^="#user/"]')) return;
   if (profileSocialDialog.open) profileSocialDialog.close();
+  // The search found who it was for; the box is ready for the next one.
+  if (event.target.closest("#account-search-results")) accountSearchInput.value = "";
   closeAccountSearchResults();
 });
 
