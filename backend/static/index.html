@@ -7,7 +7,7 @@
       name="description"
       content="把日常的風景、心情與足跡，收藏成自己的生活記錄。"
     />
-    <meta name="theme-color" content="#fff7ef" />
+    <meta name="theme-color" content="#f2f2f7" />
     <title>我的生活記錄</title>
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icons/icon-192.png" type="image/png" />
@@ -15,10 +15,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Life Logger" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="css/tokens.css" />
     <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/ios.css" />
+    <link rel="stylesheet" href="css/profile-zoom.css" />
+    <link rel="stylesheet" href="css/thread.css" />
+    <link rel="stylesheet" href="css/list.css" />
     <script src="js/theme.js"></script>
   </head>
   <body>
@@ -76,6 +78,7 @@
         </aside>
         <section class="welcome-card" id="welcome-card" aria-labelledby="welcome-title" hidden></section>
         <section class="hero" aria-labelledby="page-title">
+          <span class="hero-avatar" id="hero-avatar" aria-hidden="true">✦</span>
           <div class="hero-copy">
             <p class="eyebrow" id="hero-date">今天</p>
             <h1 id="page-title">我的生活記錄</h1>
@@ -191,14 +194,20 @@
               </div>
             </div>
           </div>
+          <div class="profile-posts-sentinel" aria-hidden="true"></div>
           <div class="profile-posts-heading">
-            <span aria-hidden="true">▦</span> <span id="profile-posts-title">我的生活</span>
+            <span class="profile-posts-label"><span aria-hidden="true">▦</span> <span id="profile-posts-title">我的生活</span></span>
+            <div class="profile-zoom" id="profile-zoom" role="group" aria-label="貼文顯示大小">
+              <button type="button" data-profile-zoom="month" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>月份</span></button>
+              <button type="button" data-profile-zoom="small" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="is-filled"><rect x="3.5" y="3.5" width="4.6" height="4.6" rx="1.2"/><rect x="9.7" y="3.5" width="4.6" height="4.6" rx="1.2"/><rect x="15.9" y="3.5" width="4.6" height="4.6" rx="1.2"/><rect x="3.5" y="9.7" width="4.6" height="4.6" rx="1.2"/><rect x="9.7" y="9.7" width="4.6" height="4.6" rx="1.2"/><rect x="15.9" y="9.7" width="4.6" height="4.6" rx="1.2"/><rect x="3.5" y="15.9" width="4.6" height="4.6" rx="1.2"/><rect x="9.7" y="15.9" width="4.6" height="4.6" rx="1.2"/><rect x="15.9" y="15.9" width="4.6" height="4.6" rx="1.2"/></g></svg><span>小格</span></button>
+              <button type="button" data-profile-zoom="large" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg><span>大格</span></button>
+            </div>
           </div>
           <section class="profile-post-section" aria-labelledby="profile-diaries-title">
             <h2 class="profile-post-section-heading" id="profile-diaries-title">
               日記 <span class="profile-post-section-count" id="profile-diaries-count">0 篇</span>
             </h2>
-            <div class="profile-post-grid" id="profile-diaries-grid" aria-live="polite">
+            <div class="profile-post-list" id="profile-diaries-grid" aria-live="polite">
               <div class="profile-empty">正在載入日記…</div>
             </div>
           </section>
@@ -206,7 +215,7 @@
             <h2 class="profile-post-section-heading" id="profile-footprints-title">
               足跡 <span class="profile-post-section-count" id="profile-footprints-count">0 趟</span>
             </h2>
-            <div class="profile-post-grid" id="profile-footprints-grid" aria-live="polite">
+            <div class="profile-post-list" id="profile-footprints-grid" aria-live="polite">
               <div class="profile-empty">正在載入足跡…</div>
             </div>
           </section>
@@ -576,6 +585,26 @@
         <section class="settings-group" aria-labelledby="settings-look-title">
           <h3 id="settings-look-title">外觀</h3>
           <div class="settings-card">
+            <div class="settings-row is-stacked" role="radiogroup" aria-labelledby="settings-look-label">
+              <span class="settings-text">
+                <span class="settings-label" id="settings-look-label">風格</span>
+                <span class="settings-hint">串文：黑白簡約、細線外框；卡片：圓角卡片和彩色主題。</span>
+              </span>
+              <span class="settings-segmented">
+                <label><input type="radio" name="look" value="thread" /><span>串文</span></label>
+                <label><input type="radio" name="look" value="card" /><span>卡片</span></label>
+              </span>
+            </div>
+            <div class="settings-row is-stacked" role="radiogroup" aria-labelledby="settings-layout-label">
+              <span class="settings-text">
+                <span class="settings-label" id="settings-layout-label">排版</span>
+                <span class="settings-hint">方框：一則一個框，寬螢幕排成好幾欄；直列：一則接一則排成一列。</span>
+              </span>
+              <span class="settings-segmented">
+                <label><input type="radio" name="layout" value="box" /><span>方框</span></label>
+                <label><input type="radio" name="layout" value="list" /><span>直列</span></label>
+              </span>
+            </div>
             <div class="settings-row is-stacked" id="settings-mode" role="radiogroup" aria-labelledby="settings-mode-label">
               <span class="settings-text">
                 <span class="settings-label" id="settings-mode-label">深淺模式</span>
@@ -966,6 +995,7 @@
     <script src="js/onboarding.js"></script>
     <script src="js/content-filter.js"></script>
     <script src="js/views.js"></script>
+    <script src="js/profile-zoom.js"></script>
     <script src="js/social.js"></script>
     <script src="js/map.js"></script>
     <script src="js/map-tools.js"></script>
@@ -985,6 +1015,7 @@
     <script src="js/meetup-room.js"></script>
     <script src="js/notifications.js"></script>
     <script src="js/entry-events.js"></script>
+    <script src="js/sheet.js"></script>
     <script src="js/pwa.js"></script>
     <script src="js/main.js"></script>
   </body>

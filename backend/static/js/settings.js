@@ -5,6 +5,18 @@ const SERVER_SETTING_PREFIX = "web.";
 
 const MODE_NAMES = { light: "淺色", dark: "深色" };
 
+// In 串文 the default theme is black and white, so it is named and shown that way.
+const THREAD_DEFAULT_PALETTE = {
+  name: "黑白簡約",
+  swatches: ["#ffffff", "#f5f5f5", "#d4d4d4", "#737373", "#101010", "#000000"],
+};
+
+function shownPalette(palette) {
+  return palette.id === "default" && appSetting("look") === "thread"
+    ? { ...palette, ...THREAD_DEFAULT_PALETTE }
+    : palette;
+}
+
 function paletteOptionHtml(palette) {
   return `
     <label class="palette-option">
@@ -16,23 +28,35 @@ function paletteOptionHtml(palette) {
     </label>`;
 }
 
-// 活力 follows the light/dark choice, so it leads the light group, where it starts out.
-paletteOptions.innerHTML = [
-  ["淺色", PALETTES.filter((palette) => palette.mode !== "dark")],
-  ["深色", PALETTES.filter((palette) => palette.mode === "dark")],
-]
-  .map(
-    ([title, palettes]) => `
-      <div class="palette-group">
-        <span class="palette-group-title">${title}</span>
-        <div class="palette-options">${palettes.map(paletteOptionHtml).join("")}</div>
-      </div>`,
-  )
-  .join("");
+// The default follows the light/dark choice, so it leads the light group, where it starts out.
+// Drawn again only when the look changes its name, so a click keeps its focus.
+let paletteOptionsLook = null;
+
+function renderPaletteOptions() {
+  if (paletteOptionsLook === appSetting("look")) return;
+  paletteOptionsLook = appSetting("look");
+  paletteOptions.innerHTML = [
+    ["淺色", PALETTES.filter((palette) => palette.mode !== "dark")],
+    ["深色", PALETTES.filter((palette) => palette.mode === "dark")],
+  ]
+    .map(
+      ([title, palettes]) => `
+        <div class="palette-group">
+          <span class="palette-group-title">${title}</span>
+          <div class="palette-options">${palettes.map(shownPalette).map(paletteOptionHtml).join("")}</div>
+        </div>`,
+    )
+    .join("");
+}
 
 function showSettings() {
+  renderPaletteOptions();
   const { elements } = settingsForm;
-  const palette = PALETTES.find((item) => item.id === appSetting("palette")) || PALETTES[0];
+  const palette = shownPalette(
+    PALETTES.find((item) => item.id === appSetting("palette")) || PALETTES[0],
+  );
+  elements.look.value = appSetting("look");
+  elements.layout.value = appSetting("layout");
   elements.palette.value = palette.id;
   elements.footprintPrivacy.value = appSetting("footprintPrivacy");
   elements.startPage.value = appSetting("startPage");
@@ -42,12 +66,12 @@ function showSettings() {
   elements.aiFollowUp.checked = appSetting("aiFollowUp") === "on";
   document.querySelector("#settings-palette-current").textContent = `目前：${palette.name}`;
   // A colour theme already decides light or dark, so the choice shows it and is locked
-  // until 活力 is picked again; the saved choice is kept for then.
+  // until the default is picked again; the saved choice is kept for then.
   elements.mode.value = palette.mode || appSetting("mode");
   for (const input of elements.mode) input.disabled = Boolean(palette.mode);
   document.querySelector("#settings-mode").classList.toggle("is-locked", Boolean(palette.mode));
   document.querySelector("#settings-mode-note").textContent = palette.mode
-    ? `「${palette.name}」主題固定是${MODE_NAMES[palette.mode]}，換回「活力」才能切換。`
+    ? `「${palette.name}」主題固定是${MODE_NAMES[palette.mode]}，換回「${shownPalette(PALETTES[0]).name}」才能切換。`
     : "";
 }
 

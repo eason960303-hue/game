@@ -5,7 +5,7 @@ const systemDarkTheme = window.matchMedia("(prefers-color-scheme: dark)");
 
 // Colours are in tokens.css; these are the swatches shown when choosing and each theme's base.
 const PALETTES = [
-  { id: "default", name: "活力", mode: null, swatches: ["#fff7ef", "#ffb82e", "#d63d1a", "#f2487a", "#0a7770", "#2a1d18"] },
+  { id: "default", name: "活力", mode: null, swatches: ["#f2f2f7", "#ffb82e", "#d63d1a", "#f2487a", "#0a7770", "#1c1c1e"] },
   { id: "1", name: "莓果", mode: "light", swatches: ["#800021", "#881144", "#243A66", "#C24366", "#FF69B4", "#FFE4D8"] },
   { id: "3", name: "深海", mode: "dark", swatches: ["#05161A", "#072E33", "#0C7075", "#0F969C", "#6DA5C0", "#294D61"] },
   { id: "4", name: "森林", mode: "dark", swatches: ["#0F1F17", "#1E3A2E", "#3E5A3F", "#6B7F67", "#C7CBB8", "#3D4337"] },
@@ -27,6 +27,8 @@ const PALETTES = [
 
 // The first choice of each setting is its default. Saved values are checked against these.
 const SETTING_CHOICES = {
+  look: ["thread", "card"],
+  layout: ["list", "box"],
   palette: PALETTES.map((palette) => palette.id),
   mode: ["system", "light", "dark"],
   footprintPrivacy: ["private", "friends", "public"],
@@ -59,7 +61,11 @@ function loadSavedSettings() {
 
 let savedSettings = loadSavedSettings();
 
+// Until a layout is picked, each look keeps the one it was made with.
+const LOOK_LAYOUTS = { thread: "list", card: "box" };
+
 function appSetting(key) {
+  if (key === "layout" && !savedSettings.layout) return LOOK_LAYOUTS[appSetting("look")];
   return savedSettings[key] ?? SETTING_CHOICES[key][0];
 }
 
@@ -82,14 +88,6 @@ const darkThemeRules = Array.from(document.styleSheets).flatMap((sheet) =>
   ),
 );
 
-// Added only after the scan above: reading a cross-origin sheet's rules would throw.
-// Inserted from script so a slow or blocked font service never delays the first paint.
-const displayFont = document.createElement("link");
-displayFont.rel = "stylesheet";
-displayFont.href =
-  "https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&display=swap";
-document.head.append(displayFont);
-
 function activeTheme() {
   const palette = PALETTES.find((item) => item.id === appSetting("palette"));
   if (palette.mode) return palette.mode;
@@ -104,6 +102,9 @@ function applyTheme() {
   darkThemeRules.forEach((rule) => {
     rule.media.mediaText = theme === "dark" ? "all" : "not all";
   });
+  // 風格 (串文 or 卡片, css/thread.css) and 排版 (方框 or 直列, css/list.css).
+  root.dataset.look = appSetting("look");
+  root.dataset.layout = appSetting("layout");
   if (appSetting("palette") === "default") delete root.dataset.palette;
   else root.dataset.palette = appSetting("palette");
   root.dataset.homeDiaries = appSetting("homeDiaries");

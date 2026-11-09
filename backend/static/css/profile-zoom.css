@@ -1,0 +1,331 @@
+/* 我的生活 zooms like a photo library: 大格, 小格 and 月份 (see js/profile-zoom.js). */
+
+/* ---------- The bar: 我的生活 on the left, the zoom control on the right ---------- */
+
+.profile-posts-heading {
+  position: sticky;
+  z-index: 20;
+  top: var(--topbar-height, 64px);
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 8px 0;
+  border-top: 0;
+  box-shadow: inset 0 0.5px 0 var(--line-strong);
+}
+
+/* Marks where the bar starts, so js/profile-zoom.js can tell when it has stuck. */
+.profile-posts-sentinel {
+  height: 1px;
+  margin: 16px 0 -1px;
+}
+
+/* Stuck under the top bar it uses the same material, edge to edge, with a hairline below. */
+.profile-posts-heading::before {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  border-bottom: 0.5px solid var(--line-strong);
+  background: var(--bar-material);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  content: "";
+  opacity: 0;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+
+.profile-posts-heading.is-stuck {
+  box-shadow: none;
+}
+
+.profile-posts-heading.is-stuck::before {
+  opacity: 1;
+}
+
+.profile-posts-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.profile-zoom {
+  display: inline-flex;
+  flex: none;
+  padding: 2px;
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  letter-spacing: normal;
+}
+
+.profile-zoom button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 200ms var(--ios-ease), box-shadow 200ms var(--ios-ease);
+}
+
+.profile-zoom button:not([aria-pressed="true"]):active {
+  opacity: 0.55;
+}
+
+.profile-zoom button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.profile-zoom svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.profile-zoom svg .is-filled {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* ---------- Lists grouped by month ---------- */
+
+/* Two fingers on the posts change the level instead of zooming the page. */
+.profile-posts-heading,
+.profile-post-section {
+  touch-action: pan-x pan-y;
+}
+
+.profile-post-list {
+  transform-origin: 50% 0;
+}
+
+.profile-month + .profile-month,
+.profile-year + .profile-year {
+  margin-top: 22px;
+}
+
+.profile-month-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 4px 10px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: normal;
+}
+
+.profile-month-count {
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Only 小格 shows the short date line. */
+.profile-post-brief {
+  display: none;
+}
+
+/* ---------- 小格: three to a row on a phone, title and a short date ---------- */
+
+.profile-post-list[data-zoom="small"] .profile-post-grid,
+.profile-month-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 120px), 1fr));
+  gap: 8px;
+}
+
+.profile-post-list[data-zoom="small"] .profile-post-tile.is-expanded {
+  grid-column: 1 / -1;
+}
+
+.profile-post-list[data-zoom="small"] .profile-post-tile.is-diary.is-reflowing .profile-post-details-content {
+  width: var(--reflow-content-width);
+}
+
+.profile-post-list[data-zoom="small"] .profile-post-tile:not(.is-expanded) .profile-post-toggle {
+  min-height: 0;
+  justify-content: flex-end;
+  gap: 0;
+  padding: 10px;
+}
+
+.profile-post-list[data-zoom="small"] .profile-post-tile:not(.is-expanded) .profile-post-tile-top,
+.profile-post-list[data-zoom="small"] .profile-post-tile:not(.is-expanded) .profile-post-date {
+  display: none;
+}
+
+.profile-post-list[data-zoom="small"] .profile-post-tile:not(.is-expanded) .profile-post-tile-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.profile-post-list[data-zoom="small"] .profile-post-tile:not(.is-expanded) .profile-post-tile-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+/* Every diary tile keeps room for two lines of title, so a short title and a long one
+   make tiles of one height, with the date on the same line across the row. */
+.profile-post-list[data-zoom="small"] .profile-post-tile.is-diary:not(.is-expanded) .profile-post-tile-title {
+  min-height: 2.6em;
+}
+
+.profile-post-list[data-zoom="small"] .profile-post-tile:not(.is-expanded) .profile-post-brief {
+  display: block;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A footprint keeps its photo: a square with the title over it. */
+.profile-post-list[data-zoom="small"] .profile-post-tile:not(.is-expanded):not(.is-diary) .profile-post-toggle {
+  aspect-ratio: 1;
+}
+
+.profile-post-list[data-zoom="small"] .profile-post-tile:not(.is-expanded) .profile-post-toggle.has-cover .profile-post-tile-title,
+.profile-post-list[data-zoom="small"] .profile-post-tile:not(.is-expanded) .profile-post-toggle.has-cover .profile-post-brief {
+  color: var(--on-photo);
+}
+
+.profile-post-list[data-zoom="small"] .profile-post-tile:not(.is-expanded) .profile-post-toggle.has-cover .profile-post-tile-title {
+  font-size: 13px;
+}
+
+/* ---------- 月份: one tile per month ---------- */
+
+.profile-month-grid {
+  display: grid;
+}
+
+.profile-month-tile {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-width: 0;
+  aspect-ratio: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 2px;
+  overflow: hidden;
+  padding: 12px;
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.profile-month-tile:hover {
+  background: var(--sunken);
+}
+
+.profile-month-tile:active {
+  opacity: 0.55;
+}
+
+.profile-month-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.profile-month-tile-name {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.profile-month-tile-count {
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* The mood a month's diaries name most often. */
+.profile-month-tile-mood {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  max-width: calc(100% - 20px);
+  overflow: hidden;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-month-tile img {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-month-tile.has-cover {
+  color: var(--on-photo);
+}
+
+.profile-month-tile.has-cover::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0) 65%);
+  content: "";
+}
+
+.profile-month-tile.has-cover .profile-month-tile-count {
+  color: rgb(255 255 255 / 0.85);
+}
+
+@media (max-width: 760px) {
+  .profile-post-list[data-zoom="small"] .profile-post-grid,
+  .profile-month-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .profile-zoom button {
+    padding: 0 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-posts-heading::before,
+  .profile-zoom button {
+    transition: none;
+  }
+}

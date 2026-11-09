@@ -191,6 +191,13 @@ function avatarHtml(url, name, extraClass = "") {
     : `<span class="${classes} social-avatar-fallback">${escapeHtml(avatarInitial(name))}</span>`;
 }
 
+// The home composer shows who is writing (串文 only, see css/thread.css).
+const heroAvatar = document.querySelector("#hero-avatar");
+
+function setHeroAvatar(person) {
+  heroAvatar.innerHTML = avatarHtml(person?.avatar_url, person?.display_name || person?.username);
+}
+
 function ownerLink(item, fallback) {
   const name = item.owner_name || fallback;
   if (!item.owner_username) {
@@ -223,12 +230,15 @@ function setFollowRequestCount(count) {
   profileRequestsOpen.hidden = !count || Boolean(viewedProfile);
 }
 
-async function refreshFollowRequestCount() {
+// The request badge and the composer's avatar, from the account's profile in one request.
+// Opening your own profile loads the same profile and sets both itself.
+async function refreshOwnProfileSummary() {
   try {
-    const requests = await apiRequest("/user/follow-requests");
-    setFollowRequestCount(requests.length);
+    const profile = await apiRequest("/user/profile");
+    setFollowRequestCount(profile.follow_requests_count);
+    setHeroAvatar(profile);
   } catch (error) {
-    console.warn("Follow request count failed", error);
+    console.warn("Profile summary failed", error);
   }
 }
 
@@ -481,6 +491,7 @@ function renderProfilePostCard(post, type, expandedId) {
             <span class="profile-post-date">${escapeHtml(caption)}</span>
           </span>
           <time class="profile-post-date" datetime="${escapeHtml(post.created_at || "")}">${escapeHtml(formatDate(post.created_at))}</time>
+          <span class="profile-post-brief" aria-hidden="true">${escapeHtml(profileShortDate(post.created_at))} · ${escapeHtml(caption)}</span>
         </span>
       </button>
       ${
@@ -549,25 +560,13 @@ function renderProfilePosts(
   profileFootprintsCount.textContent = `${footprints.length} 趟`;
 
   profileDiariesGrid.innerHTML = diaries.length
-    ? diaries
-        .map((post) =>
-          renderProfilePostCard(post, "diary", expandedProfileDiaryId),
-        )
-        .join("")
+    ? profilePostListHtml(diaries, "diary", expandedProfileDiaryId)
     : viewedProfile
       ? `<div class="profile-empty">${escapeHtml(emptyDiaries)}</div>`
       : emptyStateHtml("profile-empty", emptyDiaries, "寫日記", "write-diary");
   warmPhotos(profileDiariesGrid);
   profileFootprintsGrid.innerHTML = footprints.length
-    ? footprints
-        .map((post) =>
-          renderProfilePostCard(
-            post,
-            "footprint",
-            expandedProfileFootprintId,
-          ),
-        )
-        .join("")
+    ? profilePostListHtml(footprints, "footprint", expandedProfileFootprintId)
     : viewedProfile
       ? `<div class="profile-empty">${escapeHtml(emptyFootprints)}</div>`
       : emptyStateHtml("profile-empty", emptyFootprints, "新增足跡", "new-footprint");
@@ -706,6 +705,7 @@ async function loadProfile() {
     setFollowRequestCount(profile.follow_requests_count);
     profilePosts = withPrivacyDrafts(posts);
     renderProfile(profile);
+    setHeroAvatar(profile);
     renderProfilePosts(profilePosts);
   } catch (error) {
     if (!load.isCurrent()) return;
@@ -737,14 +737,16 @@ function clearProfileTileAnimation(grid) {
 
 // Measures every tile before and after the change, then runs each one between the two.
 // Reading the start from the screen lets a click during a run continue from where it is.
-function animateProfileTiles(grid, applyChange) {
+// Posts are grouped by month, so closing one month's tile and opening another's moves two grids.
+function animateProfileTiles(gridList, applyChange) {
+  const grids = [...new Set(gridList.filter(Boolean))];
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    clearProfileTileAnimation(grid);
+    grids.forEach(clearProfileTileAnimation);
     applyChange();
     return;
   }
-  const tiles = [...grid.querySelectorAll(".profile-post-tile")];
-  const measure = (tile) => {
+  const detailsOf = (tile) => tile.querySelector(".profile-post-details");
+  const measure = (tile, grid) => {
     const tileBox = tile.getBoundingClientRect();
     const gridBox = grid.getBoundingClientRect();
     return {
@@ -754,43 +756,57 @@ function animateProfileTiles(grid, applyChange) {
       height: tileBox.height,
     };
   };
-  const detailsOf = (tile) => tile.querySelector(".profile-post-details");
-  const startGridHeight = grid.getBoundingClientRect().height;
-  const start = new Map(
-    tiles.map((tile) => [
-      tile,
-      {
-        box: measure(tile),
-        opacity: getComputedStyle(detailsOf(tile)).opacity,
-        wasExpanded: tile.classList.contains("is-expanded"),
-      },
-    ]),
-  );
-  clearProfileTileAnimation(grid);
+  const runs = grids.map((grid) => {
+    const tiles = [...grid.querySelectorAll(".profile-post-tile")];
+    return {
+      grid,
+      tiles,
+      startGridHeight: grid.getBoundingClientRect().height,
+      start: new Map(
+        tiles.map((tile) => [
+          tile,
+          {
+            box: measure(tile, grid),
+            opacity: getComputedStyle(detailsOf(tile)).opacity,
+            wasExpanded: tile.classList.contains("is-expanded"),
+          },
+        ]),
+      ),
+    };
+  });
+  grids.forEach(clearProfileTileAnimation);
   applyChange();
 
-  const endGridHeight = grid.getBoundingClientRect().height;
-  const contentWidth = grid.clientWidth - 2;
+  // All measured first: taking a tile out of the flow moves the ones after it.
+  runs.forEach((run) => {
+    run.endGridHeight = run.grid.getBoundingClientRect().height;
+    run.contentWidth = run.grid.clientWidth - 2;
+    run.end = new Map(
+      run.tiles.map((tile) => [
+        tile,
+        {
+          box: measure(tile, run.grid),
+          opacity: getComputedStyle(detailsOf(tile)).opacity,
+        },
+      ]),
+    );
+  });
   const toPixels = ({ left, top, width, height }) => ({
     left: `${left}px`,
     top: `${top}px`,
     width: `${width}px`,
     height: `${height}px`,
   });
-  // All measured first: taking a tile out of the flow moves the ones after it.
-  const end = new Map(
-    tiles.map((tile) => [
-      tile,
-      { box: measure(tile), opacity: getComputedStyle(detailsOf(tile)).opacity },
-    ]),
-  );
   const verticalTravel = Math.max(
-    Math.abs(endGridHeight - startGridHeight),
-    ...tiles.flatMap((tile) => {
-      const from = start.get(tile).box;
-      const to = end.get(tile).box;
-      return [Math.abs(to.top - from.top), Math.abs(to.height - from.height)];
-    }),
+    0,
+    ...runs.flatMap((run) => [
+      Math.abs(run.endGridHeight - run.startGridHeight),
+      ...run.tiles.flatMap((tile) => {
+        const from = run.start.get(tile).box;
+        const to = run.end.get(tile).box;
+        return [Math.abs(to.top - from.top), Math.abs(to.height - from.height)];
+      }),
+    ]),
   );
   const timing = {
     duration: Math.min(
@@ -803,56 +819,58 @@ function animateProfileTiles(grid, applyChange) {
     easing: "linear",
     fill: "both",
   };
-  const animations = [];
-  tiles.forEach((tile) => {
-    const from = start.get(tile);
-    const to = end.get(tile);
-    const isExpanded = tile.classList.contains("is-expanded");
-    const details = detailsOf(tile);
-    tile.classList.add("is-reflowing");
-    tile.classList.toggle("is-closing", from.wasExpanded && !isExpanded);
-    tile.classList.toggle("is-reflow-focus", from.wasExpanded || isExpanded);
-    tile.style.setProperty("--reflow-content-width", `${contentWidth}px`);
-    const resizes = from.wasExpanded || isExpanded;
-    if (resizes) {
+  runs.forEach(({ grid, tiles, start, end, startGridHeight, endGridHeight, contentWidth }) => {
+    const animations = [];
+    tiles.forEach((tile) => {
+      const from = start.get(tile);
+      const to = end.get(tile);
+      const isExpanded = tile.classList.contains("is-expanded");
+      const details = detailsOf(tile);
+      tile.classList.add("is-reflowing");
+      tile.classList.toggle("is-closing", from.wasExpanded && !isExpanded);
+      tile.classList.toggle("is-reflow-focus", from.wasExpanded || isExpanded);
+      tile.style.setProperty("--reflow-content-width", `${contentWidth}px`);
+      const resizes = from.wasExpanded || isExpanded;
+      if (resizes) {
+        animations.push(
+          tile.animate([toPixels(from.box), toPixels(to.box)], timing),
+        );
+      } else {
+        // Tiles that only move use a transform, which doesn't relayout on every frame.
+        Object.assign(tile.style, toPixels(to.box));
+        const offsetX = from.box.left - to.box.left;
+        const offsetY = from.box.top - to.box.top;
+        animations.push(
+          tile.animate(
+            [
+              { transform: `translate(${offsetX}px, ${offsetY}px)` },
+              { transform: "translate(0, 0)" },
+            ],
+            timing,
+          ),
+        );
+      }
       animations.push(
-        tile.animate([toPixels(from.box), toPixels(to.box)], timing),
-      );
-    } else {
-      // Tiles that only move use a transform, which doesn't relayout on every frame.
-      Object.assign(tile.style, toPixels(to.box));
-      const offsetX = from.box.left - to.box.left;
-      const offsetY = from.box.top - to.box.top;
-      animations.push(
-        tile.animate(
-          [
-            { transform: `translate(${offsetX}px, ${offsetY}px)` },
-            { transform: "translate(0, 0)" },
-          ],
+        details.animate(
+          [{ opacity: from.opacity }, { opacity: to.opacity }],
           timing,
         ),
       );
-    }
-    animations.push(
-      details.animate(
-        [{ opacity: from.opacity }, { opacity: to.opacity }],
-        timing,
-      ),
+    });
+    const gridAnimation = grid.animate(
+      [{ height: `${startGridHeight}px` }, { height: `${endGridHeight}px` }],
+      timing,
     );
+    animations.push(gridAnimation);
+    profileTileAnimations.set(grid, animations);
+    gridAnimation.finished
+      .then(() => {
+        if (profileTileAnimations.get(grid) === animations) {
+          clearProfileTileAnimation(grid);
+        }
+      })
+      .catch(() => {}); // Cancelled: a newer run has taken over.
   });
-  const gridAnimation = grid.animate(
-    [{ height: `${startGridHeight}px` }, { height: `${endGridHeight}px` }],
-    timing,
-  );
-  animations.push(gridAnimation);
-  profileTileAnimations.set(grid, animations);
-  gridAnimation.finished
-    .then(() => {
-      if (profileTileAnimations.get(grid) === animations) {
-        clearProfileTileAnimation(grid);
-      }
-    })
-    .catch(() => {}); // Cancelled: a newer run has taken over.
 }
 
 function toggleProfilePost(event, type) {
@@ -873,10 +891,14 @@ function toggleProfilePost(event, type) {
     type === "diary"
       ? expandedProfileDiaryId
       : expandedProfileFootprintId;
-  const grid =
+  const list =
     type === "diary" ? profileDiariesGrid : profileFootprintsGrid;
-  animateProfileTiles(grid, () => {
-    grid.querySelectorAll(".profile-post-tile").forEach((card) => {
+  const gridOf = (id) =>
+    list
+      .querySelector(`[data-profile-post-id="${id}"]`)
+      ?.closest(".profile-post-grid");
+  animateProfileTiles([gridOf(postId), gridOf(expandedId)], () => {
+    list.querySelectorAll(".profile-post-tile").forEach((card) => {
       const cardButton = card.querySelector("[data-profile-post-id]");
       const isExpanded =
         Number(cardButton.dataset.profilePostId) === nextExpandedId;

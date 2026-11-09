@@ -8,8 +8,8 @@ async function loadSessionData() {
   const loads = [loadEntries(), loadMeetups()];
   const viewLoadsMapPoints = view === "map" || view === "trips";
   if (currentUser && !viewLoadsMapPoints) loads.push(loadMapPoints());
-  const viewLoadsRequestCount = view === "profile" && !viewedUsername;
-  if (currentUser && !viewLoadsRequestCount) refreshFollowRequestCount();
+  const viewLoadsOwnProfile = view === "profile" && !viewedUsername;
+  if (currentUser && !viewLoadsOwnProfile) refreshOwnProfileSummary();
   if (currentUser) loadSettingsFromAccount();
   loadViewData(view);
   await Promise.all(loads);
@@ -25,6 +25,7 @@ function updateAccountUi() {
   document.querySelector("#settings-account").hidden = !currentUser;
   document.querySelector("#settings-account-name").textContent = currentUser?.display_name || "";
   document.querySelector("#settings-account-email").textContent = currentUser?.email || "";
+  setHeroAvatar(currentUser);
   resetNotifications();
   refreshNotifications();
   document.querySelector("#recent-entries-section").hidden = !currentUser;

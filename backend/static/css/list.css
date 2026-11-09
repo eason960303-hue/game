@@ -1,0 +1,243 @@
+/* 直列 (Settings → 排版): posts one under another in a single column, divided by hairlines,
+   and on a wide screen one centred column. It works with either 風格: in 串文 the rows run
+   to the screen's edge; in 卡片 they sit together in one rounded group. 方框 drops every
+   rule here and keeps the boxes. theme.js sets data-layout on <html>. */
+
+[data-layout="list"] {
+  /* How far a row's content sits from its edge */
+  --row-x: 16px;
+}
+
+[data-look="thread"][data-layout="list"] {
+  /* 串文 rows reach past the page's side margin to the screen's edge. */
+  --row-bleed: 16px;
+  --row-x: var(--row-bleed);
+}
+
+/* ========== One column of rows ========== */
+
+[data-layout="list"] :is(.entries, .timeline-footprint-grid, .trip-list) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+[data-layout="list"] :is(.entry-card, .timeline-footprint-card, .trip-card) {
+  min-width: 0;
+  margin: 0;
+  padding: 14px var(--row-x);
+  border: 0;
+  border-bottom: 0.5px solid var(--line-strong);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+[data-look="thread"][data-layout="list"] :is(.entry-card, .timeline-footprint-card, .trip-card) {
+  margin: 0 calc(var(--row-bleed) * -1);
+}
+
+/* 卡片: the rows share one white group, like a settings list. */
+[data-look="card"][data-layout="list"] :is(.entries, .timeline-footprint-grid, .trip-list) {
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+[data-look="card"][data-layout="list"] :is(.entry-card, .timeline-footprint-card, .trip-card):last-of-type {
+  border-bottom: 0;
+}
+
+[data-look="card"][data-layout="list"] .timeline-show-more {
+  width: calc(100% - 24px);
+  margin: 4px 12px 12px;
+}
+
+[data-look="thread"][data-layout="list"] .timeline-show-more {
+  width: 100%;
+  margin-top: 14px;
+}
+
+/* 串文: the composer is the first row. */
+[data-look="thread"][data-layout="list"] .page > #home-view > .hero {
+  margin: 0 calc(var(--row-bleed) * -1);
+  padding: 16px var(--row-bleed) 14px;
+  border: 0;
+  border-bottom: 0.5px solid var(--line-strong);
+  border-radius: 0;
+  background: transparent;
+}
+
+/* ========== Diaries hang on one line, a dot for each day ========== */
+
+[data-layout="list"] .entry-card {
+  position: relative;
+  gap: 4px;
+  padding-left: calc(var(--row-x) + 30px);
+  border-bottom: 0;
+}
+
+[data-layout="list"] .entry-card::before {
+  position: absolute;
+  top: 21px;
+  left: calc(var(--row-x) + 6px);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  content: "";
+}
+
+[data-layout="list"] .entry-card:not(:last-child)::after {
+  position: absolute;
+  top: 37px;
+  bottom: -15px;
+  left: calc(var(--row-x) + 10px);
+  width: 2px;
+  border-radius: 1px;
+  background: var(--line-strong);
+  content: "";
+}
+
+[data-look="thread"][data-layout="list"] .entries {
+  border-bottom: 0.5px solid var(--line-strong);
+}
+
+/* Words first, then the photo, as in a post. */
+[data-layout="list"] .entry-card .entry-meta {
+  order: 0;
+}
+
+[data-layout="list"] .entry-card h3 {
+  order: 1;
+}
+
+[data-layout="list"] .entry-card > p {
+  order: 2;
+}
+
+[data-layout="list"] .entry-card .entry-photo {
+  order: 3;
+  width: 100%;
+  max-height: 280px;
+  margin: 6px 0 2px;
+  border: 0.5px solid var(--line-strong);
+  border-radius: 12px;
+}
+
+[data-layout="list"] .entry-card-footer {
+  order: 4;
+  padding-top: 2px;
+}
+
+/* ========== A footprint row: who and when on one line, then the trip ========== */
+
+[data-layout="list"] .timeline-footprint-card {
+  gap: 6px;
+}
+
+[data-layout="list"] .timeline-footprint-content {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 3px;
+}
+
+[data-layout="list"] .timeline-footprint-meta {
+  display: contents;
+}
+
+[data-layout="list"] .timeline-footprint-owner {
+  grid-row: 1;
+  grid-column: 1;
+  min-width: 0;
+}
+
+[data-layout="list"] .timeline-footprint-meta time {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+[data-layout="list"] .timeline-footprint-meta :is(.privacy-select, .mood) {
+  grid-row: 1;
+  grid-column: 3;
+}
+
+[data-layout="list"] .timeline-footprint-content > :is(h3, .timeline-footprint-stops, .timeline-footprint-note) {
+  grid-column: 1 / -1;
+}
+
+/* ========== A trip row: its name and words, then the photos ========== */
+
+[data-layout="list"] .trip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+[data-layout="list"] .trip-card-top {
+  order: 0;
+}
+
+[data-layout="list"] .trip-card .trip-description {
+  order: 1;
+  margin: 0;
+}
+
+[data-layout="list"] .trip-photos {
+  order: 2;
+  margin: 4px 0 2px;
+}
+
+[data-layout="list"] .trip-points {
+  order: 3;
+}
+
+[data-layout="list"] .trip-actions {
+  order: 4;
+}
+
+[data-layout="list"] .trip-card .trip-use-count {
+  order: 5;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* ========== One centred column on a wide screen ========== */
+
+@media (min-width: 761px) {
+  [data-layout="list"] .page.app-shell > :is(#home-view, #profile-view),
+  [data-layout="list"] .page.app-shell > #trips-view:has(.trip-form[hidden]) {
+    max-width: 680px;
+    margin-inline: auto;
+  }
+
+  [data-layout="list"] .page.app-shell > .app-view .profile-shell {
+    max-width: none;
+  }
+
+  /* In the narrow column the route drawing would squeeze the greeting, as on a phone. */
+  [data-layout="list"] .hero-art {
+    display: none;
+  }
+
+  /* 串文: the column is a white panel on the pale page. */
+  [data-look="thread"][data-layout="list"] {
+    --row-bleed: 24px;
+  }
+
+  [data-look="thread"][data-layout="list"] .page.app-shell > :is(#home-view, #profile-view),
+  [data-look="thread"][data-layout="list"] .page.app-shell > #trips-view:has(.trip-form[hidden]) {
+    margin-top: 12px;
+    padding: 4px var(--row-bleed) 28px;
+    border: 0.5px solid var(--line-strong);
+    border-radius: 28px;
+    background: var(--surface);
+  }
+
+  [data-look="thread"][data-layout="list"] #trips-view .module-heading {
+    padding-top: 20px;
+  }
+}

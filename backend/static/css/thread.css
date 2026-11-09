@@ -1,0 +1,865 @@
+/* 串文 look (Settings → 風格), layered over app.css and ios.css: black, white and greys,
+   outlined boxes, a composer at the top of home, outlined buttons and an icon-only tab bar.
+   theme.js sets data-look on <html>; 卡片 drops every rule here. How posts are laid out,
+   in boxes or one under another, is the separate 排版 setting (see list.css). */
+
+.hero-avatar {
+  display: none;
+}
+
+/* ========== Colours: only while no colour theme is chosen ========== */
+
+[data-look="thread"] {
+  --like: #ff3040;
+  --tab-idle: color-mix(in srgb, var(--ink) 30%, var(--bg));
+  --switch-on: var(--ink);
+}
+
+[data-look="thread"]:not([data-palette]) {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --sunken: #f5f5f5;
+  --tint: rgb(0 0 0 / 0.04);
+  --line: rgb(0 0 0 / 0.08);
+  --line-strong: rgb(0 0 0 / 0.15);
+  --field-line: rgb(0 0 0 / 0.15);
+  --ink: #000000;
+  --ink-2: #424242;
+  --ink-3: #737373;
+  --accent: #000000;
+  --accent-hover: #262626;
+  --accent-text: #000000;
+  --accent-soft: #f0f0f0;
+  --accent-line: rgb(0 0 0 / 0.15);
+  --on-accent: #ffffff;
+  --highlight: #0064e0;
+  --highlight-soft: #e7f0fd;
+  --hero-gradient: none;
+  --on-hero: var(--ink);
+  --tab-idle: #b8b8b8;
+}
+
+/* On a wide screen the page is a pale grey, so the white column stands out. */
+@media (min-width: 761px) {
+  [data-look="thread"]:not([data-palette]) {
+    --bg: #fafafa;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-look="thread"]:not([data-palette]) {
+    --bg: #101010;
+    --surface: #101010;
+    --sunken: #1e1e1e;
+    --tint: rgb(255 255 255 / 0.06);
+    --line: rgb(255 255 255 / 0.08);
+    --line-strong: rgb(255 255 255 / 0.16);
+    --field-line: rgb(255 255 255 / 0.16);
+    --ink: #f3f5f7;
+    --ink-2: #cccccc;
+    --ink-3: #8a8a8a;
+    --accent: #f3f5f7;
+    --accent-hover: #ffffff;
+    --accent-text: #f3f5f7;
+    --accent-soft: #262626;
+    --accent-line: rgb(255 255 255 / 0.16);
+    --on-accent: #000000;
+    --highlight: #5aa1ff;
+    --highlight-soft: #0f2340;
+    --tab-idle: #4d4d4d;
+    --shadow-2: 0 24px 60px rgb(0 0 0 / 0.7);
+  }
+
+  @media (min-width: 761px) {
+    [data-look="thread"]:not([data-palette]) {
+      --bg: #0a0a0a;
+      --surface: #181818;
+    }
+  }
+}
+
+/* ========== Type ========== */
+
+[data-look="thread"] :is(h1, h2, h3, .profile-username, .brand > span:last-child) {
+  letter-spacing: 0;
+}
+
+[data-look="thread"] .module-heading h1 {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+[data-look="thread"] .module-heading p {
+  color: var(--ink-3);
+  font-size: 15px;
+}
+
+/* Sections are named plainly; the small kicker above each is dropped. */
+[data-look="thread"] :is(.section-heading, .meetup-launcher) .eyebrow {
+  display: none;
+}
+
+[data-look="thread"] :is(.section-heading, .meetup-launcher, .entries-section) h2 {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+[data-look="thread"] .entries-section {
+  margin-top: 28px;
+}
+
+[data-look="thread"] :is(.section-heading, .meetup-launcher) {
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+[data-look="thread"] .entry-count {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+/* ========== Top bar: the page's own colour, no line ========== */
+
+[data-look="thread"] .floating-topbar::before {
+  border-bottom-color: transparent;
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+}
+
+[data-look="thread"] .brand-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--ink);
+  font-size: 24px;
+  line-height: 1;
+  padding-bottom: 5px;
+}
+
+[data-look="thread"] :is(.account-logout, #settings-open) {
+  background: transparent;
+  color: var(--ink);
+}
+
+[data-look="thread"] :is(.account-logout, #settings-open):hover {
+  background: var(--tint);
+}
+
+[data-look="thread"] :is(.account-logout, #settings-open) svg {
+  width: 24px;
+  height: 24px;
+  stroke-width: 1.9;
+}
+
+[data-look="thread"] :is(.account-search-form, .account-search-form:focus-within) {
+  min-height: 40px;
+  border: 0.5px solid var(--line-strong);
+  border-radius: 16px;
+  background: var(--sunken);
+}
+
+/* ========== Tab bar: icons only, the current one filled ========== */
+
+[data-look="thread"] .nav-indicator {
+  display: none;
+}
+
+[data-look="thread"] .nav-link > span:not(.nav-badge) {
+  display: none;
+}
+
+[data-look="thread"] .nav-link {
+  background: transparent;
+  color: var(--tab-idle);
+}
+
+[data-look="thread"] .nav-link[aria-current="page"] {
+  color: var(--ink);
+}
+
+[data-look="thread"] .nav-link svg {
+  width: 26px;
+  height: 26px;
+  stroke-width: 2;
+}
+
+[data-look="thread"] .nav-link[aria-current="page"] svg {
+  fill: currentColor;
+}
+
+/* Lines drawn inside a filled icon are cut out in the bar's colour. */
+[data-look="thread"] .nav-link[aria-current="page"][data-view="ai-diary"] svg path + path,
+[data-look="thread"] .nav-link[aria-current="page"][data-view="map"] svg circle {
+  fill: var(--bg);
+  stroke: var(--bg);
+}
+
+[data-look="thread"] .nav-link[aria-current="page"][data-view="trips"] svg path {
+  fill: none;
+}
+
+@media (max-width: 760px) {
+  [data-look="thread"] .page.app-shell {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+
+  [data-look="thread"] .navigation,
+  [data-look="thread"] body.map-mode .floating-topbar .navigation {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    padding: 0 8px env(safe-area-inset-bottom);
+    border: 0;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    box-shadow: none;
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+  }
+
+  [data-look="thread"] .nav-link,
+  [data-look="thread"] body.map-mode .floating-topbar .nav-link {
+    min-height: 60px;
+    border-radius: 14px;
+    color: var(--tab-idle);
+  }
+
+  [data-look="thread"] .nav-link[aria-current="page"],
+  [data-look="thread"] body.map-mode .floating-topbar .nav-link[aria-current="page"] {
+    color: var(--ink);
+  }
+
+  [data-look="thread"] .nav-badge {
+    top: 10px;
+    left: calc(50% + 8px);
+  }
+
+  [data-look="thread"] .toast {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+
+  [data-look="thread"] body.map-mode .map-add-button {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+
+  [data-look="thread"] .ai-chat-card {
+    height: calc(100dvh - 190px - env(safe-area-inset-bottom));
+  }
+}
+
+/* On a wide screen the icons sit in the middle of the top bar. */
+@media (min-width: 761px) {
+  [data-look="thread"] .navigation {
+    gap: 4px;
+    margin-inline: auto;
+  }
+
+  [data-look="thread"] .account-search {
+    flex: 0 1 220px;
+    margin-left: 0;
+  }
+
+  [data-look="thread"] .nav-link {
+    width: 68px;
+    min-height: 50px;
+    justify-content: center;
+    padding: 0;
+    border-radius: 12px;
+  }
+
+  [data-look="thread"] .nav-link:hover {
+    background: var(--tint);
+  }
+}
+
+/* ========== Buttons: black or outlined, gently rounded ========== */
+
+[data-look="thread"] .primary-button,
+[data-look="thread"] .primary-button:hover {
+  min-height: 40px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+[data-look="thread"] .primary-button:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+[data-look="thread"] :is(
+    .secondary-button,
+    .retry-button,
+    .small-action,
+    .profile-edit-button,
+    .server-refresh,
+    .map-pick-cancel,
+    .content-filter-region-toggle,
+    .meetup-launcher .primary-button
+  ) {
+  min-height: 36px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+[data-look="thread"] :is(
+    .secondary-button,
+    .retry-button,
+    .small-action,
+    .profile-edit-button,
+    .server-refresh,
+    .map-pick-cancel,
+    .content-filter-region-toggle,
+    .meetup-launcher .primary-button
+  ):hover {
+  border-color: var(--line-strong);
+  background: var(--tint);
+}
+
+[data-look="thread"] .small-action.is-destructive,
+[data-look="thread"] .entry-actions .small-action.is-destructive,
+[data-look="thread"] .trip-actions .small-action.is-destructive {
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--danger);
+}
+
+[data-look="thread"] .content-filter-region-toggle[aria-expanded="true"],
+[data-look="thread"] .content-filter-region-toggle.is-active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+}
+
+/* Heart and bookmark: bare icons, the way a post's action row reads. */
+[data-look="thread"] .footprint-reaction {
+  min-height: 36px;
+  gap: 5px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+[data-look="thread"] .footprint-reaction:first-child {
+  margin-left: -10px;
+}
+
+[data-look="thread"] .footprint-reaction:hover {
+  border: 0;
+  background: var(--tint);
+}
+
+[data-look="thread"] .footprint-reaction svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 1.9;
+}
+
+[data-look="thread"] .footprint-reaction.is-like[aria-pressed="true"] {
+  background: transparent;
+  color: var(--like);
+}
+
+[data-look="thread"] .footprint-reaction.is-save[aria-pressed="true"] {
+  background: transparent;
+  color: var(--ink);
+}
+
+/* ========== Chips and switches ========== */
+
+[data-look="thread"] .content-filter-who {
+  gap: 6px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+[data-look="thread"] .content-filter-who button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+[data-look="thread"] .content-filter-who button[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  box-shadow: none;
+  color: var(--bg);
+}
+
+[data-look="thread"] .settings-segmented input:checked + span,
+[data-look="thread"] .meetup-time-mode[aria-pressed="true"],
+[data-look="thread"] .profile-zoom button[aria-pressed="true"] {
+  background: var(--ink);
+  box-shadow: none;
+  color: var(--bg);
+}
+
+[data-look="thread"] .settings-switch:checked::after {
+  background: var(--bg);
+}
+
+/* Moods and privacy are quiet grey labels, not coloured tags. */
+[data-look="thread"] .mood,
+[data-look="thread"] .mood[data-tone] {
+  background: var(--sunken);
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+/* ========== Fields ========== */
+
+[data-look="thread"] :is(.field, .compact-field) :is(input, textarea, select),
+[data-look="thread"] #trip-search {
+  border-radius: 12px;
+}
+
+/* ========== Home: a composer, then the posts ========== */
+
+[data-look="thread"] .page > #home-view > .hero {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  min-height: 0;
+  margin: 12px 0 0;
+  padding: 16px 16px 14px;
+  border: 0.5px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: none;
+  color: var(--ink);
+}
+
+[data-look="thread"] :is(.hero-art, .hero::before, .hero::after) {
+  display: none;
+}
+
+[data-look="thread"] .hero-avatar {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--sunken);
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+[data-look="thread"] .hero-avatar .social-avatar {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sunken);
+  color: var(--ink);
+  font-size: 17px;
+  object-fit: cover;
+}
+
+[data-look="thread"] .hero-copy {
+  display: flex;
+  min-width: 0;
+  flex-flow: row wrap;
+  align-items: baseline;
+  column-gap: 8px;
+}
+
+[data-look="thread"] .hero-copy h1 {
+  order: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+[data-look="thread"] .hero .eyebrow {
+  order: 1;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink-3);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+[data-look="thread"] .hero-lead {
+  order: 2;
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  color: var(--ink-3);
+  font-size: 15px;
+}
+
+[data-look="thread"] .hero-actions {
+  display: flex;
+  order: 3;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin: 8px 0 0 -8px;
+}
+
+[data-look="thread"] .hero-chip {
+  flex: none;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-3);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+[data-look="thread"] .hero-chip:hover {
+  background: var(--tint);
+  color: var(--ink);
+}
+
+[data-look="thread"] .hero-chip svg {
+  width: 19px;
+  height: 19px;
+}
+
+[data-look="thread"] #open-entry {
+  flex: none;
+  order: 2;
+  min-height: 36px;
+  margin-left: auto;
+  padding: 0 18px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--on-accent);
+  font-size: 15px;
+}
+
+[data-look="thread"] #open-entry > span[aria-hidden="true"] {
+  display: none;
+}
+
+/* Posts are outlined boxes on the white page. */
+[data-look="thread"] :is(.entry-card, .timeline-footprint-card, .trip-card, .meetup-card) {
+  border: 0.5px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: none;
+  transform: none;
+}
+
+[data-look="thread"] .entry-card .entry-photo {
+  border-radius: 17.5px 17.5px 0 0;
+}
+
+[data-look="thread"] :is(.entry-card, .timeline-footprint-card, .trip-card) h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+[data-look="thread"] :is(.entry-card, .timeline-footprint-card, .trip-card) p {
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+[data-look="thread"] .entry-card .entry-meta time,
+[data-look="thread"] .timeline-footprint-meta time {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+[data-look="thread"] .entry-card > p,
+[data-look="thread"] .timeline-footprint-note {
+  color: var(--ink);
+}
+
+[data-look="thread"] .timeline-footprint-owner {
+  color: var(--ink-3);
+}
+
+[data-look="thread"] .timeline-footprint-owner .entry-owner {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+[data-look="thread"] .timeline-footprint-stops {
+  color: var(--ink-2);
+}
+
+[data-look="thread"] .timeline-footprint-actions > .small-action {
+  margin-left: auto;
+  border: 0;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+[data-look="thread"] .meetup-card-heading h3 {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+[data-look="thread"] .meetup-participants {
+  background: var(--sunken);
+  color: var(--ink-2);
+}
+
+[data-look="thread"] .meetup-route {
+  padding: 0;
+  background: transparent;
+  color: var(--ink-2);
+}
+
+[data-look="thread"] .meetup-route-link {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+/* ========== Trips ========== */
+
+[data-look="thread"] .trip-card .trip-byline {
+  color: var(--ink-3);
+  font-size: 14px;
+}
+
+[data-look="thread"] .trip-owner {
+  color: var(--ink);
+}
+
+[data-look="thread"] .trip-card .trip-description {
+  color: var(--ink);
+}
+
+[data-look="thread"] .trip-photos {
+  border: 0.5px solid var(--line-strong);
+  border-radius: 12px;
+}
+
+[data-look="thread"] .trip-card .trip-use-count {
+  border-top-color: var(--line);
+  font-size: 13px;
+}
+
+/* ========== Profile: name and handle beside the photo, then one wide button ========== */
+
+[data-look="thread"] .profile-header {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name name avatar"
+    "handle handle avatar"
+    "bio bio bio"
+    "stats stats stats";
+  align-items: center;
+  gap: 0 16px;
+  padding: 12px 0 16px;
+}
+
+[data-look="thread"] #profile-view {
+  margin-top: 0;
+}
+
+[data-look="thread"] .profile-posts-label > span[aria-hidden="true"] {
+  display: none;
+}
+
+[data-look="thread"] :is(.profile-identity, .profile-username-row, .profile-bio-block) {
+  display: contents;
+}
+
+[data-look="thread"] .profile-avatar-button {
+  grid-area: avatar;
+  width: 76px;
+  border: 0.5px solid var(--line-strong);
+  background: var(--sunken);
+  font-size: 30px;
+}
+
+[data-look="thread"] .profile-avatar-wrap > span {
+  color: var(--ink);
+}
+
+[data-look="thread"] .profile-bio-name {
+  grid-area: name;
+  align-self: end;
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+[data-look="thread"] .profile-username {
+  grid-area: handle;
+  align-self: start;
+  margin: 2px 0 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 400;
+}
+
+[data-look="thread"] .profile-bio {
+  grid-area: bio;
+  margin: 14px 0 0;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+[data-look="thread"] .profile-stats {
+  grid-area: stats;
+  justify-content: flex-start;
+  gap: 0;
+  margin: 12px 0 0;
+  color: var(--ink-3);
+  font-size: 15px;
+}
+
+[data-look="thread"] .profile-stat {
+  gap: 4px;
+  padding: 0;
+  color: var(--ink-3);
+  font-size: 15px;
+}
+
+[data-look="thread"] .profile-stat:not([hidden]) ~ .profile-stat:not([hidden])::before {
+  margin: 0 6px;
+  color: var(--ink-3);
+  content: "·";
+}
+
+[data-look="thread"] .profile-stat strong {
+  color: var(--ink-3);
+  font-size: 15px;
+  font-weight: 400;
+}
+
+/* The buttons share one row under everything else, full width between them. */
+[data-look="thread"] .profile-username-row > button {
+  grid-row: 5;
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 36px;
+  margin-top: 18px;
+  font-size: 15px;
+}
+
+[data-look="thread"] .profile-header:has(#profile-install:not([hidden])) #profile-edit-open {
+  grid-column: 1;
+}
+
+[data-look="thread"] .profile-header:has(#profile-edit-open:not([hidden])) #profile-install {
+  grid-column: 2 / -1;
+}
+
+[data-look="thread"] .profile-header:has(#profile-edit-open:not([hidden])) #profile-install:not([hidden]) {
+  margin-left: -8px;
+}
+
+/* Follow is the one black button; once followed it turns outlined. */
+[data-look="thread"] #profile-follow:not(.is-following) {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+}
+
+[data-look="thread"] .profile-posts-heading {
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+[data-look="thread"] .profile-post-section-heading {
+  border-bottom: 0;
+  font-size: 17px;
+}
+
+/* Tiles are outlined on the white page instead of raised. */
+[data-look="thread"] .profile-post-tile,
+[data-look="thread"] .profile-month-tile {
+  border: 0.5px solid var(--line-strong);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+[data-look="thread"] .profile-month-tile:hover {
+  background: var(--tint);
+}
+
+[data-look="thread"] .profile-month-tile-mood {
+  background: var(--sunken);
+  color: var(--ink-2);
+}
+
+/* ========== Other cards keep a hairline so they show on the white page ========== */
+
+[data-look="thread"] :is(.module-card, .privacy-note-card, .map-sidebar, .social-user-row, .diary-month-entry) {
+  border: 0.5px solid var(--line-strong);
+  box-shadow: none;
+}
+
+[data-look="thread"] :is(.module-empty, .profile-empty, .empty-state) {
+  border: 0.5px solid var(--line-strong);
+  background: transparent;
+}
+
+[data-look="thread"] .install-banner {
+  border: 0.5px solid var(--line-strong);
+  background: var(--sunken);
+}
+
+[data-look="thread"] .install-banner p {
+  color: var(--ink);
+}
+
+[data-look="thread"] .ai-chat-messages {
+  background: transparent;
+}
+
+[data-look="thread"] .ai-chat-message.is-assistant {
+  border-color: transparent;
+  background: var(--sunken);
+}
+
+/* ========== Sheets ========== */
+
+[data-look="thread"] .dialog-heading .icon-button {
+  background: transparent;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 400;
+}
+
+[data-look="thread"] .dialog-heading .icon-button:hover {
+  background: var(--tint);
+}
+
+[data-look="thread"] #settings-dialog,
+[data-look="thread"] #settings-dialog .settings-heading {
+  background: var(--surface);
+}
+
+[data-look="thread"] #settings-dialog .settings-card {
+  border: 0.5px solid var(--line-strong);
+  background: var(--surface);
+}
+
+[data-look="thread"] #logout-dialog .primary-button {
+  border-color: transparent;
+  background: var(--danger);
+  color: #ffffff;
+}

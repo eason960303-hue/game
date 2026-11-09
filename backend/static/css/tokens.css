@@ -4,24 +4,26 @@
 
 :root {
   color-scheme: light dark;
-  /* Warm cream paper and white cards */
-  --bg: #fff7ef;
+  /* iOS system greys and white cards. Only 活力 gets these; the other themes set their
+     own colours below and still take every shape and material, built from their tokens. */
+  --bg: #f2f2f7;
   --surface: #ffffff;
-  --sunken: #fff0e3;
-  --tint: rgba(232, 85, 40, 0.08);
-  --line: #f4e1d2;
-  --line-strong: #e9c5ad;
-  --field-line: #a07a66;
+  --sunken: #ececf1;
+  --tint: rgb(118 118 128 / 0.12);
+  --line: rgb(60 60 67 / 0.13);
+  --line-strong: rgb(60 60 67 / 0.2);
+  --field-line: transparent;
   /* Ink */
-  --ink: #2a1d18;
-  --ink-2: #5b4840;
-  --ink-3: #7a645a;
+  --ink: #1c1c1e;
+  --ink-2: #3a3a3f;
+  --ink-3: #6c6c70;
   /* Coral: primary action and links */
   --accent: #d63d1a;
   --accent-hover: #bb3112;
   --accent-text: #c43a17;
-  --accent-soft: #ffe4d8;
-  --accent-line: #ffb59a;
+  --accent-soft: #ffe7de;
+  /* Edges are grey hairlines on iOS, not coloured outlines. */
+  --accent-line: rgb(60 60 67 / 0.18);
   --on-accent: #ffffff;
   /* Teal: small cool highlights */
   --highlight: #0a7770;
@@ -43,17 +45,16 @@
   --pop-violet: #8a5cf6;
   --hero-gradient: linear-gradient(135deg, #cf3f17 0%, #c42a5e 55%, #6a3bd0 100%);
   --on-hero: #ffffff;
-  /* Shadow */
-  --shadow-rgb: 120 60 30;
-  --shadow-1: 0 1px 2px rgb(var(--shadow-rgb) / 0.05), 0 6px 18px rgb(var(--shadow-rgb) / 0.05);
-  --shadow-2: 0 2px 6px rgb(var(--shadow-rgb) / 0.06), 0 18px 44px rgb(var(--shadow-rgb) / 0.12);
-  --scrim: rgba(35, 34, 26, 0.42);
-  /* Type */
+  /* Shadow: cards sit flat; only floating things cast one. */
+  --shadow-rgb: 0 0 0;
+  --shadow-1: none;
+  --shadow-2: 0 24px 60px rgb(0 0 0 / 0.18);
+  --scrim: rgb(0 0 0 / 0.32);
+  /* Type: SF everywhere */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC",
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang TC", "Noto Sans TC",
     "Microsoft JhengHei", "Segoe UI", sans-serif;
-  --font-serif:
-    "Noto Serif TC", "Songti TC", "Noto Serif CJK TC", "PMingLiU", serif;
+  --font-serif: var(--font-sans);
   --text-xs: 12px;
   --text-sm: 13px;
   --text-md: 15px;
@@ -64,13 +65,22 @@
   /* Shape */
   --r-sm: 10px;
   --r-md: 12px;
-  --r-lg: 18px;
-  --r-xl: 24px;
+  --r-lg: 20px;
+  --r-xl: 28px;
   --r-pill: 999px;
   /* Text over photos stays light in both themes */
   --on-photo: #ffffff;
   --photo-scrim: rgba(18, 20, 16, 0.62);
   --photo-scrim-soft: rgba(18, 20, 16, 0.12);
+  /* Fills and materials follow each theme's own ink and surfaces. */
+  --fill: color-mix(in srgb, var(--ink) 7%, transparent);
+  --fill-strong: color-mix(in srgb, var(--ink) 12%, transparent);
+  --bar-material: color-mix(in srgb, var(--bg) 78%, transparent);
+  --glass: color-mix(in srgb, var(--surface) 72%, transparent);
+  --glass-edge: color-mix(in srgb, #ffffff 65%, transparent);
+  --thumb: var(--surface);
+  --switch-on: #34c759;
+  --ios-ease: cubic-bezier(0.32, 0.72, 0, 1);
   font-family: var(--font-sans);
   color: var(--ink);
   background: var(--bg);
@@ -81,21 +91,20 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #17110f;
-    --surface: #221a17;
-    --sunken: #1c1513;
-    --tint: rgba(255, 160, 120, 0.09);
-    --line: #3a2c26;
-    --line-strong: #56423a;
-    --field-line: #8f776c;
-    --ink: #fbefe8;
-    --ink-2: #d9c6bd;
-    --ink-3: #b8a59c;
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --sunken: #2c2c2e;
+    --tint: rgb(118 118 128 / 0.24);
+    --line: rgb(84 84 88 / 0.55);
+    --line-strong: rgb(84 84 88 / 0.8);
+    --ink: #ffffff;
+    --ink-2: #dcdce2;
+    --ink-3: #9d9da4;
     --accent: #ff8f5e;
     --accent-hover: #ffab85;
     --accent-text: #ff9a6e;
-    --accent-soft: #43251a;
-    --accent-line: #7a3d27;
+    --accent-soft: #3d2117;
+    --accent-line: rgb(84 84 88 / 0.7);
     --on-accent: #1f1210;
     --highlight: #5fd6c6;
     --highlight-soft: #173a36;
@@ -107,10 +116,14 @@
     --warn: #e0b35f;
     --warn-soft: #372c15;
     --hero-gradient: linear-gradient(135deg, #b0451f 0%, #9a2a52 55%, #4e2f9a 100%);
-    --shadow-rgb: 0 0 0;
-    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
-    --shadow-2: 0 18px 44px rgb(0 0 0 / 0.45);
-    --scrim: rgba(0, 0, 0, 0.58);
+    --shadow-2: 0 24px 60px rgb(0 0 0 / 0.6);
+    --scrim: rgb(0 0 0 / 0.5);
+    --fill: color-mix(in srgb, var(--ink) 12%, transparent);
+    --fill-strong: color-mix(in srgb, var(--ink) 18%, transparent);
+    --glass: color-mix(in srgb, var(--surface) 70%, transparent);
+    --glass-edge: color-mix(in srgb, #ffffff 14%, transparent);
+    --thumb: color-mix(in srgb, var(--ink) 26%, var(--surface));
+    --switch-on: #30d158;
   }
 }
 

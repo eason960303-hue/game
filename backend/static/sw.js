@@ -1,6 +1,6 @@
 // Keeps the app's interface available offline. Only interface files are ever stored:
 // anything under /api/ holds someone's private data and always goes to the server.
-const SHELL_CACHE = "life-logger-shell-v100";
+const SHELL_CACHE = "life-logger-shell-v108";
 const NETWORK_WAIT_MS = 3000;
 const PAGE_KEY = "/";
 

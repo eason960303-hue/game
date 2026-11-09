@@ -1,0 +1,609 @@
+/* iOS look, layered over app.css: translucent bars, a floating tab bar, filled controls,
+   flat grouped cards and sheets that rise from the bottom. Its colours, fills and
+   materials are tokens in tokens.css, so every theme takes these shapes in its own colours. */
+
+body {
+  background: var(--bg);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ========== Type: SF everywhere, bold rather than heavy ========== */
+
+h1,
+h2,
+.module-heading h1,
+.profile-username,
+.brand > span:last-child {
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.module-heading h1 {
+  font-size: 32px;
+  line-height: 1.15;
+}
+
+.section-heading h2,
+.entries-section h2 {
+  font-size: 22px;
+}
+
+.dialog-heading h2 {
+  font-size: 20px;
+}
+
+/* The small label above a section reads as an iOS section header, not a tag. */
+.section-heading .eyebrow,
+.meetup-launcher .eyebrow {
+  margin-bottom: 2px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* ========== Navigation bar: translucent material with a hairline ========== */
+
+.floating-topbar::before {
+  border-bottom: 0.5px solid var(--line-strong);
+  background: var(--bar-material);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+.account-search-form,
+.account-search-form:focus-within {
+  min-height: 36px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  box-shadow: none;
+}
+
+.account-search-form input {
+  background: transparent;
+}
+
+.account-search-icon {
+  color: var(--ink-3);
+}
+
+/* Bell and gear: round glass buttons */
+.account-logout,
+#settings-open {
+  display: inline-grid;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--ink);
+}
+
+.account-logout svg,
+#settings-open svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ========== Tab bar ========== */
+
+@media (max-width: 760px) {
+  .page.app-shell {
+    padding-bottom: calc(108px + env(safe-area-inset-bottom));
+  }
+
+  /* A floating glass capsule; the current tab sits in a lens that slides between tabs. */
+  .navigation,
+  body.map-mode .floating-topbar .navigation {
+    right: 14px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    left: 14px;
+    padding: 4px;
+    border: 0.5px solid var(--glass-edge);
+    border-radius: var(--r-pill);
+    background: var(--glass);
+    box-shadow:
+      0 10px 30px rgb(0 0 0 / 0.14),
+      0 1px 2px rgb(0 0 0 / 0.06),
+      inset 0 0.5px 0 var(--glass-edge);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    backdrop-filter: saturate(180%) blur(24px);
+  }
+
+  .nav-link,
+  body.map-mode .floating-topbar .nav-link {
+    min-height: 54px;
+    gap: 1px;
+    border-radius: var(--r-pill);
+    color: var(--ink);
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .nav-link svg {
+    width: 24px;
+    height: 24px;
+    stroke-width: 1.8;
+  }
+
+  .nav-link[aria-current="page"],
+  .nav-link[aria-current="page"]:hover {
+    color: var(--accent-text);
+  }
+
+  .toast {
+    bottom: calc(86px + env(safe-area-inset-bottom));
+  }
+
+  /* The map runs to the screen's edge, under the floating bar. */
+  body.map-mode .page.app-shell {
+    padding-bottom: 0;
+  }
+
+  /* Things pinned to the bottom clear the floating bar, which sits a little higher. */
+  body.map-mode .map-add-button {
+    bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+
+  .ai-chat-card {
+    height: calc(100dvh - 212px - env(safe-area-inset-bottom));
+  }
+}
+
+.nav-link {
+  border-radius: var(--r-pill);
+}
+
+.nav-indicator {
+  border-radius: var(--r-pill);
+  background: var(--fill);
+}
+
+/* ========== Cards: flat white groups on the grey page ========== */
+
+.module-card,
+.privacy-note-card,
+.entry-card,
+.meetup-card,
+.timeline-footprint-card,
+.trip-card,
+.map-sidebar,
+.social-user-row,
+.profile-post-tile,
+.diary-month-entry,
+.settings-card {
+  border-color: transparent;
+  border-radius: var(--r-lg);
+  box-shadow: none;
+}
+
+.entry-card,
+.meetup-card,
+.timeline-footprint-card,
+.trip-card,
+.profile-post-tile {
+  background: var(--surface);
+}
+
+.entry-card:hover,
+.timeline-footprint-card:hover,
+.trip-card:hover,
+.profile-post-tile:hover {
+  transform: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.hero {
+  border-radius: var(--r-xl);
+  box-shadow: none;
+}
+
+/* Empty states sit on a plain card, not inside a dashed box. */
+.module-empty,
+.profile-empty,
+.empty-state {
+  border: 0;
+  background: var(--surface);
+}
+
+/* Hairline separators, like a table view */
+.settings-card > * + * {
+  border-top: 0.5px solid var(--line-strong);
+}
+
+/* ========== Buttons ========== */
+
+/* Prominent: a filled capsule, no glow */
+.primary-button,
+.map-google-navigation,
+.primary-button:hover,
+.map-google-navigation:hover {
+  border-radius: var(--r-pill);
+  box-shadow: none;
+  transform: none;
+}
+
+.primary-button {
+  min-height: 46px;
+  font-weight: 600;
+}
+
+/* Secondary: grey fill with the tint colour, no outline */
+.secondary-button,
+.retry-button,
+.small-action,
+.profile-edit-button,
+.server-refresh,
+.map-pick-cancel,
+.entry-actions .small-action,
+.footprint-reaction,
+.content-filter-region-toggle {
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.secondary-button:hover,
+.retry-button:hover,
+.small-action:hover,
+.profile-edit-button:hover,
+.server-refresh:hover,
+.map-pick-cancel:hover,
+.footprint-reaction:hover,
+.content-filter-region-toggle:hover {
+  border-color: transparent;
+  background: var(--fill-strong);
+}
+
+.profile-edit-button,
+.footprint-reaction {
+  color: var(--ink);
+}
+
+/* 發起揪團 sits beside the hero's solid button, so it takes the grey style too. */
+.meetup-launcher .primary-button,
+.meetup-launcher .primary-button:hover {
+  min-height: 36px;
+  border: 0;
+  background: var(--fill);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+/* Mood choices: grey chips, the chosen one tinted */
+.mood-option {
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  color: var(--ink);
+}
+
+.mood-option[aria-pressed="true"] {
+  border: 0;
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.small-action.is-destructive,
+.entry-actions .small-action.is-destructive,
+.trip-actions .small-action.is-destructive {
+  border: 0;
+  background: var(--fill);
+  color: var(--danger);
+}
+
+.footprint-reaction.is-like[aria-pressed="true"],
+.footprint-reaction.is-save[aria-pressed="true"],
+.content-filter-region-toggle[aria-expanded="true"],
+.content-filter-region-toggle.is-active {
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+/* A press dims the control, the way iOS highlights a tap. */
+button,
+a.small-action,
+a.secondary-button {
+  transition:
+    opacity 120ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.primary-button:not(:disabled):active,
+.secondary-button:not(:disabled):active,
+.small-action:not(:disabled):active,
+.retry-button:not(:disabled):active,
+.footprint-reaction:not(:disabled):active,
+.hero-chip:not(:disabled):active,
+.icon-button:not(:disabled):active,
+.account-logout:not(:disabled):active,
+#settings-open:not(:disabled):active,
+.nav-link:active {
+  opacity: 0.55;
+  transition: none;
+}
+
+/* ========== Segmented controls ========== */
+
+.content-filter-who,
+.settings-segmented {
+  gap: 0;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  box-shadow: none;
+}
+
+.content-filter-who button,
+.settings-segmented span {
+  border-radius: var(--r-pill);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* The chosen segment of every segmented control, the meetup time toggle and 我的生活's
+   zoom (css/profile-zoom.css) included */
+.content-filter-who button[aria-pressed="true"],
+.settings-segmented input:checked + span,
+.meetup-time-mode[aria-pressed="true"],
+.profile-zoom button[aria-pressed="true"] {
+  background: var(--thumb);
+  box-shadow:
+    0 3px 8px rgb(0 0 0 / 0.12),
+    0 1px 1px rgb(0 0 0 / 0.04);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* 選擇器／手動輸入 on the meetup form */
+.meetup-time-modes {
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--fill);
+}
+
+.meetup-time-mode {
+  border-radius: var(--r-pill);
+  color: var(--ink);
+}
+
+/* ========== Switches: iOS green ========== */
+
+.settings-switch {
+  width: 51px;
+  height: 31px;
+  background: var(--fill-strong);
+}
+
+.settings-switch::after {
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  box-shadow:
+    0 3px 8px rgb(0 0 0 / 0.15),
+    0 1px 1px rgb(0 0 0 / 0.16);
+}
+
+.settings-switch:checked {
+  background: var(--switch-on);
+}
+
+/* ========== Fields: grey fill, no box ========== */
+
+.field input,
+.field textarea,
+.field select,
+.compact-field input,
+.compact-field textarea,
+.compact-field select,
+.content-filter-region select,
+#trip-search {
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: var(--fill);
+  box-shadow: none;
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus,
+.compact-field input:focus,
+.compact-field textarea:focus,
+.compact-field select:focus,
+#trip-search:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.ai-chat-form .ai-chat-composer {
+  border: 0;
+  border-radius: 20px;
+  background: var(--fill);
+  box-shadow: none;
+}
+
+.photo-picker,
+.photo-preview,
+.route-point-row,
+.map-point-photo-placeholder {
+  border-color: transparent;
+  background: var(--fill);
+}
+
+/* ========== Sheets and alerts ========== */
+
+dialog {
+  border: 0;
+  box-shadow: var(--shadow-2);
+}
+
+/* The close button: a small grey circle */
+.dialog-heading .icon-button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--fill);
+  box-shadow: none;
+  color: var(--ink-3);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Grouped settings sheet on the system grey, under a translucent title */
+#settings-dialog .settings-heading {
+  border-bottom: 0.5px solid var(--line-strong);
+  background: var(--bar-material);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+.settings-group h3 {
+  padding: 0 16px;
+  letter-spacing: 0;
+}
+
+@media (max-width: 760px) {
+  /* Every form rises from the bottom as a sheet with a grabber; viewers and alerts stay
+     centred (the same list is in js/sheet.js). */
+  dialog:not(#photo-viewer, #avatar-viewer, #logout-dialog) {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - 44px - env(safe-area-inset-top));
+    margin: auto 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+  }
+
+  /* The grabber stays pinned to the sheet's top edge, above a sticky heading. */
+  dialog:not(#photo-viewer, #avatar-viewer, #logout-dialog)::before {
+    position: sticky;
+    z-index: 3;
+    top: 6px;
+    display: block;
+    width: 36px;
+    height: 5px;
+    margin: 6px auto -11px;
+    border-radius: 3px;
+    background: var(--fill-strong);
+    content: "";
+  }
+
+  /* The heading is the handle: dragging it pulls the sheet down. */
+  dialog .dialog-heading {
+    touch-action: none;
+  }
+
+  dialog.is-dragging {
+    transition: none;
+  }
+}
+
+@media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
+  dialog:not(#photo-viewer, #avatar-viewer, #logout-dialog)[open] {
+    /* backwards, not both: once in place, a drag's inline transform must win. */
+    animation: sheet-in 420ms var(--ios-ease) backwards;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* In the dark a sheet is lifted a shade above the black page, as on iOS. */
+@media (prefers-color-scheme: dark) {
+  #settings-dialog,
+  #settings-dialog .settings-heading {
+    background: var(--surface);
+  }
+
+  #settings-dialog .settings-card {
+    background: color-mix(in srgb, var(--ink) 8%, var(--surface));
+  }
+}
+
+/* Notifications read as a grouped list; unread ones are tinted. */
+.notification-item {
+  border: 0;
+  background: var(--fill);
+}
+
+button.notification-item:hover {
+  background: var(--fill-strong);
+}
+
+.notification-item.is-unread {
+  border: 0;
+  background: var(--accent-soft);
+}
+
+/* A yes-or-no question is a centred alert with two equal buttons. */
+#logout-dialog {
+  width: min(100% - 64px, 300px);
+  border-radius: 20px;
+  text-align: center;
+}
+
+#logout-dialog .dialog-content {
+  padding: 22px 18px 16px;
+}
+
+#logout-dialog .dialog-heading {
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+#logout-dialog .dialog-heading h2 {
+  font-size: var(--text-lg);
+}
+
+#logout-dialog .modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+#logout-dialog .modal-actions button {
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+}
+
+#logout-dialog .primary-button {
+  background: var(--danger);
+}
+
+/* ========== Toast: a capsule of glass ========== */
+
+.toast {
+  border: 0.5px solid var(--glass-edge);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--ink) 82%, transparent);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
+  color: var(--bg);
+  font-weight: 600;
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
