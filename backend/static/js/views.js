@@ -99,17 +99,21 @@ const timelineFilter = createContentFilter({
   },
 });
 
+// The heart and bookmark of footprints and trips.
+const LIKE_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5S3.5 15.4 3.5 9.2A4.7 4.7 0 0 1 12 6.5a4.7 4.7 0 0 1 8.5 2.7c0 6.2-8.5 11.3-8.5 11.3z"/></svg>`;
+const SAVE_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11a1 1 0 0 1 1 1v16l-6.5-4.5-6.5 4.5v-16a1 1 0 0 1 1-1z"/></svg>`;
+
 function footprintReactionsHtml(point) {
   const id = Number(point.id);
   const likes = Number(point.like_count) || 0;
   return `
     <div class="footprint-reactions">
       <button class="footprint-reaction is-like" type="button" data-footprint-reaction="like" data-point-id="${id}" aria-pressed="${Boolean(point.is_liked)}" aria-label="按讚，目前 ${likes} 個讚">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5S3.5 15.4 3.5 9.2A4.7 4.7 0 0 1 12 6.5a4.7 4.7 0 0 1 8.5 2.7c0 6.2-8.5 11.3-8.5 11.3z"/></svg>
+        ${LIKE_ICON}
         <span data-like-count>${likes}</span>
       </button>
       <button class="footprint-reaction is-save" type="button" data-footprint-reaction="save" data-point-id="${id}" aria-pressed="${Boolean(point.is_saved)}" aria-label="收藏這趟足跡">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11a1 1 0 0 1 1 1v16l-6.5-4.5-6.5 4.5v-16a1 1 0 0 1 1-1z"/></svg>
+        ${SAVE_ICON}
         <span>收藏</span>
       </button>
     </div>
@@ -206,8 +210,10 @@ function ownerLink(item, fallback) {
   return `<a class="entry-owner owner-link" href="${escapeHtml(profileHref(item.owner_username))}">${avatarHtml(item.owner_avatar_url, name, "social-avatar-small")}<span>${escapeHtml(name)}</span></a>`;
 }
 
-function privacyChipHtml(privacy, label = privacyLabel(privacy)) {
-  return `<span class="mood is-${escapeHtml(privacy)}">${label}</span>`;
+// A footprint's chip is marked so a privacy change can relabel every copy of it in place.
+function privacyChipHtml(privacy, pointId) {
+  const badge = pointId === undefined ? "" : ` data-privacy-badge="point:${Number(pointId)}"`;
+  return `<span class="mood is-${escapeHtml(privacy)}"${badge}>${privacyLabel(privacy)}</span>`;
 }
 
 function privacySelectHtml(id, title, privacy) {
@@ -245,7 +251,7 @@ async function refreshOwnProfileSummary() {
 function renderProfile(profile) {
   profilePageTitle.textContent = `@${profile.username}`;
   profileDisplayName.textContent = profile.display_name;
-  profileBio.textContent = profile.bio || "分享一段關於自己的小故事。";
+  profileBio.textContent = profile.bio || "";
   profilePostsCount.textContent = Number(profile.posts_count).toLocaleString("zh-TW");
   profileFollowersCount.textContent = Number(
     profile.followers_count,
@@ -310,15 +316,45 @@ function footprintPhotoDraftHasChanges(draft) {
   return Boolean(draft && (draft.added.length || draft.removedIds.size));
 }
 
+// A footprint's photos are edited as a draft, on the profile and in the footprint form alike:
+// saved photos marked for removal, and new ones prepared but not yet uploaded.
+function photosWithDraft(saved, draft) {
+  return [...saved.filter((photo) => !draft.removedIds.has(photo.id)), ...draft.added];
+}
+
+let nextPhotoDraftId = 1;
+
+// Prepares picked photos, as many as there is room for, and returns what to tell the owner.
+async function addPhotosToDraft(draft, files, room) {
+  const chosen = files.slice(0, room);
+  const notes = [];
+  for (const file of chosen) {
+    try {
+      const blob = await entryPhotoBlob(file);
+      draft.added.push({ draftId: nextPhotoDraftId++, blob, url: URL.createObjectURL(blob) });
+    } catch (error) {
+      notes.push(`${file.name}：${error.message}`);
+    }
+  }
+  const skipped = files.length - chosen.length;
+  if (skipped) notes.push(`超過 ${MAX_FOOTPRINT_PHOTOS} 張上限，略過 ${skipped} 張。`);
+  return notes.join(" ");
+}
+
+async function deleteFootprintPhoto(pointId, photoId) {
+  try {
+    await apiRequest(`/map-points/${pointId}/photos/${photoId}`, { method: "DELETE" });
+  } catch (error) {
+    // Already gone, for example deleted in another window: the goal is met.
+    if (error.status !== 404) throw error;
+  }
+}
+
 // What the grid and the enlarged view show: saved photos with the unsaved changes applied.
 function shownFootprintPhotos(post) {
   const saved = post.photos || [];
   const draft = post.is_owner ? footprintPhotoDrafts.get(post.id) : null;
-  if (!draft) return saved;
-  return [
-    ...saved.filter((photo) => !draft.removedIds.has(photo.id)),
-    ...draft.added,
-  ];
+  return draft ? photosWithDraft(saved, draft) : saved;
 }
 
 // What the enlarged view pages through: the cover first, as on 足跡 and 行程, then the photos.
@@ -951,12 +987,15 @@ const FOOTPRINT_COVER_WIDTH = 1600;
 const FOOTPRINT_COVER_HEIGHT = 900;
 
 // Redrawing crops to the target shape, shrinks the upload, and drops metadata such as GPS.
-async function cropImageToJpeg(file, width, height, quality) {
+// The size is { width, height }, or a function of the picture's own width and height.
+async function cropImageToJpeg(file, size, quality) {
   const url = URL.createObjectURL(file);
   try {
     const image = new Image();
     image.src = url;
     await image.decode();
+    const { width, height } =
+      typeof size === "function" ? size(image.naturalWidth, image.naturalHeight) : size;
     const scale = Math.min(
       image.naturalWidth / width,
       image.naturalHeight / height,
@@ -991,32 +1030,26 @@ async function cropImageToJpeg(file, width, height, quality) {
 
 const ENTRY_PHOTO_MAX_EDGE = 1600;
 
-// Keeps the photo's shape; phones shoot far more pixels, and bytes, than a diary shows.
-async function entryPhotoBlob(file) {
+// Every picture upload: too large, or one the browser can't read, gets the same message.
+async function imageUploadBlob(file, size, quality) {
   if (file.size > MAX_IMAGE_SOURCE_BYTES) {
     throw new Error("圖片太大，請選擇 25 MB 以下的檔案。");
   }
-  let blob;
-  try {
-    const url = URL.createObjectURL(file);
-    const image = new Image();
-    image.src = url;
-    await image.decode().finally(() => URL.revokeObjectURL(url));
-    const scale = Math.min(
-      1,
-      ENTRY_PHOTO_MAX_EDGE / Math.max(image.naturalWidth, image.naturalHeight),
-    );
-    blob = await cropImageToJpeg(
-      file,
-      Math.round(image.naturalWidth * scale),
-      Math.round(image.naturalHeight * scale),
-      0.85,
-    );
-  } catch {
-    blob = null;
-  }
+  const blob = await cropImageToJpeg(file, size, quality).catch(() => null);
   if (!blob) throw new Error("無法讀取這張圖片，請改用 JPG、PNG 或 WebP。");
   return blob;
+}
+
+// Keeps the photo's shape; phones shoot far more pixels, and bytes, than a diary shows.
+function entryPhotoBlob(file) {
+  return imageUploadBlob(
+    file,
+    (width, height) => {
+      const scale = Math.min(1, ENTRY_PHOTO_MAX_EDGE / Math.max(width, height));
+      return { width: Math.round(width * scale), height: Math.round(height * scale) };
+    },
+    0.85,
+  );
 }
 
 // A photo inside a closed section is lazy, so it hasn't loaded. Opening the section then
@@ -1082,23 +1115,12 @@ function entryPhotoHtml(entry) {
     : "";
 }
 
-async function landscapeFootprintCoverBlob(file) {
-  if (file.size > MAX_IMAGE_SOURCE_BYTES) {
-    throw new Error("圖片太大，請選擇 25 MB 以下的檔案。");
-  }
-  let blob;
-  try {
-    blob = await cropImageToJpeg(
-      file,
-      FOOTPRINT_COVER_WIDTH,
-      FOOTPRINT_COVER_HEIGHT,
-      0.88,
-    );
-  } catch {
-    blob = null;
-  }
-  if (!blob) throw new Error("無法讀取這張圖片，請改用 JPG、PNG 或 WebP。");
-  return blob;
+function landscapeFootprintCoverBlob(file) {
+  return imageUploadBlob(
+    file,
+    { width: FOOTPRINT_COVER_WIDTH, height: FOOTPRINT_COVER_HEIGHT },
+    0.88,
+  );
 }
 
 // Redraws only this card, so the other cards and their photos stay as they are.
@@ -1123,11 +1145,7 @@ function applyFootprintCover(pointId, coverUrl, message) {
 
 async function uploadFootprintCover(pointId, file) {
   const blob = await landscapeFootprintCoverBlob(file);
-  const updatedPoint = await apiRequest(`/map-points/${pointId}/cover`, {
-    method: "POST",
-    headers: { "Content-Type": blob.type },
-    body: blob,
-  });
+  const updatedPoint = await apiRequest(`/map-points/${pointId}/cover`, blobOptions(blob));
   return updatedPoint.cover_url;
 }
 
@@ -1188,32 +1206,15 @@ function showFootprintPhotos(post, message) {
   }
 }
 
-let nextFootprintPhotoDraftId = 1;
-
 // Only prepares the photos. Nothing reaches the server until "儲存照片".
 async function addFootprintPhotosToDraft(post, files) {
   const draft = footprintPhotoDraft(post.id);
   const room = MAX_FOOTPRINT_PHOTOS - shownFootprintPhotos(post).length;
-  const chosen = files.slice(0, room);
-  const skipped = files.length - chosen.length;
-  const notes = [];
   draft.busy = true;
   showFootprintPhotos(post, "正在處理照片…");
-  for (const file of chosen) {
-    try {
-      const blob = await entryPhotoBlob(file);
-      draft.added.push({
-        draftId: nextFootprintPhotoDraftId++,
-        blob,
-        url: URL.createObjectURL(blob),
-      });
-    } catch (error) {
-      notes.push(`${file.name}：${error.message}`);
-    }
-  }
+  const notes = await addPhotosToDraft(draft, files, room);
   draft.busy = false;
-  if (skipped) notes.push(`超過 ${MAX_FOOTPRINT_PHOTOS} 張上限，略過 ${skipped} 張。`);
-  showFootprintPhotos(post, notes.join(" "));
+  showFootprintPhotos(post, notes);
 }
 
 // Deletes come first, which frees room for the new photos. What fails stays in the draft to retry.
@@ -1224,23 +1225,15 @@ async function saveFootprintPhotos(post) {
   showFootprintPhotos(post, "正在儲存照片…");
   try {
     for (const photoId of [...draft.removedIds]) {
-      try {
-        await apiRequest(`/map-points/${post.id}/photos/${photoId}`, {
-          method: "DELETE",
-        });
-      } catch (error) {
-        // Already gone, for example deleted in another window: the goal is met.
-        if (error.status !== 404) throw error;
-      }
+      await deleteFootprintPhoto(post.id, photoId);
       post.photos = post.photos.filter((photo) => photo.id !== photoId);
       draft.removedIds.delete(photoId);
     }
     for (const pending of [...draft.added]) {
-      const photo = await apiRequest(`/map-points/${post.id}/photos`, {
-        method: "POST",
-        headers: { "Content-Type": pending.blob.type },
-        body: pending.blob,
-      });
+      const photo = await apiRequest(
+        `/map-points/${post.id}/photos`,
+        blobOptions(pending.blob),
+      );
       post.photos = [...(post.photos || []), photo];
       draft.added.shift();
       URL.revokeObjectURL(pending.url);

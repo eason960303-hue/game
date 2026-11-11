@@ -31,7 +31,6 @@
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  transform: none;
 }
 
 [data-look="thread"][data-layout="list"] :is(.entry-card, .timeline-footprint-card, .trip-card) {
@@ -60,7 +59,7 @@
 }
 
 /* 串文: the composer is the first row. */
-[data-look="thread"][data-layout="list"] .page > #home-view > .hero {
+[data-look="thread"][data-layout="list"] .hero {
   margin: 0 calc(var(--row-bleed) * -1);
   padding: 16px var(--row-bleed) 14px;
   border: 0;
@@ -239,5 +238,10 @@
 
   [data-look="thread"][data-layout="list"] #trips-view .module-heading {
     padding-top: 20px;
+  }
+
+  /* The panel's edge already closes the column. */
+  [data-look="thread"][data-layout="list"] .trip-card:last-child {
+    border-bottom: 0;
   }
 }

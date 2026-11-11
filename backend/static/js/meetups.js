@@ -1,15 +1,15 @@
+const MEETUP_DATE_FORMAT = new Intl.DateTimeFormat("zh-TW", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
 function meetupDateLabel(value) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : new Intl.DateTimeFormat("zh-TW", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }).format(date);
+  return Number.isNaN(date.getTime()) ? value : MEETUP_DATE_FORMAT.format(date);
 }
 
 // Stops may be legacy name strings or located {name, lat, lng, …} objects.

@@ -45,6 +45,9 @@
   --pop-violet: #8a5cf6;
   --hero-gradient: linear-gradient(135deg, #cf3f17 0%, #c42a5e 55%, #6a3bd0 100%);
   --on-hero: #ffffff;
+  /* The hero's main button: white on the bright gradient, solid on a theme's pale hero. */
+  --hero-action: var(--surface);
+  --on-hero-action: var(--accent-text);
   /* Shadow: cards sit flat; only floating things cast one. */
   --shadow-rgb: 0 0 0;
   --shadow-1: none;
@@ -75,7 +78,9 @@
   /* Fills and materials follow each theme's own ink and surfaces. */
   --fill: color-mix(in srgb, var(--ink) 7%, transparent);
   --fill-strong: color-mix(in srgb, var(--ink) 12%, transparent);
-  --bar-material: color-mix(in srgb, var(--bg) 78%, transparent);
+  /* Bars take a touch of ink, so in every theme they stand apart from the page behind them. */
+  --bar: color-mix(in srgb, var(--ink) 7%, var(--bg));
+  --bar-material: color-mix(in srgb, var(--bar) 90%, transparent);
   --glass: color-mix(in srgb, var(--surface) 72%, transparent);
   --glass-edge: color-mix(in srgb, #ffffff 65%, transparent);
   --thumb: var(--surface);
@@ -132,6 +137,8 @@
 :root[data-palette] {
   --hero-gradient: linear-gradient(135deg, var(--accent-soft) 0%, var(--sunken) 100%);
   --on-hero: var(--ink);
+  --hero-action: var(--accent);
+  --on-hero-action: var(--on-accent);
 }
 
 /* Colour themes, chosen in Settings. Each one fixes its own light or dark base (see

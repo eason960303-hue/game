@@ -235,11 +235,21 @@ viewButtons.forEach((button) => {
   });
 });
 
-function dismissTopDialog(top) {
-  if (top === dialog) closeEntryDialog();
-  else if (top === meetupDialog) closeMeetupDialog();
-  else if (top === mapPointDialog) closeMapPointDialog();
-  else top.close();
+// A form that may hold unsaved work closes through its own function, however it's dismissed:
+// its buttons, Escape (or a sheet dragged down, or back), or a click on the backdrop.
+function guardDialog(guarded, close, ...buttonSelectors) {
+  buttonSelectors.forEach((selector) =>
+    document.querySelector(selector).addEventListener("click", close),
+  );
+  // A file picker closed without a choice also sends "cancel", which bubbles up to here.
+  guarded.addEventListener("cancel", (event) => {
+    if (event.target !== guarded) return;
+    event.preventDefault();
+    close();
+  });
+  guarded.addEventListener("click", (event) => {
+    if (event.target === guarded) close();
+  });
 }
 
 function hasUnsavedForm() {
@@ -262,7 +272,7 @@ window.addEventListener("popstate", () => {
   const openDialogs = document.querySelectorAll("dialog[open]");
   if (openDialogs.length > 0) {
     window.history.pushState(null, "", shownPageUrl);
-    dismissTopDialog(openDialogs[openDialogs.length - 1]);
+    closeSheetLikeEscape(openDialogs[openDialogs.length - 1]);
     return;
   }
   rememberPage();
@@ -344,16 +354,7 @@ profileAvatarInput.addEventListener("change", async () => {
   if (!file) return;
   profileEditStatus.textContent = "";
   try {
-    if (file.size > MAX_IMAGE_SOURCE_BYTES) {
-      throw new Error("圖片太大，請選擇 25 MB 以下的檔案。");
-    }
-    let blob;
-    try {
-      blob = await cropImageToJpeg(file, AVATAR_SIZE, AVATAR_SIZE, 0.9);
-    } catch {
-      blob = null;
-    }
-    if (!blob) throw new Error("無法讀取這張圖片，請改用 JPG、PNG 或 WebP。");
+    const blob = await imageUploadBlob(file, { width: AVATAR_SIZE, height: AVATAR_SIZE }, 0.9);
     if (avatarPreviewObjectUrl) URL.revokeObjectURL(avatarPreviewObjectUrl);
     avatarPreviewObjectUrl = URL.createObjectURL(blob);
     pendingAvatarBlob = blob;
@@ -421,11 +422,7 @@ profileEditForm.addEventListener("submit", async (event) => {
       }),
     );
     if (pendingAvatarBlob) {
-      await apiRequest("/user/avatar", {
-        method: "POST",
-        headers: { "Content-Type": pendingAvatarBlob.type },
-        body: pendingAvatarBlob,
-      });
+      await apiRequest("/user/avatar", blobOptions(pendingAvatarBlob));
     } else if (avatarRemovalPending) {
       await apiRequest("/user/avatar", { method: "DELETE" });
     }

@@ -42,9 +42,6 @@ loginModeToggle.addEventListener("click", () => {
   document.querySelector("#login-title").textContent = registering
     ? "建立生活記錄帳號"
     : "登入生活記錄";
-  document.querySelector("#login-description").textContent = registering
-    ? "註冊後即可開始記錄你的日記與足跡。"
-    : "登入後即可管理你的日記、足跡與行程。";
   loginSubmitButton.textContent = registering ? "註冊並登入" : "登入";
   loginModeToggle.textContent = registering
     ? "已經有帳號？登入"

@@ -40,16 +40,10 @@ function setMeetupTimeMode(mode, copyValues = true) {
 const meetupFootprintField = document.querySelector("#meetup-footprint-field");
 const meetupFootprintPick = document.querySelector("#meetup-footprint-pick");
 
-function meetupFootprintStops(point) {
-  return footprintRoutePoints(point)
-    .map((stop) => (stop.name || "").trim())
-    .filter(Boolean);
-}
-
 // Only your own trips, and only ones that still have places to reuse.
 function showPastFootprints() {
   const footprints = mapPoints.filter(
-    (point) => point.is_owner && meetupFootprintStops(point).length > 0,
+    (point) => point.is_owner && footprintStopNames(point).length > 0,
   );
   meetupFootprintField.hidden = footprints.length === 0;
   meetupFootprintPick.replaceChildren(
@@ -57,7 +51,7 @@ function showPastFootprints() {
     ...footprints.map((point) => {
       const option = document.createElement("option");
       option.value = String(point.id);
-      option.textContent = `${point.name}（${meetupFootprintStops(point).length} 站）`;
+      option.textContent = `${point.name}（${footprintStopNames(point).length} 站）`;
       return option;
     }),
   );
@@ -72,7 +66,7 @@ meetupFootprintPick.addEventListener("change", () => {
   if (!point) return;
   const field = meetupForm.elements.destinations;
   const typed = field.value.trim();
-  const stops = meetupFootprintStops(point).join("\n");
+  const stops = footprintStopNames(point).join("\n");
   // Added after what's there, so it can extend a route as well as start one.
   field.value = typed ? `${typed}\n${stops}` : stops;
 });
@@ -121,7 +115,7 @@ function editMeetup(meetup) {
   }
   meetupForm.elements.destinations.value = [meetup.origin, ...meetup.destinations]
     .filter(Boolean)
-    .map((stop) => (typeof stop === "string" ? stop : stop.name))
+    .map(meetupStopName)
     .join("\n");
   showMeetupDialog();
 }
@@ -242,22 +236,7 @@ document.querySelectorAll("[data-meetup-time-mode]").forEach((button) => {
   });
 });
 
-document
-  .querySelector("#meetup-dismiss")
-  .addEventListener("click", closeMeetupDialog);
-document
-  .querySelector("#meetup-cancel")
-  .addEventListener("click", closeMeetupDialog);
-
-meetupDialog.addEventListener("cancel", (event) => {
-  if (event.target !== meetupDialog) return;
-  event.preventDefault();
-  closeMeetupDialog();
-});
-
-meetupDialog.addEventListener("click", (event) => {
-  if (event.target === meetupDialog) closeMeetupDialog();
-});
+guardDialog(meetupDialog, closeMeetupDialog, "#meetup-dismiss", "#meetup-cancel");
 
 document.querySelector("#meetup-retry").addEventListener("click", loadMeetups);
 

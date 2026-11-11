@@ -71,8 +71,7 @@ h2,
 }
 
 /* Bell and gear: round glass buttons */
-.account-logout,
-#settings-open {
+.account-logout {
   display: inline-grid;
   width: 36px;
   min-width: 36px;
@@ -86,8 +85,7 @@ h2,
   color: var(--ink);
 }
 
-.account-logout svg,
-#settings-open svg {
+.account-logout svg {
   width: 20px;
   height: 20px;
 }
@@ -133,8 +131,7 @@ h2,
     stroke-width: 1.8;
   }
 
-  .nav-link[aria-current="page"],
-  .nav-link[aria-current="page"]:hover {
+  .nav-link[aria-current="page"] {
     color: var(--accent-text);
   }
 
@@ -196,13 +193,7 @@ h2,
 .timeline-footprint-card:hover,
 .trip-card:hover,
 .profile-post-tile:hover {
-  transform: none;
   border-color: transparent;
-  box-shadow: none;
-}
-
-.hero {
-  border-radius: var(--r-xl);
   box-shadow: none;
 }
 
@@ -223,12 +214,9 @@ h2,
 
 /* Prominent: a filled capsule, no glow */
 .primary-button,
-.map-google-navigation,
-.primary-button:hover,
-.map-google-navigation:hover {
+.map-google-navigation {
   border-radius: var(--r-pill);
   box-shadow: none;
-  transform: none;
 }
 
 .primary-button {
@@ -331,7 +319,6 @@ a.secondary-button {
 .hero-chip:not(:disabled):active,
 .icon-button:not(:disabled):active,
 .account-logout:not(:disabled):active,
-#settings-open:not(:disabled):active,
 .nav-link:active {
   opacity: 0.55;
   transition: none;

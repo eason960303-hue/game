@@ -41,7 +41,6 @@ const profileEditSaveButton = document.querySelector("#profile-edit-save");
 const profileSocialDialog = document.querySelector("#profile-social-dialog");
 const profileSocialList = document.querySelector("#profile-social-list");
 const profileSocialTitle = document.querySelector("#profile-social-title");
-const profileSocialDescription = document.querySelector("#profile-social-description");
 const aiDiaryView = document.querySelector("#ai-diary-view");
 const aiChatForm = document.querySelector("#ai-chat-form");
 const aiChatInput = document.querySelector("#ai-chat-input");

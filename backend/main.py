@@ -776,6 +776,12 @@ def init_feature_tables() -> None:
             "CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions(expires_at)"
         )
         conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_trip_map_points_point ON trip_map_points(map_point_id)"
+        )
+        conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_user_follows_followed ON user_follows(followed_id, follower_id)"
         )
         conn.execute(
@@ -960,13 +966,19 @@ def assign_legacy_data_to_first_user(conn: sqlite3.Connection, user_id: int) -> 
         )
 
 
+# Tokens sent to people (sessions, links in emails, sign-in states) are stored only as this
+# digest, so the stored side and the lookup side must hash the same way.
+def token_digest(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 def issue_session(response: Response, user_id: int) -> None:
     session_token = secrets.token_urlsafe(32)
     expires_at = int(time.time()) + SESSION_TTL_SECONDS
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO auth_sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
-            (hashlib.sha256(session_token.encode()).hexdigest(), user_id, expires_at),
+            (token_digest(session_token), user_id, expires_at),
         )
         conn.commit()
     response.set_cookie(
@@ -1061,7 +1073,7 @@ def create_email_verification(
         VALUES (?, ?, ?, ?, ?, ?)
         """,
         (
-            hashlib.sha256(token.encode()).hexdigest(),
+            token_digest(token),
             user_id,
             pending_password_hash,
             pending_display_name,
@@ -1124,7 +1136,7 @@ def get_current_user(request: Request) -> dict[str, Any]:
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         raise HTTPException(status_code=401, detail="請先登入")
-    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    token_hash = token_digest(token)
     now = int(time.time())
     with get_connection() as conn:
         row = conn.execute(
@@ -1146,7 +1158,7 @@ def get_optional_user_id(request: Request) -> int | None:
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         return None
-    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    token_hash = token_digest(token)
     with get_connection() as conn:
         row = conn.execute(
             """
@@ -1984,7 +1996,7 @@ def register_account(
 
 @app.post("/api/auth/verify-email")
 def verify_email(verification: EmailVerification) -> dict[str, bool]:
-    token_hash = hashlib.sha256(verification.token.encode()).hexdigest()
+    token_hash = token_digest(verification.token)
     with get_connection() as conn:
         conn.execute("BEGIN IMMEDIATE")
         token = conn.execute(
@@ -2097,7 +2109,7 @@ def forgot_password(request: EmailAddress) -> dict[str, str]:
                     VALUES (?, ?, ?, ?)
                     """,
                     (
-                        hashlib.sha256(reset_token.encode()).hexdigest(),
+                        token_digest(reset_token),
                         user_id,
                         now,
                         now + PASSWORD_RESET_TTL_SECONDS,
@@ -2125,7 +2137,7 @@ def forgot_password(request: EmailAddress) -> dict[str, str]:
 
 @app.post("/api/auth/reset-password")
 def reset_password(reset: PasswordReset) -> dict[str, bool]:
-    token_hash = hashlib.sha256(reset.token.encode()).hexdigest()
+    token_hash = token_digest(reset.token)
     now = int(time.time())
     with get_connection() as conn:
         conn.execute("BEGIN IMMEDIATE")
@@ -2394,6 +2406,25 @@ def entry_post(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
+def footprint_post(
+    row: sqlite3.Row, photos: dict[int, list[dict[str, Any]]], is_owner: bool
+) -> dict[str, Any]:
+    """A footprint as a profile post."""
+    point = map_point_output(dict(row))
+    return {
+        "id": point["id"],
+        "type": "footprint",
+        "title": point["name"],
+        "content": point["note"],
+        "privacy": point["privacy"],
+        "created_at": point["created_at"],
+        "points": point["points"],
+        "cover_url": point["cover_url"],
+        "photos": photos.get(point["id"], []),
+        "is_owner": is_owner,
+    }
+
+
 @app.get("/api/users/{user_id}/profile")
 def get_public_user_profile(
     user_id: int,
@@ -2411,19 +2442,7 @@ def get_public_user_profile(
         if profile is None:
             raise HTTPException(status_code=404, detail="找不到使用者個人檔案")
         # Diaries are only ever shown to their owner.
-        entries = (
-            conn.execute(
-                f"""
-                SELECT entries.*, {OWNER_COLUMNS}, 1 AS is_owner
-                FROM entries JOIN users ON users.id = entries.owner_id
-                WHERE entries.owner_id = ?
-                ORDER BY entries.created_at DESC, entries.id DESC
-                """,
-                (user_id,),
-            ).fetchall()
-            if user_id == user["id"]
-            else []
-        )
+        entries = owned_entries(conn, user_id) if user_id == user["id"] else []
         points = conn.execute(
             f"""
             SELECT map_points.*, {OWNER_COLUMNS},
@@ -2457,22 +2476,7 @@ def get_public_user_profile(
         ).fetchone()
 
     posts = [entry_post(row) for row in entries]
-    for row in points:
-        point = map_point_output(dict(row))
-        posts.append(
-            {
-                "id": point["id"],
-                "type": "footprint",
-                "title": point["name"],
-                "content": point["note"],
-                "privacy": point["privacy"],
-                "created_at": point["created_at"],
-                "points": point["points"],
-                "cover_url": point["cover_url"],
-                "photos": photos.get(point["id"], []),
-                "is_owner": bool(point["is_owner"]),
-            }
-        )
+    posts += [footprint_post(row, photos, bool(row["is_owner"])) for row in points]
     posts.sort(key=lambda post: (post["created_at"], post["id"]), reverse=True)
     return {
         "profile": {
@@ -2569,6 +2573,27 @@ MAX_FOOTPRINT_PHOTOS = 9
 ENTRY_PHOTO_DIR = DB_PATH.parent / "entry-photos"
 ENTRY_PHOTO_URL_PREFIX = "/api/entry-photos/"
 STORED_IMAGE_PATTERN = re.compile(r"[0-9a-f]{32}\.(?:jpg|png|webp)")
+
+
+# An uploaded picture goes only to someone `sql` finds it for; `sql` is given the picture's URL
+# and then `params`. Anyone else gets the same 404 as for a picture that doesn't exist.
+def private_image_response(
+    filename: str,
+    url_prefix: str,
+    directory: Path,
+    sql: str,
+    params: tuple[Any, ...],
+    not_found: str,
+    cache_control: str,
+) -> FileResponse:
+    if not STORED_IMAGE_PATTERN.fullmatch(filename):
+        raise HTTPException(status_code=404, detail=not_found)
+    with get_connection() as conn:
+        found = conn.execute(sql, (f"{url_prefix}{filename}", *params)).fetchone()
+    path = directory / filename
+    if found is None or not path.is_file():
+        raise HTTPException(status_code=404, detail=not_found)
+    return FileResponse(path, headers={"Cache-Control": cache_control})
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 
@@ -2740,29 +2765,35 @@ def get_footprint_cover(
     filename: str,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> FileResponse:
-    if not STORED_IMAGE_PATTERN.fullmatch(filename):
-        raise HTTPException(status_code=404, detail="找不到足跡背景照片")
-    cover_url = f"{FOOTPRINT_COVER_URL_PREFIX}{filename}"
-    point_filter = visible_content_filter()
-    with get_connection() as conn:
-        point = conn.execute(
-            f"""
-            SELECT map_points.id
-            FROM map_points
-            JOIN users ON users.id = map_points.owner_id
-            WHERE map_points.cover_url = ? AND ({point_filter})
-            """,
-            (cover_url, user["id"], user["id"], user["id"]),
-        ).fetchone()
-    path = FOOTPRINT_COVER_DIR / filename
-    if point is None or not path.is_file():
-        raise HTTPException(status_code=404, detail="找不到足跡背景照片")
-    return FileResponse(path, headers={"Cache-Control": "private, no-store"})
+    return private_image_response(
+        filename,
+        FOOTPRINT_COVER_URL_PREFIX,
+        FOOTPRINT_COVER_DIR,
+        f"""
+        SELECT map_points.id
+        FROM map_points
+        JOIN users ON users.id = map_points.owner_id
+        WHERE map_points.cover_url = ? AND ({visible_content_filter()})
+        """,
+        (user["id"], user["id"], user["id"]),
+        "找不到足跡背景照片",
+        # Privacy can change later, so no copy may outlive this check.
+        "private, no-store",
+    )
 
 
 def remove_footprint_photo_files(urls: list[str]) -> None:
     for url in urls:
         remove_stored_image(url, FOOTPRINT_PHOTO_URL_PREFIX, FOOTPRINT_PHOTO_DIR)
+
+
+def photos_by_point(rows: Iterable[sqlite3.Row]) -> dict[int, list[dict[str, Any]]]:
+    photos: dict[int, list[dict[str, Any]]] = {}
+    for row in rows:
+        photos.setdefault(row["map_point_id"], []).append(
+            {"id": row["id"], "url": row["url"]}
+        )
+    return photos
 
 
 # Keyed by footprint, so a list of posts can look up each one's photos without a query per post.
@@ -2779,34 +2810,26 @@ def footprint_photos_by_point(
         """,
         (owner_id,),
     ).fetchall()
-    photos: dict[int, list[dict[str, Any]]] = {}
-    for row in rows:
-        photos.setdefault(row["map_point_id"], []).append(
-            {"id": row["id"], "url": row["url"]}
-        )
-    return photos
+    return photos_by_point(rows)
 
 
 # The same, for a chosen set of footprints, such as the ones in a list of trips.
 def footprint_photos_for_points(
     conn: sqlite3.Connection, point_ids: list[int]
 ) -> dict[int, list[dict[str, Any]]]:
-    photos: dict[int, list[dict[str, Any]]] = {}
     if not point_ids:
-        return photos
+        return {}
     marks = ",".join("?" * len(point_ids))
-    for row in conn.execute(
-        f"""
-        SELECT id, map_point_id, url FROM footprint_photos
-        WHERE map_point_id IN ({marks})
-        ORDER BY id
-        """,
-        point_ids,
-    ):
-        photos.setdefault(row["map_point_id"], []).append(
-            {"id": row["id"], "url": row["url"]}
+    return photos_by_point(
+        conn.execute(
+            f"""
+            SELECT id, map_point_id, url FROM footprint_photos
+            WHERE map_point_id IN ({marks})
+            ORDER BY id
+            """,
+            point_ids,
         )
-    return photos
+    )
 
 
 def require_footprint_photo_room(conn: sqlite3.Connection, point_id: int) -> None:
@@ -2883,26 +2906,22 @@ def get_footprint_photo(
     filename: str,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> FileResponse:
-    if not STORED_IMAGE_PATTERN.fullmatch(filename):
-        raise HTTPException(status_code=404, detail="找不到足跡照片")
-    url = f"{FOOTPRINT_PHOTO_URL_PREFIX}{filename}"
-    point_filter = visible_content_filter()
-    with get_connection() as conn:
-        photo = conn.execute(
-            f"""
-            SELECT footprint_photos.id
-            FROM footprint_photos
-            JOIN map_points ON map_points.id = footprint_photos.map_point_id
-            JOIN users ON users.id = map_points.owner_id
-            WHERE footprint_photos.url = ? AND ({point_filter})
-            """,
-            (url, user["id"], user["id"], user["id"]),
-        ).fetchone()
-    path = FOOTPRINT_PHOTO_DIR / filename
-    if photo is None or not path.is_file():
-        raise HTTPException(status_code=404, detail="找不到足跡照片")
-    # Privacy can change later, so no copy may outlive this check.
-    return FileResponse(path, headers={"Cache-Control": "private, no-store"})
+    return private_image_response(
+        filename,
+        FOOTPRINT_PHOTO_URL_PREFIX,
+        FOOTPRINT_PHOTO_DIR,
+        f"""
+        SELECT footprint_photos.id
+        FROM footprint_photos
+        JOIN map_points ON map_points.id = footprint_photos.map_point_id
+        JOIN users ON users.id = map_points.owner_id
+        WHERE footprint_photos.url = ? AND ({visible_content_filter()})
+        """,
+        (user["id"], user["id"], user["id"]),
+        "找不到足跡照片",
+        # Privacy can change later, so no copy may outlive this check.
+        "private, no-store",
+    )
 
 
 @app.get("/api/user/posts")
@@ -2929,25 +2948,15 @@ def list_user_posts(
         photos = footprint_photos_by_point(conn, user["id"])
 
     posts = [entry_post(row) for row in entries]
-    for row in footprints:
-        footprint = map_point_output(dict(row))
-        posts.append(
-            {
-                "id": footprint["id"],
-                "type": "footprint",
-                "title": footprint["name"],
-                "content": footprint["note"],
-                "mood": None,
-                "location": footprint["name"],
-                "privacy": footprint["privacy"],
-                "tags": None,
-                "created_at": footprint["created_at"],
-                "is_owner": True,
-                "points": footprint["points"],
-                "cover_url": footprint["cover_url"],
-                "photos": photos.get(footprint["id"], []),
-            }
-        )
+    posts += [
+        {
+            **footprint_post(row, photos, True),
+            "mood": None,
+            "location": row["name"],
+            "tags": None,
+        }
+        for row in footprints
+    ]
     posts.sort(
         key=lambda post: (post["created_at"], post["id"]),
         reverse=True,
@@ -2962,7 +2971,7 @@ def logout(request: Request, response: Response) -> dict[str, bool]:
         with get_connection() as conn:
             conn.execute(
                 "DELETE FROM auth_sessions WHERE token_hash = ?",
-                (hashlib.sha256(token.encode()).hexdigest(),),
+                (token_digest(token),),
             )
             conn.commit()
     response.delete_cookie(SESSION_COOKIE, path="/", samesite="lax")
@@ -3000,7 +3009,7 @@ def begin_oauth(provider: str, app_challenge: str = "") -> RedirectResponse:
             VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
-                hashlib.sha256(state.encode()).hexdigest(),
+                token_digest(state),
                 provider,
                 nonce,
                 verifier,
@@ -3057,7 +3066,7 @@ def complete_oauth(
     cookie_state = request.cookies.get(OAUTH_STATE_COOKIE, "")
     if not cookie_state or not hmac.compare_digest(cookie_state, state):
         raise HTTPException(status_code=400, detail="登入驗證已失效，請重新開始")
-    state_hash = hashlib.sha256(state.encode()).hexdigest()
+    state_hash = token_digest(state)
     with get_connection() as conn:
         oauth_state = conn.execute(
             """
@@ -3095,7 +3104,7 @@ def complete_oauth(
                 VALUES (?, ?, ?, ?)
                 """,
                 (
-                    hashlib.sha256(app_code.encode()).hexdigest(),
+                    token_digest(app_code),
                     user["id"],
                     app_challenge,
                     now + APP_AUTH_CODE_TTL_SECONDS,
@@ -3114,7 +3123,7 @@ def fail_oauth(provider: str, state: str, message: str) -> RedirectResponse:
     with get_connection() as conn:
         oauth_state = conn.execute(
             "SELECT app_challenge FROM oauth_states WHERE state_hash = ? AND provider = ?",
-            (hashlib.sha256(state.encode()).hexdigest(), provider),
+            (token_digest(state), provider),
         ).fetchone()
     if oauth_state is not None and oauth_state["app_challenge"]:
         return app_callback_redirect(error=message)
@@ -3123,7 +3132,7 @@ def fail_oauth(provider: str, state: str, message: str) -> RedirectResponse:
 
 @app.post("/api/auth/app-exchange")
 def exchange_app_code(request: AppCodeExchange, response: Response) -> dict[str, Any]:
-    code_hash = hashlib.sha256(request.code.encode()).hexdigest()
+    code_hash = token_digest(request.code)
     challenge = base64.urlsafe_b64encode(
         hashlib.sha256(request.verifier.encode()).digest()
     ).decode("ascii").rstrip("=")
@@ -3185,17 +3194,7 @@ async def apple_callback(request: Request) -> RedirectResponse:
 @app.get("/api/entries", response_model=list[EntryOut])
 def list_entries(user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
     with get_connection() as conn:
-        rows = conn.execute(
-            f"""
-            SELECT entries.*, {OWNER_COLUMNS},
-                   (entries.owner_id = ?) AS is_owner
-            FROM entries
-            JOIN users ON users.id = entries.owner_id
-            WHERE entries.owner_id = ?
-            ORDER BY entries.created_at DESC, entries.id DESC
-            """,
-            (user["id"], user["id"]),
-        ).fetchall()
+        rows = owned_entries(conn, user["id"])
     return [dict(row) for row in rows]
 
 
@@ -3266,16 +3265,25 @@ def visible_content_filter(table: str = "map_points") -> str:
     """
 
 
+OWNED_ENTRIES_SQL = f"""
+    SELECT entries.*, {OWNER_COLUMNS}, 1 AS is_owner
+    FROM entries JOIN users ON users.id = entries.owner_id
+    WHERE entries.owner_id = ?
+"""
+
+
+def owned_entries(conn: sqlite3.Connection, user_id: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        f"{OWNED_ENTRIES_SQL} ORDER BY entries.created_at DESC, entries.id DESC",
+        (user_id,),
+    ).fetchall()
+
+
 def owned_entry_row(
     conn: sqlite3.Connection, entry_id: int, user_id: int
 ) -> Optional[sqlite3.Row]:
     return conn.execute(
-        f"""
-        SELECT entries.*, {OWNER_COLUMNS}, 1 AS is_owner
-        FROM entries JOIN users ON users.id = entries.owner_id
-        WHERE entries.id = ? AND entries.owner_id = ?
-        """,
-        (entry_id, user_id),
+        f"{OWNED_ENTRIES_SQL} AND entries.id = ?", (user_id, entry_id)
     ).fetchone()
 
 
@@ -3460,21 +3468,16 @@ def get_entry_photo(
     filename: str,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> FileResponse:
-    if not STORED_IMAGE_PATTERN.fullmatch(filename):
-        raise HTTPException(status_code=404, detail="找不到日記照片")
-    photo_url = f"{ENTRY_PHOTO_URL_PREFIX}{filename}"
     # Like the diary it belongs to, a photo is visible to its owner only.
-    with get_connection() as conn:
-        entry = conn.execute(
-            "SELECT id FROM entries WHERE photo_url = ? AND owner_id = ?",
-            (photo_url, user["id"]),
-        ).fetchone()
-    path = ENTRY_PHOTO_DIR / filename
-    if entry is None or not path.is_file():
-        raise HTTPException(status_code=404, detail="找不到日記照片")
-    # A new upload gets a new name, so a stored file never changes.
-    return FileResponse(
-        path, headers={"Cache-Control": "private, max-age=31536000, immutable"}
+    return private_image_response(
+        filename,
+        ENTRY_PHOTO_URL_PREFIX,
+        ENTRY_PHOTO_DIR,
+        "SELECT id FROM entries WHERE photo_url = ? AND owner_id = ?",
+        (user["id"],),
+        "找不到日記照片",
+        # A new upload gets a new name, so a stored file never changes.
+        "private, max-age=31536000, immutable",
     )
 
 
@@ -4418,6 +4421,27 @@ def delete_map_point(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+# One person's like or save; adding or removing it twice changes nothing.
+def apply_reaction(
+    conn: sqlite3.Connection,
+    table: str,
+    parent_column: str,
+    parent_id: int,
+    user_id: int,
+    active: bool,
+) -> None:
+    if active:
+        conn.execute(
+            f"INSERT OR IGNORE INTO {table} ({parent_column}, user_id) VALUES (?, ?)",
+            (parent_id, user_id),
+        )
+    else:
+        conn.execute(
+            f"DELETE FROM {table} WHERE {parent_column} = ? AND user_id = ?",
+            (parent_id, user_id),
+        )
+
+
 def set_map_point_reaction(
     kind: str, point_id: int, user_id: int, active: bool
 ) -> dict[str, Any]:
@@ -4430,16 +4454,7 @@ def set_map_point_reaction(
         ).fetchone()
         if not visible:
             raise HTTPException(status_code=404, detail="找不到這個足跡")
-        if active:
-            conn.execute(
-                f"INSERT OR IGNORE INTO {table} (map_point_id, user_id) VALUES (?, ?)",
-                (point_id, user_id),
-            )
-        else:
-            conn.execute(
-                f"DELETE FROM {table} WHERE map_point_id = ? AND user_id = ?",
-                (point_id, user_id),
-            )
+        apply_reaction(conn, table, "map_point_id", point_id, user_id, active)
         row = conn.execute(
             f"SELECT {MAP_POINT_REACTION_COLUMNS} FROM map_points WHERE id = ?",
             (user_id, user_id, point_id),
@@ -5235,7 +5250,7 @@ def request_account_deletion_email(
             VALUES (?, ?, ?, ?)
             """,
             (
-                hashlib.sha256(token.encode()).hexdigest(),
+                token_digest(token),
                 user["id"],
                 now,
                 now + ACCOUNT_DELETION_TTL_SECONDS,
@@ -5265,7 +5280,7 @@ def confirm_account_deletion(link: AccountDeletionLink) -> dict[str, bool]:
             SELECT user_id FROM account_deletion_tokens
             WHERE token_hash = ? AND expires_at > ?
             """,
-            (hashlib.sha256(link.token.encode()).hexdigest(), int(time.time())),
+            (token_digest(link.token), int(time.time())),
         ).fetchone()
         if token is None:
             raise HTTPException(status_code=400, detail="確認連結無效或已過期，請重新申請")
@@ -5299,7 +5314,9 @@ def join_meetup(
                 (meetup_id,),
             ).fetchone()[0]
             if count >= MEETUP_PARTICIPANT_LIMIT:
-                raise HTTPException(status_code=409, detail="這個揪團已達 10 人上限")
+                raise HTTPException(
+                    status_code=409, detail=f"這個揪團已達 {MEETUP_PARTICIPANT_LIMIT} 人上限"
+                )
             conn.execute(
                 "INSERT INTO meetup_participants (meetup_id, user_id) VALUES (?, ?)",
                 (meetup_id, user["id"]),
@@ -5759,16 +5776,7 @@ def set_trip_reaction(
         ).fetchone()
         if not visible:
             raise HTTPException(status_code=404, detail="找不到這個行程")
-        if active:
-            conn.execute(
-                f"INSERT OR IGNORE INTO {table} (trip_id, user_id) VALUES (?, ?)",
-                (trip_id, user_id),
-            )
-        else:
-            conn.execute(
-                f"DELETE FROM {table} WHERE trip_id = ? AND user_id = ?",
-                (trip_id, user_id),
-            )
+        apply_reaction(conn, table, "trip_id", trip_id, user_id, active)
         row = conn.execute(
             """
             SELECT
@@ -5928,19 +5936,10 @@ def get_entry(
     entry_id: int, user: dict[str, Any] = Depends(get_current_user)
 ) -> dict[str, Any]:
     with get_connection() as conn:
-        row = conn.execute(
-            f"""
-            SELECT entries.*, {OWNER_COLUMNS},
-                   (entries.owner_id = ?) AS is_owner
-            FROM entries
-            JOIN users ON users.id = entries.owner_id
-            WHERE entries.id = ? AND entries.owner_id = ?
-            """,
-            (user["id"], entry_id, user["id"]),
-        ).fetchone()
+        row = owned_entry_row(conn, entry_id, user["id"])
     if row is None:
         raise HTTPException(status_code=404, detail="Entry not found")
-    return {**dict(row), "is_owner": bool(row["is_owner"])}
+    return dict(row)
 
 
 @app.get("/api/location-points", response_model=list[LocationLogOut])

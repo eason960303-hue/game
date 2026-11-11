@@ -40,11 +40,7 @@ const copiedTripIds = new Set();
 
 // Every stop of the trip, in the order you'd travel them.
 function tripStops(trip) {
-  return trip.points.flatMap((point) =>
-    footprintRoutePoints(point)
-      .map((stop) => (stop.name || "").trim())
-      .filter(Boolean),
-  );
+  return trip.points.flatMap(footprintStopNames);
 }
 
 function tripRegion(trip) {
@@ -120,11 +116,9 @@ function tripRouteHtml(trip) {
 // Every photo along the trip, footprint by footprint: its cover first, then its trip photos.
 function tripPhotos(trip) {
   const seen = new Set();
-  return trip.points.flatMap((point) =>
-    [point.cover_url, ...(point.photos || []).map((photo) => photo.url)]
-      .filter((url) => url && !seen.has(url) && seen.add(url))
-      .map((url) => ({ url, caption: point.name })),
-  );
+  return trip.points
+    .flatMap(mapPointPhotos)
+    .filter(({ url }) => !seen.has(url) && seen.add(url));
 }
 
 const STRIP_PHOTOS_SHOWN = 3;
@@ -164,11 +158,11 @@ function tripReactionsHtml(trip) {
   return `
     <div class="footprint-reactions trip-reactions">
       <button class="footprint-reaction is-like" type="button" data-trip-reaction="like" data-trip-id="${trip.id}" aria-pressed="${Boolean(trip.is_liked)}" aria-label="按愛心，目前 ${likes} 個愛心">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5S3.5 15.4 3.5 9.2A4.7 4.7 0 0 1 12 6.5a4.7 4.7 0 0 1 8.5 2.7c0 6.2-8.5 11.3-8.5 11.3z"/></svg>
+        ${LIKE_ICON}
         <span>${likes}</span>
       </button>
       <button class="footprint-reaction is-save" type="button" data-trip-reaction="save" data-trip-id="${trip.id}" aria-pressed="${Boolean(trip.is_saved)}" aria-label="收藏這個行程">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11a1 1 0 0 1 1 1v16l-6.5-4.5-6.5 4.5v-16a1 1 0 0 1 1-1z"/></svg>
+        ${SAVE_ICON}
         <span>${trip.is_saved ? "已收藏" : "收藏"}</span>
       </button>
     </div>

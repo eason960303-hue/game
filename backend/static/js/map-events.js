@@ -6,19 +6,7 @@ document.querySelector("#open-entry").addEventListener("click", () => {
   openEntryEditor();
 });
 
-document.querySelector("#close-dialog").addEventListener("click", closeEntryDialog);
-document.querySelector("#dismiss-dialog").addEventListener("click", closeEntryDialog);
-
-// A file picker closed without a choice also sends "cancel", which bubbles up to here.
-dialog.addEventListener("cancel", (event) => {
-  if (event.target !== dialog) return;
-  event.preventDefault();
-  closeEntryDialog();
-});
-
-dialog.addEventListener("click", (event) => {
-  if (event.target === dialog) closeEntryDialog();
-});
+guardDialog(dialog, closeEntryDialog, "#close-dialog", "#dismiss-dialog");
 
 document.querySelector("#refresh-server-status").addEventListener(
   "click",
@@ -34,22 +22,7 @@ document
   .querySelector("#cancel-map-pick")
   .addEventListener("click", resumeMapPointForm);
 
-document
-  .querySelector("#map-point-dismiss")
-  .addEventListener("click", closeMapPointDialog);
-document
-  .querySelector("#map-point-cancel")
-  .addEventListener("click", closeMapPointDialog);
-
-mapPointDialog.addEventListener("cancel", (event) => {
-  if (event.target !== mapPointDialog) return;
-  event.preventDefault();
-  closeMapPointDialog();
-});
-
-mapPointDialog.addEventListener("click", (event) => {
-  if (event.target === mapPointDialog) closeMapPointDialog();
-});
+guardDialog(mapPointDialog, closeMapPointDialog, "#map-point-dismiss", "#map-point-cancel");
 
 document.querySelector("#map-point-delete").addEventListener("click", async () => {
   const status = document.querySelector("#map-form-status");

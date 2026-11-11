@@ -34,8 +34,10 @@ form.addEventListener("submit", async (event) => {
     dialog.close();
     resetEntryEditor();
     showToast(wasEditing ? "已更新日記" : "已儲存日記");
-    await loadEntries();
-    if (!profileView.hidden && currentUser) await loadProfile();
+    await Promise.all([
+      loadEntries(),
+      !profileView.hidden && currentUser ? loadProfile() : null,
+    ]);
   } catch (error) {
     statusMessage.textContent = error.message;
   } finally {
@@ -47,11 +49,7 @@ form.addEventListener("submit", async (event) => {
 
 async function saveEntryPhoto(entryId, photoBlob) {
   if (photoBlob) {
-    await apiRequest(`/entries/${entryId}/photo`, {
-      method: "POST",
-      headers: { "Content-Type": photoBlob.type },
-      body: photoBlob,
-    });
+    await apiRequest(`/entries/${entryId}/photo`, blobOptions(photoBlob));
   } else if (entryPhotoRemoved) {
     await apiRequest(`/entries/${entryId}/photo`, { method: "DELETE" });
   }

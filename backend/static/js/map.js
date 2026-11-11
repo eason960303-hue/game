@@ -593,6 +593,13 @@ function footprintRoutePoints(point) {
   ];
 }
 
+// The footprint's stops by name, in order, for a trip's search text or a meetup's route.
+function footprintStopNames(point) {
+  return footprintRoutePoints(point)
+    .map((stop) => (stop.name || "").trim())
+    .filter(Boolean);
+}
+
 function mapMarkerContent(isSelected, order) {
   const shell = document.createElement("div");
   shell.className = "footprint-marker-shell";
@@ -772,9 +779,6 @@ function selectMapPoint(pointId) {
 
 function setMapPointDialogMode(isEditing) {
   mapPointDialogTitle.textContent = isEditing ? "編輯足跡" : "新增足跡";
-  document.querySelector("#map-point-dialog-description").textContent = isEditing
-    ? "修改內容、調整站點順序，或刪除這趟足跡。"
-    : "照順序記下這趟走過的地方，一站也可以。";
   mapPointSaveButton.textContent = isEditing ? "儲存變更" : "儲存足跡";
   document.querySelector("#map-point-delete").hidden = !isEditing;
 }
@@ -785,13 +789,9 @@ const mapFormPhotoInput = document.querySelector("#map-form-photo-input");
 const mapFormPhotoAdd = document.querySelector("#map-form-photo-add");
 const mapFormPhotoNote = document.querySelector("#map-form-photo-note");
 let mapFormPhotos = { saved: [], removedIds: new Set(), added: [], busy: false };
-let nextMapFormPhotoId = 1;
 
 function mapFormShownPhotos() {
-  return [
-    ...mapFormPhotos.saved.filter((photo) => !mapFormPhotos.removedIds.has(photo.id)),
-    ...mapFormPhotos.added,
-  ];
+  return photosWithDraft(mapFormPhotos.saved, mapFormPhotos);
 }
 
 function renderMapFormPhotos(message = "") {
@@ -811,8 +811,8 @@ function renderMapFormPhotos(message = "") {
   mapFormPhotoNote.textContent =
     message ||
     (shown.length
-      ? `${shown.length} / ${MAX_FOOTPRINT_PHOTOS} 張，按「儲存足跡」時一起上傳。誰能看照片跟著這趟足跡的設定。`
-      : `最多 ${MAX_FOOTPRINT_PHOTOS} 張。誰能看照片跟著這趟足跡的設定。`);
+      ? `${shown.length} / ${MAX_FOOTPRINT_PHOTOS} 張，按「儲存足跡」時一起上傳。`
+      : `最多 ${MAX_FOOTPRINT_PHOTOS} 張。`);
 }
 
 function resetMapFormPhotos(saved = []) {
@@ -825,27 +825,12 @@ function resetMapFormPhotos(saved = []) {
 mapFormPhotoInput.addEventListener("change", async () => {
   const files = [...mapFormPhotoInput.files];
   mapFormPhotoInput.value = "";
-  const chosen = files.slice(0, MAX_FOOTPRINT_PHOTOS - mapFormShownPhotos().length);
-  const notes = [];
+  const room = MAX_FOOTPRINT_PHOTOS - mapFormShownPhotos().length;
   mapFormPhotos.busy = true;
   renderMapFormPhotos("正在處理照片…");
-  for (const file of chosen) {
-    try {
-      const blob = await entryPhotoBlob(file);
-      mapFormPhotos.added.push({
-        draftId: nextMapFormPhotoId++,
-        blob,
-        url: URL.createObjectURL(blob),
-      });
-    } catch (error) {
-      notes.push(`${file.name}：${error.message}`);
-    }
-  }
-  if (files.length > chosen.length) {
-    notes.push(`超過 ${MAX_FOOTPRINT_PHOTOS} 張上限，略過 ${files.length - chosen.length} 張。`);
-  }
+  const notes = await addPhotosToDraft(mapFormPhotos, files, room);
   mapFormPhotos.busy = false;
-  renderMapFormPhotos(notes.join(" "));
+  renderMapFormPhotos(notes);
 });
 
 mapFormPhotoGrid.addEventListener("click", (event) => {
@@ -865,21 +850,12 @@ mapFormPhotoGrid.addEventListener("click", (event) => {
 // Runs once the footprint itself is saved: removals first, which frees room, then uploads.
 async function saveMapFormPhotos(pointId, status) {
   for (const photoId of mapFormPhotos.removedIds) {
-    try {
-      await apiRequest(`/map-points/${pointId}/photos/${photoId}`, { method: "DELETE" });
-    } catch (error) {
-      // Already gone, for example deleted in another window: the goal is met.
-      if (error.status !== 404) throw error;
-    }
+    await deleteFootprintPhoto(pointId, photoId);
   }
   const total = mapFormPhotos.added.length;
   for (const [index, photo] of mapFormPhotos.added.entries()) {
     status.textContent = `正在上傳照片 ${index + 1} / ${total}…`;
-    await apiRequest(`/map-points/${pointId}/photos`, {
-      method: "POST",
-      headers: { "Content-Type": photo.blob.type },
-      body: photo.blob,
-    });
+    await apiRequest(`/map-points/${pointId}/photos`, blobOptions(photo.blob));
   }
 }
 
@@ -1109,7 +1085,7 @@ function mapPointCardHtml(point) {
       </ol>
       <button class="secondary-button map-point-directions" type="button" data-google-route-navigation="${Number(point.id)}">前往 Google 導航</button>
       <div class="map-point-top">
-        <span class="mood is-${escapeHtml(point.privacy)}" data-privacy-badge="point:${Number(point.id)}">${privacyLabel(point.privacy)}</span>
+        ${privacyChipHtml(point.privacy, point.id)}
       </div>
       ${footprintReactionsHtml(point)}
       ${
@@ -1270,7 +1246,7 @@ function renderMapPoints() {
           <label>
             <input type="checkbox" value="${point.id}" data-trip-point>
             ${escapeHtml(point.name)}
-            <span class="mood is-${escapeHtml(point.privacy)}" data-privacy-badge="point:${Number(point.id)}">${privacyLabel(point.privacy)}</span>
+            ${privacyChipHtml(point.privacy, point.id)}
           </label>
         `,
           )

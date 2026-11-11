@@ -13,6 +13,8 @@
   --like: #ff3040;
   --tab-idle: color-mix(in srgb, var(--ink) 30%, var(--bg));
   --switch-on: var(--ink);
+  /* What the tabs sit on: the top bar on a wide screen, a page-coloured bar on a phone. */
+  --tab-bar: var(--bar);
 }
 
 [data-look="thread"]:not([data-palette]) {
@@ -89,11 +91,6 @@
   font-weight: 700;
 }
 
-[data-look="thread"] .module-heading p {
-  color: var(--ink-3);
-  font-size: 15px;
-}
-
 /* Sections are named plainly; the small kicker above each is dropped. */
 [data-look="thread"] :is(.section-heading, .meetup-launcher) .eyebrow {
   display: none;
@@ -118,12 +115,7 @@
   font-size: 13px;
 }
 
-/* ========== Top bar: the page's own colour, no line ========== */
-
-[data-look="thread"] .floating-topbar::before {
-  border-bottom-color: transparent;
-  background: color-mix(in srgb, var(--bg) 86%, transparent);
-}
+/* ========== Top bar ========== */
 
 [data-look="thread"] .brand-mark {
   width: 32px;
@@ -137,16 +129,16 @@
   padding-bottom: 5px;
 }
 
-[data-look="thread"] :is(.account-logout, #settings-open) {
+[data-look="thread"] .account-logout {
   background: transparent;
   color: var(--ink);
 }
 
-[data-look="thread"] :is(.account-logout, #settings-open):hover {
+[data-look="thread"] .account-logout:hover {
   background: var(--tint);
 }
 
-[data-look="thread"] :is(.account-logout, #settings-open) svg {
+[data-look="thread"] .account-logout svg {
   width: 24px;
   height: 24px;
   stroke-width: 1.9;
@@ -179,6 +171,7 @@
 }
 
 [data-look="thread"] .nav-link svg {
+  display: block;
   width: 26px;
   height: 26px;
   stroke-width: 2;
@@ -191,8 +184,8 @@
 /* Lines drawn inside a filled icon are cut out in the bar's colour. */
 [data-look="thread"] .nav-link[aria-current="page"][data-view="ai-diary"] svg path + path,
 [data-look="thread"] .nav-link[aria-current="page"][data-view="map"] svg circle {
-  fill: var(--bg);
-  stroke: var(--bg);
+  fill: var(--tab-bar);
+  stroke: var(--tab-bar);
 }
 
 [data-look="thread"] .nav-link[aria-current="page"][data-view="trips"] svg path {
@@ -200,6 +193,10 @@
 }
 
 @media (max-width: 760px) {
+  [data-look="thread"] {
+    --tab-bar: var(--bg);
+  }
+
   [data-look="thread"] .page.app-shell {
     padding-bottom: calc(84px + env(safe-area-inset-bottom));
   }
@@ -212,7 +209,7 @@
     padding: 0 8px env(safe-area-inset-bottom);
     border: 0;
     border-radius: 0;
-    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    background: color-mix(in srgb, var(--tab-bar) 90%, transparent);
     box-shadow: none;
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
@@ -425,7 +422,7 @@
 
 /* ========== Home: a composer, then the posts ========== */
 
-[data-look="thread"] .page > #home-view > .hero {
+[data-look="thread"] .hero {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr);
   align-items: start;
@@ -440,7 +437,9 @@
   color: var(--ink);
 }
 
-[data-look="thread"] :is(.hero-art, .hero::before, .hero::after) {
+/* Pseudo-elements can't go inside :is(), so the glow is listed on its own. */
+[data-look="thread"] .hero-art,
+[data-look="thread"] .hero::after {
   display: none;
 }
 
@@ -471,6 +470,7 @@
 [data-look="thread"] .hero-copy {
   display: flex;
   min-width: 0;
+  max-width: none;
   flex-flow: row wrap;
   align-items: baseline;
   column-gap: 8px;
@@ -495,14 +495,6 @@
   font-size: 14px;
   font-weight: 400;
   letter-spacing: 0;
-}
-
-[data-look="thread"] .hero-lead {
-  order: 2;
-  flex-basis: 100%;
-  margin: 2px 0 0;
-  color: var(--ink-3);
-  font-size: 15px;
 }
 
 [data-look="thread"] .hero-actions {
@@ -561,7 +553,6 @@
   border-radius: 18px;
   background: var(--surface);
   box-shadow: none;
-  transform: none;
 }
 
 [data-look="thread"] .entry-card .entry-photo {

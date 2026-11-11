@@ -97,10 +97,6 @@ async function openEntryEditor(entryId = null) {
   if (entryId !== null) {
     try {
       const entry = await apiRequest(`/entries/${entryId}`);
-      if (!entry.is_owner) {
-        showToast("只能編輯自己的日記。");
-        return;
-      }
       if (!entryCanBeEdited(entry.created_at)) {
         showToast("發布已超過 24 小時，無法變更內容");
         return;

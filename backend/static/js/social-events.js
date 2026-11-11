@@ -37,9 +37,6 @@ function setTripFormMode(trip = null) {
 
 tripAddFootprintButton.addEventListener("click", () => {
   openNewMapPointDialog(true);
-  mapPointDialogTitle.textContent = "新增足跡";
-  document.querySelector("#map-point-dialog-description").textContent =
-    "儲存後會自動勾選加入行程，你也可以再調整足跡清單。";
 });
 
 tripForm.addEventListener("submit", async (event) => {

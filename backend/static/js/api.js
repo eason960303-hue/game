@@ -69,6 +69,10 @@ function jsonOptions(method, payload) {
   return { method, body: JSON.stringify(payload) };
 }
 
+function blobOptions(blob) {
+  return { method: "POST", headers: { "Content-Type": blob.type }, body: blob };
+}
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (character) => {
     const entities = {
@@ -87,16 +91,16 @@ function serverDate(value) {
   return new Date(`${value.replace(" ", "T")}Z`);
 }
 
+const DATE_FORMAT = new Intl.DateTimeFormat("zh-TW", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 function formatDate(value) {
   if (!value) return "剛剛";
   const date = serverDate(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : new Intl.DateTimeFormat("zh-TW", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(date);
+  return Number.isNaN(date.getTime()) ? value : DATE_FORMAT.format(date);
 }
 
 // Recent things read as "5 分鐘前"; older ones as their date and time.

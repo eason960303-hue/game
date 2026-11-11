@@ -228,25 +228,21 @@ function socialUserButton(person, kind) {
 
 async function openProfileRelations(kind) {
   currentSocialRelation = kind;
-  const { title, description, empty } = {
+  const { title, empty } = {
     followers: {
       title: "粉絲",
-      description: "點選帳號前往對方主頁，或將追蹤你的粉絲加入摯友名單。移除粉絲不會通知對方。",
       empty: "目前沒有粉絲。",
     },
     following: {
       title: "追蹤中",
-      description: "點選帳號前往對方主頁。只有也追蹤你的人可以設為摯友。",
       empty: "目前沒有追蹤中的帳號。",
     },
     requests: {
       title: "追蹤請求",
-      description: "確認後對方會成為粉絲，可以看見你的公開貼文。",
       empty: "目前沒有等待中的追蹤請求。",
     },
   }[kind];
   profileSocialTitle.textContent = title;
-  profileSocialDescription.textContent = description;
   const load = beginListLoad(
     profileSocialList,
     kind,

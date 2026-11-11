@@ -82,7 +82,6 @@
           <div class="hero-copy">
             <p class="eyebrow" id="hero-date">今天</p>
             <h1 id="page-title">我的生活記錄</h1>
-            <p class="hero-lead">今天過得如何？從這裡開始記錄。</p>
             <div class="hero-actions">
               <button class="primary-button" id="open-entry" type="button">
                 <span aria-hidden="true">＋</span>
@@ -178,10 +177,10 @@
               </div>
               <div class="profile-stats" aria-label="個人檔案統計">
                 <span class="profile-stat"><strong id="profile-posts-count">—</strong> 貼文</span>
-                <button class="profile-stat profile-stat-button" id="profile-followers-open" type="button" data-profile-relations="followers" aria-label="查看粉絲">
+                <button class="profile-stat profile-stat-button" type="button" data-profile-relations="followers" aria-label="查看粉絲">
                   <strong id="profile-followers-count">—</strong> 粉絲
                 </button>
-                <button class="profile-stat profile-stat-button" id="profile-following-open" type="button" data-profile-relations="following" aria-label="查看追蹤中">
+                <button class="profile-stat profile-stat-button" type="button" data-profile-relations="following" aria-label="查看追蹤中">
                   <strong id="profile-following-count">—</strong> 追蹤中
                 </button>
                 <button class="profile-stat profile-stat-button profile-requests-button" id="profile-requests-open" type="button" data-profile-relations="requests" hidden>
@@ -232,7 +231,6 @@
             <h1 id="ai-diary-title">AI 日記</h1>
             <button class="secondary-button" type="button" data-empty-action="diary-list">我的日記</button>
           </div>
-          <p>像聊天一樣說今天發生的事，AI 會幫你存成日記。</p>
         </div>
         <div class="ai-diary-layout">
           <section class="module-card ai-chat-card" aria-label="AI 日記對話">
@@ -276,7 +274,6 @@
       <section class="app-view module-view" id="map-view" hidden aria-labelledby="map-title">
         <div class="module-heading">
           <h1 id="map-title">足跡</h1>
-          <p>展開一趟足跡，即可在地圖查看依序排列的站點與旅遊動線。</p>
         </div>
         <div class="map-workspace">
           <div class="map-panel">
@@ -371,7 +368,6 @@
               <div class="content-filter" id="map-point-filter" hidden></div>
               <span class="entry-count" id="map-point-count">0 個地點</span>
             </div>
-            <p class="map-sidebar-lead">足跡是你去過的每一趟出遊，可以有好幾站和照片。把幾趟足跡串起來分享給別人，就是「行程」。</p>
             <div class="map-points" id="map-points" aria-live="polite">
               <div class="module-empty">登入後載入你的足跡。</div>
             </div>
@@ -383,7 +379,6 @@
       <section class="app-view module-view" id="trips-view" hidden aria-labelledby="trips-title">
         <div class="module-heading">
           <h1 id="trips-title">行程</h1>
-          <p>行程是把幾趟足跡串成的路線，分享給別人參考。看到喜歡的，可以收藏、存到自己的足跡，或直接用來揪團。</p>
         </div>
         <div class="trip-layout">
           <div>
@@ -409,7 +404,6 @@
             </label>
             <div>
               <span class="compact-field">選擇加入的足跡</span>
-              <p class="privacy-note">行程由你的足跡組成，照順序勾選要放進來的幾趟。</p>
               <button class="small-action" id="trip-add-footprint" type="button">＋ 新增足跡</button>
               <div class="trip-point-list" id="trip-point-options">
                 <span class="privacy-note">登入後載入足跡。</span>
@@ -423,7 +417,6 @@
                 <option value="private">私密：只有自己</option>
               </select>
             </label>
-            <p class="privacy-note">別人只會看到行程裡他們有權限看的足跡。</p>
             <div class="trip-form-actions">
               <button class="primary-button" id="trip-submit" type="submit">建立行程</button>
               <button class="secondary-button" id="trip-cancel-edit" type="button">取消</button>
@@ -438,7 +431,6 @@
           <div class="dialog-heading">
             <div>
               <h2 id="map-point-dialog-title">新增足跡</h2>
-              <p id="map-point-dialog-description">照順序記下這趟走過的地方，一站也可以。</p>
             </div>
             <button class="icon-button" id="map-point-dismiss" type="button" aria-label="關閉視窗">×</button>
           </div>
@@ -472,7 +464,6 @@
               <option value="public">公開</option>
             </select>
           </label>
-          <p class="privacy-note">摯友足跡只會顯示給追蹤者中已獲作者允許的人；公開行程僅分享公開足跡。</p>
           <p class="status-message" id="map-form-status" role="status"></p>
           <div class="map-point-form-actions">
             <button class="route-point-remove" id="map-point-delete" type="button" hidden>刪除這趟足跡</button>
@@ -488,7 +479,6 @@
         <div class="dialog-heading">
           <div>
             <h2 id="meetup-form-title">發起揪團</h2>
-            <p>所有人都看得到，最多 10 人。</p>
           </div>
           <button class="icon-button" id="meetup-dismiss" type="button" aria-label="關閉視窗">×</button>
         </div>
@@ -577,7 +567,6 @@
         <div class="dialog-heading settings-heading">
           <div>
             <h2 id="settings-title">設定</h2>
-            <p>變更會立即套用，登入時也會同步到你的帳號。</p>
           </div>
           <button class="icon-button" id="settings-dismiss" type="button" aria-label="關閉設定">×</button>
         </div>
@@ -736,7 +725,6 @@
         <div class="dialog-heading">
           <div>
             <h2 id="notifications-title">通知</h2>
-            <p>你的揪團有人參加、退出或留言時，會在這裡告訴你。</p>
           </div>
           <button class="icon-button" id="notifications-dismiss" type="button" aria-label="關閉通知">×</button>
         </div>
@@ -759,7 +747,6 @@
         </section>
         <section class="meetup-room-section" aria-labelledby="meetup-room-board-title">
           <h3 id="meetup-room-board-title">留言</h3>
-          <p class="privacy-note">只有參加的人看得到。可以在這裡約集合地點、要帶什麼。</p>
           <ol class="meetup-comments" id="meetup-room-comments"></ol>
           <form class="meetup-comment-form" id="meetup-comment-form">
             <textarea id="meetup-comment-input" name="body" aria-label="留言" rows="1" maxlength="500" placeholder="例如：我九點到" required></textarea>
@@ -792,7 +779,6 @@
         <div class="dialog-heading">
           <div>
             <h2 id="profile-edit-title">編輯個人檔案</h2>
-            <p>更新你的頭貼、帳號 ID、顯示名稱與個人簡介。</p>
           </div>
           <button class="icon-button" id="profile-edit-dismiss" type="button" aria-label="關閉編輯個人檔案">×</button>
         </div>
@@ -839,7 +825,6 @@
         <div class="dialog-heading">
           <div>
             <h2 id="profile-social-title">社群名單</h2>
-            <p id="profile-social-description">查看粉絲與追蹤中的帳號。</p>
           </div>
           <button class="icon-button" id="profile-social-close" type="button" aria-label="關閉社群名單">×</button>
         </div>
@@ -852,7 +837,6 @@
         <div class="dialog-heading">
           <div>
             <h2 id="dialog-title">寫日記</h2>
-            <p>把今天值得記住的片刻收藏起來。</p>
           </div>
           <button class="icon-button" id="dismiss-dialog" type="button" aria-label="關閉視窗">
             ×
@@ -911,7 +895,6 @@
         <div class="dialog-heading">
           <div>
             <h2 id="login-title">登入生活記錄</h2>
-            <p id="login-description">登入後即可管理你的日記、足跡與行程。</p>
           </div>
           <button class="icon-button" id="login-dismiss" type="button" aria-label="關閉登入視窗">×</button>
         </div>
